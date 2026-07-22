@@ -1,4 +1,3 @@
-// Короткий код (RU, EN, ...) выводим из `code`, отдельного поля не держим.
 export const LANGUAGES = [
   { code: 'en', label: 'English' },
   { code: 'ru', label: 'Русский' },
@@ -314,7 +313,6 @@ export function translate(lang: LanguageCode, key: string, params?: TranslatePar
   return str;
 }
 
-/** Форматирует минуты как «2 ч 15 мин» / «2h 15m» на выбранном языке. */
 export function formatHm(totalMinutes: number, lang: LanguageCode): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;

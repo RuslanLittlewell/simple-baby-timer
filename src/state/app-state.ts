@@ -30,7 +30,6 @@ export const FEEDING_MIN = 5;
 export const FEEDING_MAX = 60;
 export const FEEDING_STEP = 5;
 
-/** Настройки — единственное, что переживает перезапуск. */
 type Settings = {
   sleepMinutes: number;
   awakeMinutes: number;
@@ -50,7 +49,6 @@ const clampTimer = (value: number) =>
 const clampFeeding = (value: number) =>
   Math.min(FEEDING_MAX, Math.max(FEEDING_MIN, Math.round(value / FEEDING_STEP) * FEEDING_STEP));
 
-/** Значение из хранилища может быть любым — мусор заменяем дефолтом. */
 const pickNumber = (value: unknown, clamp: (n: number) => number, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? clamp(value) : fallback;
 
@@ -60,19 +58,12 @@ export type Session = {
   reminderId: string | null;
 } | null;
 
-/**
- * Две независимые дорожки. Сон и бодрствование исключают друг друга и живут в
- * `session`, кормление идёт параллельно в `feeding` и основной режим не прерывает.
- */
 const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
 
 type AppStore = Settings & {
-  /** Счётчик правок журнала — календарь перечитывает сессии при его изменении. */
   dataVersion: number;
-  /** Основной режим: сон или бодрствование. */
   session: Session;
-  /** Кормление — идёт поверх основного режима, само по себе. */
   feeding: Session;
   setSleepMinutes: (value: number) => void;
   setAwakeMinutes: (value: number) => void;
@@ -80,14 +71,9 @@ type AppStore = Settings & {
   setLanguage: (code: LanguageCode) => void;
   startActivity: (kind: ActivityKind) => Promise<void>;
   stopActivity: (kind: ActivityKind) => Promise<void>;
-  /** Разовая отметка (какашки, подгузник) — пишется сразу, таймер не заводит. */
   logEvent: (kind: EventKind) => Promise<void>;
 };
 
-/**
- * До zustand настройки лежали в том же ключе плоским объектом. Заворачиваем их
- * в формат persist как версию 0, чтобы у существующих пользователей ничего не сбросилось.
- */
 const storage: PersistStorage<Settings> = {
   getItem: async (name) => {
     const raw = await AsyncStorage.getItem(name);
@@ -104,7 +90,6 @@ const storage: PersistStorage<Settings> = {
   removeItem: (name) => AsyncStorage.removeItem(name),
 };
 
-/** Ещё более старый формат хранил часы, а не минуты. */
 type LegacySettings = Partial<Settings> & { sleepHours?: number; awakeHours?: number };
 
 let autoStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -115,11 +100,9 @@ const clearAutoStop = () => {
   }
 };
 
-/** Пишет завершённую сессию в журнал. Слишком короткие (<1с) отбрасываем. */
 async function finalizeSession(current: NonNullable<Session>, feedingMinutes: number) {
   let end = Date.now();
   if (current.kind === 'feeding') {
-    // Кормление не может «висеть» дольше лимита, даже если приложение было в фоне.
     const limitEnd = current.startedAt + feedingMinutes * 60_000;
     if (end > limitEnd) end = limitEnd;
   }
@@ -133,7 +116,6 @@ async function finalizeSession(current: NonNullable<Session>, feedingMinutes: nu
   useAppStore.setState((state) => ({ dataVersion: state.dataVersion + 1 }));
 }
 
-/** Подписи для Live Activity: название активности и время её старта. */
 const pad2 = (n: number) => String(n).padStart(2, '0');
 function liveActivityLabels(language: LanguageCode, kind: ActivityKind, startedAt: number) {
   const at = new Date(startedAt);
@@ -162,8 +144,6 @@ export const useAppStore = create<AppStore>()(
         const track = trackOf(kind);
         const { sleepMinutes, awakeMinutes, feedingMinutes, language } = get();
 
-        // Завершаем только свою дорожку: кормление не трогает сон/бодрствование,
-        // а смена сна на бодрствование не сбивает идущее кормление.
         const prev = get()[track];
         if (prev) {
           if (track === 'feeding') clearAutoStop();
@@ -172,11 +152,9 @@ export const useAppStore = create<AppStore>()(
         }
 
         const startedAt = Date.now();
-        // Один лимит на всё: и уведомление, и отсчёт в островке — чтобы не разъезжались.
         const limitMinutes =
           kind === 'sleep' ? sleepMinutes : kind === 'awake' ? awakeMinutes : feedingMinutes;
 
-        // Островок заводим сразу, не дожидаясь запроса разрешений на уведомления.
         startLiveActivity(
           track,
           kind,
@@ -193,7 +171,6 @@ export const useAppStore = create<AppStore>()(
         );
 
         if (track === 'feeding') {
-          // Кормление останавливает себя само по истечении лимита.
           autoStopTimer = setTimeout(() => {
             const current = get().feeding;
             if (current?.startedAt !== startedAt) return;
@@ -218,8 +195,6 @@ export const useAppStore = create<AppStore>()(
       },
 
       logEvent: async (kind) => {
-        // Момент нажатия и есть событие; на шкале растягиваем на фиксированные 5 минут,
-        // иначе блок нулевой длины было бы не разглядеть и не нажать.
         const start = Date.now();
         await saveSession({
           id: `${start}-${kind}`,
@@ -234,7 +209,6 @@ export const useAppStore = create<AppStore>()(
       name: STORAGE_KEY,
       storage,
       version: 1,
-      // Сессия живёт только в памяти — на диск идут одни настройки.
       partialize: ({ sleepMinutes, awakeMinutes, feedingMinutes, language }) => ({
         sleepMinutes,
         awakeMinutes,
@@ -251,7 +225,6 @@ export const useAppStore = create<AppStore>()(
           awakeMinutes: legacy.awakeMinutes ?? (legacy.awakeHours ?? NaN) * 60,
         } as Settings;
       },
-      // Единственное место, где приземляются значения с диска, — здесь и чистим.
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<Settings>;
         return {
@@ -266,10 +239,6 @@ export const useAppStore = create<AppStore>()(
   ),
 );
 
-/**
- * Перевод, привязанный к текущему языку. Отдельным хуком, а не полем стора:
- * так подписка идёт только на `language`, и `t` меняет ссылку только вместе с ним.
- */
 export function useT() {
   const language = useAppStore((state) => state.language);
   return useCallback(
@@ -280,9 +249,6 @@ export function useT() {
 
 configureNotificationHandler();
 
-// Возврат в приложение: если кормление уже превысило лимит в фоне — завершаем.
-// Fast Refresh переисполняет модуль, поэтому старую подписку снимаем через globalThis:
-// без этого в дев-режиме накапливаются дубли и сессия сохраняется по нескольку раз.
 const globalScope = globalThis as typeof globalThis & {
   __babytimerAppStateSub?: { remove: () => void };
 };

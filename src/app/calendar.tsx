@@ -46,11 +46,6 @@ const GUTTER = 52;
 const NOW_COLOR = '#FF3B30';
 const DANGER_COLOR = '#FF6B6B';
 
-/**
- * Режимы сетки. `step` — шаг делений в минутах, `hourHeight` подобрана так, чтобы
- * между соседними делениями оставалось ~22–40px и подписи не слипались.
- * Между режимами только переключаемся: промежуточных значений нет.
- */
 const ZOOM_MODES = [
   { step: 60, hourHeight: 40 },
   { step: 30, hourHeight: 60 },
@@ -59,19 +54,11 @@ const ZOOM_MODES = [
   { step: 5, hourHeight: 264 },
 ];
 const DEFAULT_ZOOM = 2;
-/** Во сколько раз надо развести пальцы, чтобы перескочить на соседний режим. */
 const ZOOM_STEP_RATIO = 1.45;
-/** Сколько подсказка с текущим режимом висит перед тем, как растаять. */
 const ZOOM_BADGE_HOLD = 700;
 
-/** Нижний отступ таймлайна. Нужен и в стилях, и в расчёте предела прокрутки. */
 const SCROLL_BOTTOM_PAD = Spacing.six;
 
-/**
- * Кормление и разовые отметки идут поверх сна/бодрствования, поэтому их блоки
- * на таймлайне пересекаются. Каждому виду — своя дорожка со сдвигом вправо,
- * иначе верхний блок просто закрыл бы собой нижний.
- */
 const LANES: Record<SessionKind, number> = {
   sleep: 0,
   awake: 0,
@@ -82,20 +69,9 @@ const LANES: Record<SessionKind, number> = {
 const LANE_INSET = 40;
 const laneLeft = (kind: SessionKind) => GUTTER + LANES[kind] * LANE_INSET;
 
-/**
- * Разовые отметки длятся всего 5 минут: на «1 ч» это 3px, которые не видно и не нажать.
- * Поэтому им (и только им) задаём минимальную высоту отрисовки — в журнале
- * продолжительность остаётся честными пятью минутами.
- */
 const isEvent = (kind: SessionKind) => kind === 'poop' || kind === 'diaper';
 const MIN_EVENT_HEIGHT = 10;
 
-/**
- * Косая штриховка разовых отметок. Полосы — вертикальные прямоугольники со скосом:
- * так их число зависит от ширины блока, а не от размера повёрнутого поля.
- * Скос в 45° сужает полосу поперёк в √2 раз, поэтому 12/6 по горизонтали дают
- * примерно 8.5/4.2 поперёк — вдвое толще прежней прямой штриховки.
- */
 const STRIPE_PITCH = 12;
 const STRIPE_THICKNESS = 6;
 const STRIPE_SKEW = '-45deg';
@@ -147,11 +123,6 @@ const parseTime = (value: string) => {
 
 type Translate = (key: string, params?: TranslateParams) => string;
 
-/**
- * Сетка суток: часовые линии, часовые подписи и деления текущего режима.
- * Вынесена в memo не ради красоты — она зависит только от зума и темы, а
- * перерисовывать эти сотни View на каждом тике «сейчас» и было тем дёрганьем.
- */
 const TimelineGrid = memo(function TimelineGrid({
   hourHeight,
   step,
@@ -206,7 +177,6 @@ const TimelineGrid = memo(function TimelineGrid({
   );
 });
 
-/** Сохранённые сессии дня. Тоже memo — от «сейчас» они не зависят. */
 const TimelineBlocks = memo(function TimelineBlocks({
   sessions,
   hourHeight,
@@ -221,7 +191,6 @@ const TimelineBlocks = memo(function TimelineBlocks({
   t: Translate;
 }) {
   const px = (minutes: number) => (minutes / 60) * hourHeight;
-  // По возрастанию дорожки: то, что правее, ложится поверх — так ничего не теряется.
   const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
 
   return (
@@ -238,13 +207,9 @@ const TimelineBlocks = memo(function TimelineBlocks({
         const meta = KIND_META[s.kind];
         const fg = ACTIVITY_FG[meta.gradKey];
 
-        // Разовая отметка: блок во всю ширину дорожки, но не сплошной, а в полоску —
-        // сквозь просветы видно основной блок сна или бодрствования под ним.
         if (isEvent(s.kind)) {
           const eventHeight = Math.max(spanHeight, MIN_EVENT_HEIGHT);
           const stripeColor = ACTIVITY_GRADIENTS[meta.gradKey][0];
-          // Скошенная полоса уезжает вбок на полвысоты в каждую сторону, поэтому
-          // начинаем левее нуля и добираем справа — лишнее срежет overflow.
           const blockWidth = SCREEN_WIDTH - laneLeft(s.kind) - Spacing.two;
           const stripes = Math.ceil((blockWidth + 2 * eventHeight) / STRIPE_PITCH);
 
@@ -258,8 +223,6 @@ const TimelineBlocks = memo(function TimelineBlocks({
                 { top, height: eventHeight, left: laneLeft(s.kind) },
                 pressed && styles.pressed,
               ]}>
-              {/* Полосы клипуются своим контейнером, эмодзи — нет: на низком блоке
-                  оно выше самого блока и иначе обрезалось бы. */}
               <View style={styles.eventStripes} pointerEvents="none">
                 {Array.from({ length: stripes }).map((_, i) => (
                   <View
@@ -271,7 +234,6 @@ const TimelineBlocks = memo(function TimelineBlocks({
                   />
                 ))}
               </View>
-              {/* Та же иконка, что на кнопке активности: подписи на блоке нет. */}
               <MaterialCommunityIcons name={meta.icon} size={17} color={stripeColor} />
             </Pressable>
           );
@@ -320,16 +282,11 @@ const TimelineBlocks = memo(function TimelineBlocks({
   );
 });
 
-/**
- * Подсказка с текущим режимом сетки. Всплывает при смене режима и тает сама.
- * Анимация целиком на UI-потоке, поэтому затухание не стоит ни одного рендера.
- */
 const ZoomBadge = memo(function ZoomBadge({ label, zoom }: { label: string; zoom: number }) {
   const opacity = useSharedValue(0);
   const mounted = useRef(false);
 
   useEffect(() => {
-    // На первом рендере режим не «переключался» — молчим.
     if (!mounted.current) {
       mounted.current = true;
       return;
@@ -351,7 +308,6 @@ const ZoomBadge = memo(function ZoomBadge({ label, zoom }: { label: string; zoom
   );
 });
 
-/** Ячейки месяца, неделя с понедельника. `null` — пустая ячейка. */
 function buildMonthCells(year: number, month: number): (number | null)[] {
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -388,7 +344,6 @@ export default function CalendarScreen() {
   const [milkInput, setMilkInput] = useState('');
   const [editorError, setEditorError] = useState('');
 
-  // Перечитываем сессии при смене дня или после сохранения новой активности.
   useEffect(() => {
     let alive = true;
     getSessionsForDay(shownDay).then((list) => {
@@ -399,7 +354,6 @@ export default function CalendarScreen() {
     };
   }, [shownDay, dataVersion]);
 
-  // Стабильная ссылка: иначе memo на блоках таймлайна не держит.
   const openEntryEditor = useCallback((entry: ActivitySession) => {
     setEntryToEdit(entry);
     setStartInput(fmtTime(entry.start));
@@ -416,8 +370,6 @@ export default function CalendarScreen() {
     setEditorError('');
   };
 
-  // Запись создаётся только таймером, задним числом её не восстановить,
-  // поэтому удаление спрашиваем подтверждением.
   const deleteEntry = () => {
     if (!entryToEdit) return;
     const entry = entryToEdit;
@@ -437,7 +389,6 @@ export default function CalendarScreen() {
 
   const saveEntry = async () => {
     if (!entryToEdit) return;
-    // У разовых отметок длительность фиксирована — правится только начало.
     const fixedDuration = isEvent(entryToEdit.kind);
     const startTime = parseTime(startInput);
     const endTime = fixedDuration ? startTime : parseTime(endInput);
@@ -476,8 +427,6 @@ export default function CalendarScreen() {
     closeEntryEditor();
   };
 
-  // «Сейчас» тикает раз в секунду, пока смотрим сегодняшний день — линия времени
-  // и активная сессия обновляются в реальном времени.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (view !== 'day' || !isSameDay(shownDay, today)) return;
@@ -485,21 +434,15 @@ export default function CalendarScreen() {
     return () => clearInterval(id);
   }, [view, shownDay, today]);
 
-  // Режим сетки + пинч с якорем в точке, где жест начался.
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const { step: gridStep, hourHeight } = ZOOM_MODES[zoom];
   const zoomRef = useRef(zoom);
 
-  // Пока идёт пинч, прокрутку глушим: иначе двупальцевый пан уводит якорь.
   const [pinching, setPinching] = useState(false);
   const scrollY = useRef(0);
   const viewportHeight = useRef(0);
-  // Offset, который надо выставить, как только ScrollView пересчитает высоту контента.
   const pendingScrollY = useRef<number | null>(null);
-  // Якорь: час таймлайна под пальцами на старте и его позиция на экране.
   const pinchAnchor = useRef({ hour: 0, screenY: 0 });
-  // Масштаб, от которого считаем следующий переход. Сдвигаем его на каждой ступени,
-  // и это же даёт гистерезис: сразу отыграть назад одним дрожанием пальцев нельзя.
   const pinchRefScale = useRef(1);
 
   const beginPinch = useCallback((focalY: number) => {
@@ -519,22 +462,16 @@ export default function CalendarScreen() {
       ZOOM_MODES.length - 1,
       Math.max(0, current + (ratio >= ZOOM_STEP_RATIO ? 1 : -1)),
     );
-    // На краю диапазона ступень не меняется, но точку отсчёта всё равно сдвигаем,
-    // иначе после долгого разведения пальцев обратный жест «залипает».
     pinchRefScale.current = scale;
     if (next === current) return;
     zoomRef.current = next;
 
-    // Тот же час должен остаться под пальцами: новая позиция часа в контенте
-    // минус то, на сколько он был отступлен от верха экрана.
     const height = ZOOM_MODES[next].hourHeight;
     const { hour, screenY } = pinchAnchor.current;
     const maxScroll = Math.max(0, 24 * height + SCROLL_BOTTOM_PAD - viewportHeight.current);
     const target = Math.min(maxScroll, Math.max(0, hour * height - screenY));
     pendingScrollY.current = target;
     setZoom(next);
-    // Сразу — чтобы отзывалось без лага при уменьшении; при увеличении нативный
-    // размер контента ещё старый, поэтому итог доводим в onContentSizeChange.
     scrollRef.current?.scrollTo({ y: target, animated: false });
   }, []);
 
@@ -570,7 +507,6 @@ export default function CalendarScreen() {
     setView('day');
   };
 
-  // ---- МЕСЯЧНЫЙ ВИД: выбор дня ----
   if (view === 'month') {
     const year = monthCursor.getFullYear();
     const month = monthCursor.getMonth();
@@ -645,7 +581,6 @@ export default function CalendarScreen() {
     );
   }
 
-  // ---- ДНЕВНОЙ ВИД: таймлайн ----
   const isToday = isSameDay(shownDay, today);
   const dayStartMs = new Date(
     shownDay.getFullYear(),
@@ -656,8 +591,6 @@ export default function CalendarScreen() {
   const totalHeight = 24 * hourHeight;
   const px = (minutes: number) => (minutes / 60) * hourHeight;
 
-  // Идущие сессии рисуем живыми блоками (растут до «сейчас») на сегодняшнем дне.
-  // Дорожки две, поэтому и блоков может быть два — сон/бодрствование и кормление.
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
   const liveBlocks: { kind: ActivityKind; start: number; top: number; height: number }[] = [];
   if (isToday) {
@@ -681,14 +614,12 @@ export default function CalendarScreen() {
   const completedAwakeMs = sessions
     .filter((item) => item.kind === 'awake')
     .reduce((sum, item) => sum + Math.max(0, item.end - item.start), 0);
-  // Кормление в эти итоги не идёт: оно идёт поверх основного режима, а не вместо.
   const liveMainMs = session ? Math.max(0, now - session.startedAt) : 0;
   const sleepMs = completedSleepMs + (session?.kind === 'sleep' ? liveMainMs : 0);
   const awakeMs = completedAwakeMs + (session?.kind === 'awake' ? liveMainMs : 0);
   const milkMl = sessions
     .filter((item) => item.kind === 'feeding')
     .reduce((sum, item) => sum + (item.milkMl ?? 0), 0);
-  // Разовые отметки считаем штуками, а не временем.
   const poopCount = sessions.filter((item) => item.kind === 'poop').length;
   const diaperCount = sessions.filter((item) => item.kind === 'diaper').length;
 
@@ -764,7 +695,6 @@ export default function CalendarScreen() {
                   t={t}
                 />
 
-                {/* Активные сессии (растут в реальном времени) */}
                 {liveBlocks.map((block) => {
                   const meta = KIND_META[block.kind];
                   const fg = ACTIVITY_FG[meta.gradKey];
@@ -807,7 +737,6 @@ export default function CalendarScreen() {
                   );
                 })}
 
-                {/* Линия текущего времени */}
                 {isToday && (
                   <View style={[styles.nowLine, { top: px(nowMinutes) }]} pointerEvents="none">
                     <View style={styles.nowDot} />
@@ -858,8 +787,6 @@ export default function CalendarScreen() {
                   <ThemedText style={styles.statLabel}>{t('calendar.milk')}</ThemedText>
                   <ThemedText type="smallBold">{milkMl} {t('unit.ml')}</ThemedText>
                 </View>
-                {/* Разовые отметки — только иконка и число. Подпись остаётся
-                    в accessibilityLabel, иначе VoiceOver прочитает голую цифру. */}
                 <View
                   style={styles.statRow}
                   accessible
@@ -921,7 +848,6 @@ export default function CalendarScreen() {
                       style={[styles.timeInput, { color: theme.text, backgroundColor: theme.backgroundElement }]}
                     />
                   </View>
-                  {/* Конец у разовых отметок не редактируется — он всегда старт + 5 минут. */}
                   {!editingEvent && (
                     <View style={styles.timeField}>
                       <ThemedText type="small" themeColor="textSecondary">{t('editor.end')}</ThemedText>
@@ -1075,7 +1001,6 @@ const styles = StyleSheet.create({
   eventBlock: {
     position: 'absolute',
     right: Spacing.two,
-    // Эмодзи прижато вправо и выступает за низкий блок — поэтому здесь без overflow.
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -1205,7 +1130,6 @@ const styles = StyleSheet.create({
   statLabel: {
     flex: 1,
   },
-  /** Держит число у правого края в строках без подписи. */
   statSpacer: {
     flex: 1,
   },
@@ -1255,7 +1179,6 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.35,
   },
-  // Месячный вид
   monthSafe: {
     flex: 1,
     alignItems: 'center',

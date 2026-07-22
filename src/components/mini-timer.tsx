@@ -37,7 +37,6 @@ export function MiniTimer() {
   const pathname = usePathname();
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
-  // Кормление идёт параллельно основному режиму — в пилюле показываем обе дорожки.
   const running = [session, feeding].filter((item) => item !== null);
 
   const [nowTs, setNowTs] = useState(Date.now());
@@ -48,7 +47,6 @@ export function MiniTimer() {
     return () => clearInterval(id);
   }, [session, feeding]);
 
-  // Перетаскивание.
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const startX = useSharedValue(0);
@@ -84,7 +82,6 @@ export function MiniTimer() {
     transform: [{ translateX: tx.value }, { translateY: ty.value }],
   }));
 
-  // Показываем, только когда идёт активность и мы НЕ на вкладке «Активность».
   if (running.length === 0 || pathname === '/') return null;
 
   return (
@@ -93,7 +90,6 @@ export function MiniTimer() {
       onLayout={(e) => {
         cardW.value = e.nativeEvent.layout.width;
         cardH.value = e.nativeEvent.layout.height;
-        // Стартовое положение — вверху справа (один раз, после первого замера).
         if (!positioned.current && cardW.value > 0) {
           positioned.current = true;
           tx.value = screen.width - cardW.value - 8 - BASE_LEFT;

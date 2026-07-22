@@ -2,15 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { type ActivityKind } from '@/lib/notifications';
 
-/**
- * Разовые отметки. В отличие от сна/кормления они не тикают: нажал — записалось.
- * На шкале рисуются фиксированным блоком в {@link EVENT_DURATION_MS}.
- */
 export type EventKind = 'poop' | 'diaper';
 
 export const EVENT_DURATION_MS = 5 * 60_000;
 
-/** Всё, что попадает в журнал дня: таймеры и разовые отметки. */
 export type SessionKind = ActivityKind | EventKind;
 
 export type ActivitySession = {
@@ -33,7 +28,6 @@ export function dayKeyFromDate(date: Date): string {
 
 const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
-/** Сессии за конкретный день (по дню начала), отсортированные по времени начала. */
 export async function getSessionsForDay(date: Date): Promise<ActivitySession[]> {
   try {
     const raw = await AsyncStorage.getItem(storageKey(dayKeyFromDate(date)));
@@ -45,7 +39,6 @@ export async function getSessionsForDay(date: Date): Promise<ActivitySession[]> 
   }
 }
 
-/** Добавляет завершённую сессию в день её начала. */
 export async function saveSession(session: ActivitySession): Promise<void> {
   const key = storageKey(dayKeyFromDate(new Date(session.start)));
   try {
@@ -54,11 +47,9 @@ export async function saveSession(session: ActivitySession): Promise<void> {
     list.push(session);
     await AsyncStorage.setItem(key, JSON.stringify(list));
   } catch {
-    // ошибки записи для MVP игнорируем
   }
 }
 
-/** Удаляет запись из дня, в котором она была сохранена. */
 export async function deleteSession(sessionId: string, originalDate: Date): Promise<void> {
   const key = storageKey(dayKeyFromDate(originalDate));
   const raw = await AsyncStorage.getItem(key);
@@ -68,7 +59,6 @@ export async function deleteSession(sessionId: string, originalDate: Date): Prom
   await AsyncStorage.setItem(key, JSON.stringify(list.filter((s) => s.id !== sessionId)));
 }
 
-/** Обновляет сохранённую активность в дне, где она была записана. */
 export async function updateSession(
   sessionId: string,
   originalDate: Date,

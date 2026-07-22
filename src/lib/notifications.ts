@@ -46,9 +46,6 @@ export async function scheduleActivityNotification(
     content: {
       ...message,
       sound: true,
-      // Напоминания про сон и кормление бессмысленны с опозданием, поэтому просим
-      // систему показать их сразу: timeSensitive пробивает «Фокус» и сводку
-      // уведомлений, из-за которых баннер иначе не всплывает поверх экрана.
       interruptionLevel: 'timeSensitive',
     },
     trigger: {

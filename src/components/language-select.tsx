@@ -94,7 +94,6 @@ const styles = StyleSheet.create({
     gap: 1,
     paddingLeft: Spacing.two,
     paddingRight: Spacing.one,
-    // Буквы ниже флага — добираем padding, чтобы область нажатия не съёжилась.
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
   },

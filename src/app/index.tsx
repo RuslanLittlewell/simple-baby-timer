@@ -28,11 +28,9 @@ const ACTIVITIES: Activity[] = [
   { id: 'awake', gradKey: 'awake', icon: 'white-balance-sunny' },
 ];
 
-/** Полноширинные строки: сон и бодрствование, как и было. */
 const MAIN_ACTIVITIES = ACTIVITIES.filter((a) => a.id !== 'feeding');
 const FEEDING = ACTIVITIES.find((a) => a.id === 'feeding')!;
 
-/** Второй ряд: разовые отметки по краям, кормление по центру. */
 const EVENTS: { id: EventKind; gradKey: GradKey; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { id: 'poop', gradKey: 'poop', icon: 'emoticon-poop' },
   { id: 'diaper', gradKey: 'diaper', icon: 'diaper-outline' },
@@ -55,7 +53,6 @@ export default function ActivityScreen() {
   const t = useT();
   const [nowTs, setNowTs] = useState(Date.now());
 
-  // Тикаем раз в секунду, пока идёт хоть одна из дорожек.
   useEffect(() => {
     if (!session && !feeding) return;
     setNowTs(Date.now());
@@ -65,7 +62,6 @@ export default function ActivityScreen() {
 
   const secondsSince = (from: number) => Math.max(0, Math.floor((nowTs - from) / 1000));
 
-  // Крупно показываем основной режим; если идёт только кормление — его.
   const primary = session ?? feeding;
   const active = primary ? ACTIVITIES.find((a) => a.id === primary.kind) : undefined;
   const elapsed = primary ? secondsSince(primary.startedAt) : 0;
@@ -86,7 +82,6 @@ export default function ActivityScreen() {
         </View>
 
         <View style={styles.center}>
-          {/* Таймер и активный режим */}
           <ThemedView type="backgroundElement" style={styles.status}>
             {primary && active ? (
               <>
@@ -113,7 +108,6 @@ export default function ActivityScreen() {
               </>
             )}
 
-            {/* Кормление идёт параллельно основному режиму — показываем вторым таймером */}
             {session && feeding && (
               <View style={styles.secondary}>
                 <MaterialCommunityIcons
@@ -131,7 +125,6 @@ export default function ActivityScreen() {
             )}
           </ThemedView>
 
-          {/* Активности с заливкой как на календаре */}
           <View style={styles.list}>
             {MAIN_ACTIVITIES.map((activity) => {
               const isActive = session?.kind === activity.id;
@@ -163,7 +156,6 @@ export default function ActivityScreen() {
               );
             })}
 
-            {/* Второй ряд: отметка — кормление — отметка (20 / 60 / 20) */}
             <View style={styles.eventRow}>
               {[EVENTS[0], FEEDING, EVENTS[1]].map((item) => {
                 const isFeeding = item.id === 'feeding';
@@ -305,7 +297,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     gap: Spacing.three,
   },
-  // 20 / 60 / 20 — доли задаём flex, промежутки съедает gap.
   eventNarrow: {
     flex: 2,
   },
