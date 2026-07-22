@@ -1,0 +1,290 @@
+export const LANGUAGES = [
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'ru', flag: '🇷🇺', label: 'Русский' },
+  { code: 'pl', flag: '🇵🇱', label: 'Polski' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+] as const;
+
+export type LanguageCode = (typeof LANGUAGES)[number]['code'];
+
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
+
+export function normalizeLanguage(code: unknown): LanguageCode {
+  return LANGUAGES.some((l) => l.code === code) ? (code as LanguageCode) : DEFAULT_LANGUAGE;
+}
+
+type Dict = Record<string, string>;
+
+const TRANSLATIONS: Record<LanguageCode, Dict> = {
+  en: {
+    'kind.sleep': 'Sleep',
+    'kind.feeding': 'Feeding',
+    'kind.awake': 'Awake',
+    'activity.title': 'Activity',
+    'activity.idle': 'Timer not running',
+    'activity.chooseBelow': 'Choose an activity below',
+    'activity.noteSleep': 'Reminder in {time} after start',
+    'activity.noteAwake': 'Reminder in {time} after start',
+    'activity.noteFeeding': 'Auto-stop in {n} min and a notification',
+    'settings.title': 'Settings',
+    'settings.subtitle': "Baby's individual schedule",
+    'settings.sleepTime': 'Sleep time',
+    'settings.awakeTime': 'Awake time',
+    'settings.feedingTime': 'Feeding time',
+    'settings.sleepHint':
+      'A reminder will arrive after this time from the start of sleep if the sleep timer is not stopped.',
+    'settings.awakeHint':
+      'A reminder will arrive after this time from the start of wakefulness if the baby is still awake.',
+    'settings.feedingHint':
+      'After this time the feeding timer stops itself and a notification is sent that feeding is complete.',
+    'settings.language': 'Language',
+    'unit.hours': 'h',
+    'unit.minutes': 'min',
+    'unit.ml': 'ml',
+    'calendar.title': 'Calendar',
+    'calendar.empty': 'No records for this day',
+    'calendar.now': 'now',
+    'calendar.stats': 'Daily stats',
+    'calendar.milk': 'Milk',
+    'editor.editTimes': 'Change the start and end time of the activity',
+    'editor.start': 'Start',
+    'editor.end': 'End',
+    'editor.milkAmount': 'Milk amount',
+    'editor.save': 'Save',
+    'editor.errTimeFormat': 'Enter time as HH:MM',
+    'editor.errEndAfterStart': 'End must be later than start',
+    'editor.errMilkRange': 'Milk amount must be between 1 and 5000 ml',
+    'editor.editLabel': 'Edit: {label}',
+    'notif.sleep.title': 'Still sleeping?',
+    'notif.sleep.body': 'Time to eat and play',
+    'notif.awake.title': 'Still awake?',
+    'notif.awake.body': 'The baby needs to build a routine',
+    'notif.feeding.title': 'Feeding complete',
+    'notif.feeding.body': 'I assume feeding is over — switching to awake mode',
+  },
+  ru: {
+    'kind.sleep': 'Сон',
+    'kind.feeding': 'Кормление',
+    'kind.awake': 'Бодрствование',
+    'activity.title': 'Активность',
+    'activity.idle': 'Активность не запущена',
+    'activity.chooseBelow': 'Выберите активность ниже',
+    'activity.noteSleep': 'Напоминание через {time} после начала',
+    'activity.noteAwake': 'Напоминание через {time} после начала',
+    'activity.noteFeeding': 'Автостоп через {n} мин и уведомление',
+    'settings.title': 'Настройки',
+    'settings.subtitle': 'Индивидуальный режим малыша',
+    'settings.sleepTime': 'Время сна',
+    'settings.awakeTime': 'Время бодрствования',
+    'settings.feedingTime': 'Время кормления',
+    'settings.sleepHint':
+      'Через это время после начала сна придёт напоминание, если таймер сна не выключен.',
+    'settings.awakeHint':
+      'Через это время после начала бодрствования придёт напоминание, если малыш ещё не спит.',
+    'settings.feedingHint':
+      'По истечении таймер кормления остановится сам и придёт уведомление, что кормление завершено.',
+    'settings.language': 'Язык',
+    'unit.hours': 'ч',
+    'unit.minutes': 'мин',
+    'unit.ml': 'мл',
+    'calendar.title': 'Календарь',
+    'calendar.empty': 'Нет записей за этот день',
+    'calendar.now': 'сейчас',
+    'calendar.stats': 'Статистика за день',
+    'calendar.milk': 'Молоко',
+    'editor.editTimes': 'Измените время начала и окончания активности',
+    'editor.start': 'Начало',
+    'editor.end': 'Окончание',
+    'editor.milkAmount': 'Количество молока',
+    'editor.save': 'Сохранить',
+    'editor.errTimeFormat': 'Введите время в формате ЧЧ:ММ',
+    'editor.errEndAfterStart': 'Окончание должно быть позже начала',
+    'editor.errMilkRange': 'Количество молока должно быть от 1 до 5000 мл',
+    'editor.editLabel': 'Изменить: {label}',
+    'notif.sleep.title': 'Вы ещё спите?',
+    'notif.sleep.body': 'Время кушать и играть',
+    'notif.awake.title': 'Вы ещё не спите?',
+    'notif.awake.body': 'Ребёнку надо выстраивать режим',
+    'notif.feeding.title': 'Кормление завершено',
+    'notif.feeding.body': 'Полагаю, кормление мы закончили — переходим в режим бодрствования',
+  },
+  pl: {
+    'kind.sleep': 'Sen',
+    'kind.feeding': 'Karmienie',
+    'kind.awake': 'Czuwanie',
+    'activity.title': 'Aktywność',
+    'activity.idle': 'Licznik nieaktywny',
+    'activity.chooseBelow': 'Wybierz aktywność poniżej',
+    'activity.noteSleep': 'Przypomnienie za {time} od startu',
+    'activity.noteAwake': 'Przypomnienie za {time} od startu',
+    'activity.noteFeeding': 'Auto-stop za {n} min i powiadomienie',
+    'settings.title': 'Ustawienia',
+    'settings.subtitle': 'Indywidualny rytm dziecka',
+    'settings.sleepTime': 'Czas snu',
+    'settings.awakeTime': 'Czas czuwania',
+    'settings.feedingTime': 'Czas karmienia',
+    'settings.sleepHint':
+      'Po tym czasie od początku snu przyjdzie przypomnienie, jeśli licznik snu nie zostanie wyłączony.',
+    'settings.awakeHint':
+      'Po tym czasie od początku czuwania przyjdzie przypomnienie, jeśli dziecko wciąż nie śpi.',
+    'settings.feedingHint':
+      'Po tym czasie licznik karmienia zatrzyma się sam i przyjdzie powiadomienie o zakończeniu karmienia.',
+    'settings.language': 'Język',
+    'unit.hours': 'godz.',
+    'unit.minutes': 'min',
+    'unit.ml': 'ml',
+    'calendar.title': 'Kalendarz',
+    'calendar.empty': 'Brak wpisów na ten dzień',
+    'calendar.now': 'teraz',
+    'calendar.stats': 'Statystyki dnia',
+    'calendar.milk': 'Mleko',
+    'editor.editTimes': 'Zmień czas rozpoczęcia i zakończenia aktywności',
+    'editor.start': 'Początek',
+    'editor.end': 'Koniec',
+    'editor.milkAmount': 'Ilość mleka',
+    'editor.save': 'Zapisz',
+    'editor.errTimeFormat': 'Podaj czas w formacie GG:MM',
+    'editor.errEndAfterStart': 'Koniec musi być późniejszy niż początek',
+    'editor.errMilkRange': 'Ilość mleka musi wynosić od 1 do 5000 ml',
+    'editor.editLabel': 'Edytuj: {label}',
+    'notif.sleep.title': 'Wciąż śpisz?',
+    'notif.sleep.body': 'Czas jeść i się bawić',
+    'notif.awake.title': 'Wciąż nie śpisz?',
+    'notif.awake.body': 'Dziecko musi budować rytm dnia',
+    'notif.feeding.title': 'Karmienie zakończone',
+    'notif.feeding.body': 'Zakładam, że karmienie się skończyło — przechodzimy w tryb czuwania',
+  },
+  es: {
+    'kind.sleep': 'Sueño',
+    'kind.feeding': 'Alimentación',
+    'kind.awake': 'Vigilia',
+    'activity.title': 'Actividad',
+    'activity.idle': 'Temporizador detenido',
+    'activity.chooseBelow': 'Elige una actividad abajo',
+    'activity.noteSleep': 'Recordatorio en {time} tras el inicio',
+    'activity.noteAwake': 'Recordatorio en {time} tras el inicio',
+    'activity.noteFeeding': 'Parada automática en {n} min y notificación',
+    'settings.title': 'Ajustes',
+    'settings.subtitle': 'Rutina individual del bebé',
+    'settings.sleepTime': 'Tiempo de sueño',
+    'settings.awakeTime': 'Tiempo de vigilia',
+    'settings.feedingTime': 'Tiempo de alimentación',
+    'settings.sleepHint':
+      'Pasado este tiempo desde el inicio del sueño llegará un recordatorio si el temporizador de sueño no se detiene.',
+    'settings.awakeHint':
+      'Pasado este tiempo desde el inicio de la vigilia llegará un recordatorio si el bebé sigue despierto.',
+    'settings.feedingHint':
+      'Pasado este tiempo el temporizador de alimentación se detiene solo y llega una notificación de que la alimentación ha terminado.',
+    'settings.language': 'Idioma',
+    'unit.hours': 'h',
+    'unit.minutes': 'min',
+    'unit.ml': 'ml',
+    'calendar.title': 'Calendario',
+    'calendar.empty': 'Sin registros para este día',
+    'calendar.now': 'ahora',
+    'calendar.stats': 'Estadísticas del día',
+    'calendar.milk': 'Leche',
+    'editor.editTimes': 'Cambia la hora de inicio y fin de la actividad',
+    'editor.start': 'Inicio',
+    'editor.end': 'Fin',
+    'editor.milkAmount': 'Cantidad de leche',
+    'editor.save': 'Guardar',
+    'editor.errTimeFormat': 'Introduce la hora como HH:MM',
+    'editor.errEndAfterStart': 'El fin debe ser posterior al inicio',
+    'editor.errMilkRange': 'La cantidad de leche debe estar entre 1 y 5000 ml',
+    'editor.editLabel': 'Editar: {label}',
+    'notif.sleep.title': '¿Sigues durmiendo?',
+    'notif.sleep.body': 'Hora de comer y jugar',
+    'notif.awake.title': '¿Sigues despierto?',
+    'notif.awake.body': 'El bebé necesita crear una rutina',
+    'notif.feeding.title': 'Alimentación completada',
+    'notif.feeding.body': 'Supongo que la alimentación terminó — pasamos al modo de vigilia',
+  },
+  fr: {
+    'kind.sleep': 'Sommeil',
+    'kind.feeding': 'Repas',
+    'kind.awake': 'Éveil',
+    'activity.title': 'Activité',
+    'activity.idle': 'Minuteur arrêté',
+    'activity.chooseBelow': 'Choisissez une activité ci-dessous',
+    'activity.noteSleep': 'Rappel dans {time} après le début',
+    'activity.noteAwake': 'Rappel dans {time} après le début',
+    'activity.noteFeeding': 'Arrêt auto dans {n} min et notification',
+    'settings.title': 'Réglages',
+    'settings.subtitle': 'Rythme individuel du bébé',
+    'settings.sleepTime': 'Temps de sommeil',
+    'settings.awakeTime': "Temps d'éveil",
+    'settings.feedingTime': 'Temps de repas',
+    'settings.sleepHint':
+      "Passé ce temps après le début du sommeil, un rappel arrivera si le minuteur de sommeil n'est pas arrêté.",
+    'settings.awakeHint':
+      "Passé ce temps après le début de l'éveil, un rappel arrivera si le bébé ne dort toujours pas.",
+    'settings.feedingHint':
+      "Passé ce temps, le minuteur de repas s'arrête tout seul et une notification signale la fin du repas.",
+    'settings.language': 'Langue',
+    'unit.hours': 'h',
+    'unit.minutes': 'min',
+    'unit.ml': 'ml',
+    'calendar.title': 'Calendrier',
+    'calendar.empty': 'Aucune entrée pour ce jour',
+    'calendar.now': 'maintenant',
+    'calendar.stats': 'Statistiques du jour',
+    'calendar.milk': 'Lait',
+    'editor.editTimes': "Modifiez l'heure de début et de fin de l'activité",
+    'editor.start': 'Début',
+    'editor.end': 'Fin',
+    'editor.milkAmount': 'Quantité de lait',
+    'editor.save': 'Enregistrer',
+    'editor.errTimeFormat': "Entrez l'heure au format HH:MM",
+    'editor.errEndAfterStart': 'La fin doit être après le début',
+    'editor.errMilkRange': 'La quantité de lait doit être entre 1 et 5000 ml',
+    'editor.editLabel': 'Modifier : {label}',
+    'notif.sleep.title': 'Encore en train de dormir ?',
+    'notif.sleep.body': "L'heure de manger et de jouer",
+    'notif.awake.title': 'Toujours éveillé ?',
+    'notif.awake.body': 'Bébé doit construire son rythme',
+    'notif.feeding.title': 'Repas terminé',
+    'notif.feeding.body': 'Je suppose que le repas est fini — passage en mode éveil',
+  },
+};
+
+export const WEEKDAYS_I18N: Record<LanguageCode, string[]> = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  pl: ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nie'],
+  es: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+  fr: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+};
+
+export const MONTHS_I18N: Record<LanguageCode, string[]> = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+  pl: ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'],
+  es: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+  fr: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+};
+
+export type TranslateParams = Record<string, string | number>;
+
+export function translate(lang: LanguageCode, key: string, params?: TranslateParams): string {
+  const dict = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
+  let str = dict[key] ?? TRANSLATIONS.en[key] ?? key;
+  if (params) {
+    for (const [name, value] of Object.entries(params)) {
+      str = str.split(`{${name}}`).join(String(value));
+    }
+  }
+  return str;
+}
+
+/** Форматирует минуты как «2 ч 15 мин» / «2h 15m» на выбранном языке. */
+export function formatHm(totalMinutes: number, lang: LanguageCode): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const hUnit = translate(lang, 'unit.hours');
+  const mUnit = translate(lang, 'unit.minutes');
+  if (hours && minutes) return `${hours} ${hUnit} ${minutes} ${mUnit}`;
+  if (hours) return `${hours} ${hUnit}`;
+  return `${minutes} ${mUnit}`;
+}

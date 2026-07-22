@@ -1,14 +1,19 @@
 {
   "expo": {
-    "name": "BabyTimer",
+    "name": "Simple Baby Tracker",
     "slug": "BabyTimer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "babytimer",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.littlewell.babytimer",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,6 +42,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c3e1d1c4-918b-48c0-aa30-7ea3cf7eeb7f"
+      }
     }
   }
 }
