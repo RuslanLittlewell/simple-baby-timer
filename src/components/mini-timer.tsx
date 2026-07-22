@@ -11,7 +11,7 @@ import { ACTIVITY_ACCENT } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { type ActivityKind } from '@/lib/notifications';
-import { useAppState } from '@/state/app-state';
+import { useAppStore } from '@/state/app-state';
 
 type Meta = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -35,15 +35,18 @@ export function MiniTimer() {
   const theme = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { session } = useAppState();
+  const session = useAppStore((state) => state.session);
+  const feeding = useAppStore((state) => state.feeding);
+  // Кормление идёт параллельно основному режиму — в пилюле показываем обе дорожки.
+  const running = [session, feeding].filter((item) => item !== null);
 
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => {
-    if (!session) return;
+    if (!session && !feeding) return;
     setNowTs(Date.now());
     const id = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [session]);
+  }, [session, feeding]);
 
   // Перетаскивание.
   const tx = useSharedValue(0);
@@ -82,10 +85,7 @@ export function MiniTimer() {
   }));
 
   // Показываем, только когда идёт активность и мы НЕ на вкладке «Активность».
-  if (!session || pathname === '/') return null;
-
-  const meta = META[session.kind];
-  const elapsed = Math.max(0, Math.floor((nowTs - session.startedAt) / 1000));
+  if (running.length === 0 || pathname === '/') return null;
 
   return (
     <Animated.View
@@ -101,9 +101,17 @@ export function MiniTimer() {
       }}>
       <GestureDetector gesture={gesture}>
         <ThemedView type="backgroundElement" style={styles.card}>
-          <View style={[styles.dot, { backgroundColor: ACTIVITY_ACCENT[meta.accentKey] }]} />
-          <MaterialCommunityIcons name={meta.icon} size={20} color={theme.text} />
-          <ThemedText style={styles.time}>{fmt(elapsed)}</ThemedText>
+          {running.map((item) => {
+            const meta = META[item.kind];
+            const elapsed = Math.max(0, Math.floor((nowTs - item.startedAt) / 1000));
+            return (
+              <View key={item.kind} style={styles.line}>
+                <View style={[styles.dot, { backgroundColor: ACTIVITY_ACCENT[meta.accentKey] }]} />
+                <MaterialCommunityIcons name={meta.icon} size={20} color={theme.text} />
+                <ThemedText style={styles.time}>{fmt(elapsed)}</ThemedText>
+              </View>
+            );
+          })}
         </ThemedView>
       </GestureDetector>
     </Animated.View>
@@ -118,12 +126,10 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.one,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderRadius: 999,
+    borderRadius: Spacing.four,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.15)',
     shadowColor: '#000',
@@ -131,6 +137,11 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
+  },
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   dot: {
     width: 8,

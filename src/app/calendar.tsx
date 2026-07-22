@@ -1,8 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { BlurTargetView, BlurView } from 'expo-blur';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,7 +15,14 @@ import {
   View,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -21,31 +30,88 @@ import { ThemedView } from '@/components/themed-view';
 import { ACTIVITY_ACCENT, ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { MONTHS_I18N, WEEKDAYS_I18N } from '@/i18n';
+import { MONTHS_I18N, WEEKDAYS_I18N, type TranslateParams } from '@/i18n';
 import {
+  EVENT_DURATION_MS,
+  deleteSession,
   getSessionsForDay,
   updateSession,
   type ActivitySession,
+  type SessionKind,
 } from '@/lib/activity-store';
 import { type ActivityKind } from '@/lib/notifications';
-import { useAppState } from '@/state/app-state';
+import { useAppStore, useT } from '@/state/app-state';
 
 const GUTTER = 52;
 const NOW_COLOR = '#FF3B30';
+const DANGER_COLOR = '#FF6B6B';
 
-const DEFAULT_HOUR_HEIGHT = 96;
-const MIN_HOUR_HEIGHT = 24;
-const MAX_HOUR_HEIGHT = 320;
+/**
+ * Режимы сетки. `step` — шаг делений в минутах, `hourHeight` подобрана так, чтобы
+ * между соседними делениями оставалось ~22–40px и подписи не слипались.
+ * Между режимами только переключаемся: промежуточных значений нет.
+ */
+const ZOOM_MODES = [
+  { step: 60, hourHeight: 40 },
+  { step: 30, hourHeight: 60 },
+  { step: 15, hourHeight: 96 },
+  { step: 10, hourHeight: 144 },
+  { step: 5, hourHeight: 264 },
+];
+const DEFAULT_ZOOM = 2;
+/** Во сколько раз надо развести пальцы, чтобы перескочить на соседний режим. */
+const ZOOM_STEP_RATIO = 1.45;
+/** Сколько подсказка с текущим режимом висит перед тем, как растаять. */
+const ZOOM_BADGE_HOLD = 700;
+
+/** Нижний отступ таймлайна. Нужен и в стилях, и в расчёте предела прокрутки. */
+const SCROLL_BOTTOM_PAD = Spacing.six;
+
+/**
+ * Кормление и разовые отметки идут поверх сна/бодрствования, поэтому их блоки
+ * на таймлайне пересекаются. Каждому виду — своя дорожка со сдвигом вправо,
+ * иначе верхний блок просто закрыл бы собой нижний.
+ */
+const LANES: Record<SessionKind, number> = {
+  sleep: 0,
+  awake: 0,
+  feeding: 1,
+  poop: 2,
+  diaper: 3,
+};
+const LANE_INSET = 40;
+const laneLeft = (kind: SessionKind) => GUTTER + LANES[kind] * LANE_INSET;
+
+/**
+ * Разовые отметки длятся всего 5 минут: на «1 ч» это 3px, которые не видно и не нажать.
+ * Поэтому им (и только им) задаём минимальную высоту отрисовки — в журнале
+ * продолжительность остаётся честными пятью минутами.
+ */
+const isEvent = (kind: SessionKind) => kind === 'poop' || kind === 'diaper';
+const MIN_EVENT_HEIGHT = 10;
+
+/**
+ * Косая штриховка разовых отметок. Полосы — вертикальные прямоугольники со скосом:
+ * так их число зависит от ширины блока, а не от размера повёрнутого поля.
+ * Скос в 45° сужает полосу поперёк в √2 раз, поэтому 12/6 по горизонтали дают
+ * примерно 8.5/4.2 поперёк — вдвое толще прежней прямой штриховки.
+ */
+const STRIPE_PITCH = 12;
+const STRIPE_THICKNESS = 6;
+const STRIPE_SKEW = '-45deg';
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 type KindMeta = {
   gradKey: keyof typeof ACTIVITY_GRADIENTS;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
-const KIND_META: Record<ActivityKind, KindMeta> = {
+const KIND_META: Record<SessionKind, KindMeta> = {
   sleep: { gradKey: 'sleep', icon: 'moon-waning-crescent' },
   feeding: { gradKey: 'feed', icon: 'baby-bottle-outline' },
   awake: { gradKey: 'awake', icon: 'white-balance-sunny' },
+  poop: { gradKey: 'poop', icon: 'emoticon-poop' },
+  diaper: { gradKey: 'diaper', icon: 'diaper-outline' },
 };
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -79,6 +145,212 @@ const parseTime = (value: string) => {
   return { hours, minutes };
 };
 
+type Translate = (key: string, params?: TranslateParams) => string;
+
+/**
+ * Сетка суток: часовые линии, часовые подписи и деления текущего режима.
+ * Вынесена в memo не ради красоты — она зависит только от зума и темы, а
+ * перерисовывать эти сотни View на каждом тике «сейчас» и было тем дёрганьем.
+ */
+const TimelineGrid = memo(function TimelineGrid({
+  hourHeight,
+  step,
+  hourLineColor,
+  minorLineColor,
+}: {
+  hourHeight: number;
+  step: number;
+  hourLineColor: string;
+  minorLineColor: string;
+}) {
+  const marks: { top: number; label: string }[] = [];
+  if (step < 60) {
+    for (let h = 0; h < 24; h++) {
+      for (let m = step; m < 60; m += step) {
+        marks.push({ top: ((h * 60 + m) / 60) * hourHeight, label: pad2(m) });
+      }
+    }
+  }
+
+  return (
+    <>
+      {Array.from({ length: 25 }).map((_, h) => (
+        <View
+          key={`hl-${h}`}
+          pointerEvents="none"
+          style={[styles.hourLine, { top: h * hourHeight, backgroundColor: hourLineColor }]}
+        />
+      ))}
+      {Array.from({ length: 24 }).map((_, h) => (
+        <View
+          key={`ha-${h}`}
+          pointerEvents="none"
+          style={[styles.hourLabel, { top: h * hourHeight - 8 }]}>
+          <ThemedText style={styles.hourNum}>{pad2(h)}</ThemedText>
+          <ThemedText style={styles.hourSup} themeColor="textSecondary">
+            00
+          </ThemedText>
+        </View>
+      ))}
+      {marks.map((mk) => (
+        <View key={`m-${mk.top}`} pointerEvents="none">
+          <View style={[styles.minorLine, { top: mk.top, backgroundColor: minorLineColor }]} />
+          <ThemedText
+            style={[styles.minorLabel, { top: mk.top - 8 }]}
+            themeColor="textSecondary">
+            {mk.label}
+          </ThemedText>
+        </View>
+      ))}
+    </>
+  );
+});
+
+/** Сохранённые сессии дня. Тоже memo — от «сейчас» они не зависят. */
+const TimelineBlocks = memo(function TimelineBlocks({
+  sessions,
+  hourHeight,
+  dayStartMs,
+  onEdit,
+  t,
+}: {
+  sessions: ActivitySession[];
+  hourHeight: number;
+  dayStartMs: number;
+  onEdit: (entry: ActivitySession) => void;
+  t: Translate;
+}) {
+  const px = (minutes: number) => (minutes / 60) * hourHeight;
+  // По возрастанию дорожки: то, что правее, ложится поверх — так ничего не теряется.
+  const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
+
+  return (
+    <>
+      {ordered.map((s) => {
+        const startMin = (s.start - dayStartMs) / 60000;
+        const endMin = (s.end - dayStartMs) / 60000;
+        const clampedStart = Math.max(0, Math.min(24 * 60, startMin));
+        const clampedEnd = Math.max(0, Math.min(24 * 60, endMin));
+        if (clampedEnd <= clampedStart) return null;
+
+        const top = px(clampedStart);
+        const spanHeight = px(clampedEnd) - top;
+        const meta = KIND_META[s.kind];
+        const fg = ACTIVITY_FG[meta.gradKey];
+
+        // Разовая отметка: блок во всю ширину дорожки, но не сплошной, а в полоску —
+        // сквозь просветы видно основной блок сна или бодрствования под ним.
+        if (isEvent(s.kind)) {
+          const eventHeight = Math.max(spanHeight, MIN_EVENT_HEIGHT);
+          const stripeColor = ACTIVITY_GRADIENTS[meta.gradKey][0];
+          // Скошенная полоса уезжает вбок на полвысоты в каждую сторону, поэтому
+          // начинаем левее нуля и добираем справа — лишнее срежет overflow.
+          const blockWidth = SCREEN_WIDTH - laneLeft(s.kind) - Spacing.two;
+          const stripes = Math.ceil((blockWidth + 2 * eventHeight) / STRIPE_PITCH);
+
+          return (
+            <Pressable
+              key={s.id}
+              accessibilityLabel={t('editor.editLabel', { label: t(`kind.${s.kind}`) })}
+              onPress={() => onEdit(s)}
+              style={({ pressed }) => [
+                styles.eventBlock,
+                { top, height: eventHeight, left: laneLeft(s.kind) },
+                pressed && styles.pressed,
+              ]}>
+              {/* Полосы клипуются своим контейнером, эмодзи — нет: на низком блоке
+                  оно выше самого блока и иначе обрезалось бы. */}
+              <View style={styles.eventStripes} pointerEvents="none">
+                {Array.from({ length: stripes }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.eventStripe,
+                      { left: i * STRIPE_PITCH - eventHeight, backgroundColor: stripeColor },
+                    ]}
+                  />
+                ))}
+              </View>
+              {/* Та же иконка, что на кнопке активности: подписи на блоке нет. */}
+              <MaterialCommunityIcons name={meta.icon} size={17} color={stripeColor} />
+            </Pressable>
+          );
+        }
+
+        const height = spanHeight;
+        const showText = height >= 16;
+        const showTime = height >= 34;
+
+        return (
+          <Pressable
+            key={s.id}
+            accessibilityLabel={t('editor.editLabel', { label: t(`kind.${s.kind}`) })}
+            onPress={() => onEdit(s)}
+            style={({ pressed }) => [
+              styles.block,
+              { top, height, left: laneLeft(s.kind) },
+              pressed && styles.pressed,
+            ]}>
+            <LinearGradient
+              colors={ACTIVITY_GRADIENTS[meta.gradKey]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.blockGradient}>
+              {showText && (
+                <View style={styles.blockContent}>
+                  <View style={styles.blockRow}>
+                    <MaterialCommunityIcons name={meta.icon} size={14} color={fg} />
+                    <ThemedText style={[styles.blockTitle, { color: fg }]} numberOfLines={1}>
+                      {t(`kind.${s.kind}`)}
+                      {s.kind === 'feeding' && s.milkMl ? ` · ${s.milkMl} ${t('unit.ml')}` : ''}
+                    </ThemedText>
+                  </View>
+                  {showTime && (
+                    <ThemedText style={[styles.blockTime, { color: fg }]} numberOfLines={1}>
+                      {fmtTime(s.start)}–{fmtTime(s.end)}
+                    </ThemedText>
+                  )}
+                </View>
+              )}
+            </LinearGradient>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+});
+
+/**
+ * Подсказка с текущим режимом сетки. Всплывает при смене режима и тает сама.
+ * Анимация целиком на UI-потоке, поэтому затухание не стоит ни одного рендера.
+ */
+const ZoomBadge = memo(function ZoomBadge({ label, zoom }: { label: string; zoom: number }) {
+  const opacity = useSharedValue(0);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    // На первом рендере режим не «переключался» — молчим.
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    opacity.value = withSequence(
+      withTiming(1, { duration: 110 }),
+      withDelay(ZOOM_BADGE_HOLD, withTiming(0, { duration: 260 })),
+    );
+  }, [zoom, opacity]);
+
+  const fade = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.zoomBadgeWrap, fade]}>
+      <View style={styles.zoomBadge}>
+        <ThemedText style={styles.zoomBadgeText}>{label}</ThemedText>
+      </View>
+    </Animated.View>
+  );
+});
+
 /** Ячейки месяца, неделя с понедельника. `null` — пустая ячейка. */
 function buildMonthCells(year: number, month: number): (number | null)[] {
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -91,7 +363,6 @@ function buildMonthCells(year: number, month: number): (number | null)[] {
 
 export default function CalendarScreen() {
   const theme = useTheme();
-  const blurTargetRef = useRef<View | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const didAutoScroll = useRef(false);
 
@@ -102,7 +373,11 @@ export default function CalendarScreen() {
     () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
 
-  const { dataVersion, session, language, t } = useAppState();
+  const dataVersion = useAppStore((state) => state.dataVersion);
+  const session = useAppStore((state) => state.session);
+  const feeding = useAppStore((state) => state.feeding);
+  const language = useAppStore((state) => state.language);
+  const t = useT();
   const WEEKDAYS = WEEKDAYS_I18N[language];
   const MONTHS = MONTHS_I18N[language];
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
@@ -124,13 +399,14 @@ export default function CalendarScreen() {
     };
   }, [shownDay, dataVersion]);
 
-  const openEntryEditor = (entry: ActivitySession) => {
+  // Стабильная ссылка: иначе memo на блоках таймлайна не держит.
+  const openEntryEditor = useCallback((entry: ActivitySession) => {
     setEntryToEdit(entry);
     setStartInput(fmtTime(entry.start));
     setEndInput(fmtTime(entry.end));
     setMilkInput(entry.milkMl ? String(entry.milkMl) : '');
     setEditorError('');
-  };
+  }, []);
 
   const closeEntryEditor = () => {
     setEntryToEdit(null);
@@ -140,10 +416,31 @@ export default function CalendarScreen() {
     setEditorError('');
   };
 
+  // Запись создаётся только таймером, задним числом её не восстановить,
+  // поэтому удаление спрашиваем подтверждением.
+  const deleteEntry = () => {
+    if (!entryToEdit) return;
+    const entry = entryToEdit;
+    Alert.alert(t('editor.deleteConfirm'), undefined, [
+      { text: t('editor.cancel'), style: 'cancel' },
+      {
+        text: t('editor.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          await deleteSession(entry.id, new Date(entry.start));
+          setSessions((current) => current.filter((item) => item.id !== entry.id));
+          closeEntryEditor();
+        },
+      },
+    ]);
+  };
+
   const saveEntry = async () => {
     if (!entryToEdit) return;
+    // У разовых отметок длительность фиксирована — правится только начало.
+    const fixedDuration = isEvent(entryToEdit.kind);
     const startTime = parseTime(startInput);
-    const endTime = parseTime(endInput);
+    const endTime = fixedDuration ? startTime : parseTime(endInput);
     if (!startTime || !endTime) {
       setEditorError(t('editor.errTimeFormat'));
       return;
@@ -154,10 +451,12 @@ export default function CalendarScreen() {
       originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
       startTime.hours, startTime.minutes,
     ).getTime();
-    const end = new Date(
-      originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
-      endTime.hours, endTime.minutes,
-    ).getTime();
+    const end = fixedDuration
+      ? start + EVENT_DURATION_MS
+      : new Date(
+          originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
+          endTime.hours, endTime.minutes,
+        ).getTime();
     if (end <= start) {
       setEditorError(t('editor.errEndAfterStart'));
       return;
@@ -186,35 +485,77 @@ export default function CalendarScreen() {
     return () => clearInterval(id);
   }, [view, shownDay, today]);
 
-  // Масштаб шкалы + пинч-зум.
-  const [hourHeight, setHourHeight] = useState(DEFAULT_HOUR_HEIGHT);
-  const hourHeightRef = useRef(hourHeight);
-  useEffect(() => {
-    hourHeightRef.current = hourHeight;
-  }, [hourHeight]);
-  const pinchBase = useRef(hourHeight);
+  // Режим сетки + пинч с якорем в точке, где жест начался.
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const { step: gridStep, hourHeight } = ZOOM_MODES[zoom];
+  const zoomRef = useRef(zoom);
 
-  const beginPinch = useCallback(() => {
-    pinchBase.current = hourHeightRef.current;
+  // Пока идёт пинч, прокрутку глушим: иначе двупальцевый пан уводит якорь.
+  const [pinching, setPinching] = useState(false);
+  const scrollY = useRef(0);
+  const viewportHeight = useRef(0);
+  // Offset, который надо выставить, как только ScrollView пересчитает высоту контента.
+  const pendingScrollY = useRef<number | null>(null);
+  // Якорь: час таймлайна под пальцами на старте и его позиция на экране.
+  const pinchAnchor = useRef({ hour: 0, screenY: 0 });
+  // Масштаб, от которого считаем следующий переход. Сдвигаем его на каждой ступени,
+  // и это же даёт гистерезис: сразу отыграть назад одним дрожанием пальцев нельзя.
+  const pinchRefScale = useRef(1);
+
+  const beginPinch = useCallback((focalY: number) => {
+    const base = ZOOM_MODES[zoomRef.current].hourHeight;
+    pinchAnchor.current = { hour: (scrollY.current + focalY) / base, screenY: focalY };
+    pinchRefScale.current = 1;
+    setPinching(true);
   }, []);
+
   const applyPinch = useCallback((scale: number) => {
-    const next = Math.round(
-      Math.min(MAX_HOUR_HEIGHT, Math.max(MIN_HOUR_HEIGHT, pinchBase.current * scale)),
+    const ratio = scale / pinchRefScale.current;
+    const crossed = ratio >= ZOOM_STEP_RATIO || ratio <= 1 / ZOOM_STEP_RATIO;
+    if (!crossed) return;
+
+    const current = zoomRef.current;
+    const next = Math.min(
+      ZOOM_MODES.length - 1,
+      Math.max(0, current + (ratio >= ZOOM_STEP_RATIO ? 1 : -1)),
     );
-    setHourHeight(next);
+    // На краю диапазона ступень не меняется, но точку отсчёта всё равно сдвигаем,
+    // иначе после долгого разведения пальцев обратный жест «залипает».
+    pinchRefScale.current = scale;
+    if (next === current) return;
+    zoomRef.current = next;
+
+    // Тот же час должен остаться под пальцами: новая позиция часа в контенте
+    // минус то, на сколько он был отступлен от верха экрана.
+    const height = ZOOM_MODES[next].hourHeight;
+    const { hour, screenY } = pinchAnchor.current;
+    const maxScroll = Math.max(0, 24 * height + SCROLL_BOTTOM_PAD - viewportHeight.current);
+    const target = Math.min(maxScroll, Math.max(0, hour * height - screenY));
+    pendingScrollY.current = target;
+    setZoom(next);
+    // Сразу — чтобы отзывалось без лага при уменьшении; при увеличении нативный
+    // размер контента ещё старый, поэтому итог доводим в onContentSizeChange.
+    scrollRef.current?.scrollTo({ y: target, animated: false });
   }, []);
+
+  const endPinch = useCallback(() => setPinching(false), []);
+
   const pinch = useMemo(
     () =>
       Gesture.Pinch()
-        .onStart(() => {
+        .onStart((e) => {
           'worklet';
-          runOnJS(beginPinch)();
+          runOnJS(beginPinch)(e.focalY);
         })
         .onUpdate((e) => {
           'worklet';
           runOnJS(applyPinch)(e.scale);
+        })
+        .onFinalize(() => {
+          'worklet';
+          runOnJS(endPinch)();
         }),
-    [beginPinch, applyPinch],
+    [beginPinch, applyPinch, endPinch],
   );
 
   const openMonth = () => {
@@ -315,17 +656,24 @@ export default function CalendarScreen() {
   const totalHeight = 24 * hourHeight;
   const px = (minutes: number) => (minutes / 60) * hourHeight;
 
-  // Активная сессия рисуется живым блоком (растёт до «сейчас») на сегодняшнем дне.
+  // Идущие сессии рисуем живыми блоками (растут до «сейчас») на сегодняшнем дне.
+  // Дорожки две, поэтому и блоков может быть два — сон/бодрствование и кормление.
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
-  let live: { top: number; height: number; kind: ActivityKind; start: number } | null = null;
-  if (isToday && session) {
-    const startMin = clampDayMin((session.startedAt - dayStartMs) / 60000);
-    const endMin = clampDayMin(nowMinutes);
-    if (endMin > startMin) {
-      live = { top: px(startMin), height: px(endMin) - px(startMin), kind: session.kind, start: session.startedAt };
+  const liveBlocks: { kind: ActivityKind; start: number; top: number; height: number }[] = [];
+  if (isToday) {
+    for (const item of [session, feeding]) {
+      if (!item) continue;
+      const startMin = clampDayMin((item.startedAt - dayStartMs) / 60000);
+      const endMin = clampDayMin(nowMinutes);
+      if (endMin <= startMin) continue;
+      liveBlocks.push({
+        kind: item.kind,
+        start: item.startedAt,
+        top: px(startMin),
+        height: px(endMin) - px(startMin),
+      });
     }
   }
-  const liveMeta = live ? KIND_META[live.kind] : null;
 
   const completedSleepMs = sessions
     .filter((item) => item.kind === 'sleep')
@@ -333,42 +681,23 @@ export default function CalendarScreen() {
   const completedAwakeMs = sessions
     .filter((item) => item.kind === 'awake')
     .reduce((sum, item) => sum + Math.max(0, item.end - item.start), 0);
-  const liveDurationMs = live ? Math.max(0, now - live.start) : 0;
-  const sleepMs = completedSleepMs + (live?.kind === 'sleep' ? liveDurationMs : 0);
-  const awakeMs = completedAwakeMs + (live?.kind === 'awake' ? liveDurationMs : 0);
+  // Кормление в эти итоги не идёт: оно идёт поверх основного режима, а не вместо.
+  const liveMainMs = session ? Math.max(0, now - session.startedAt) : 0;
+  const sleepMs = completedSleepMs + (session?.kind === 'sleep' ? liveMainMs : 0);
+  const awakeMs = completedAwakeMs + (session?.kind === 'awake' ? liveMainMs : 0);
   const milkMl = sessions
     .filter((item) => item.kind === 'feeding')
     .reduce((sum, item) => sum + (item.milkMl ?? 0), 0);
+  // Разовые отметки считаем штуками, а не временем.
+  const poopCount = sessions.filter((item) => item.kind === 'poop').length;
+  const diaperCount = sessions.filter((item) => item.kind === 'diaper').length;
 
-  // Шаг линий и шаг подписей подбираем отдельно, чтобы у сетки при любом зуме были
-  // подписи (линии — не ближе ~14px, подписи — не ближе ~22px, просто реже линий).
-  let minorStep = 60;
-  for (const s of [1, 5, 15, 30]) {
-    if ((s / 60) * hourHeight >= 14) {
-      minorStep = s;
-      break;
-    }
-  }
-  let labelStep = 60;
-  for (const s of [1, 5, 15, 30]) {
-    if ((s / 60) * hourHeight >= 22) {
-      labelStep = s;
-      break;
-    }
-  }
-  const minorMarks: { top: number; label: string | null }[] = [];
-  if (minorStep < 60) {
-    for (let h = 0; h < 24; h++) {
-      for (let m = minorStep; m < 60; m += minorStep) {
-        const showLabel = labelStep < 60 && m % labelStep === 0;
-        minorMarks.push({ top: px(h * 60 + m), label: showLabel ? pad2(m) : null });
-      }
-    }
-  }
+  const zoomLabel =
+    gridStep === 60 ? `1 ${t('unit.hours')}` : `${gridStep} ${t('unit.minutes')}`;
+  const editingEvent = entryToEdit ? isEvent(entryToEdit.kind) : false;
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <BlurTargetView ref={blurTargetRef} style={styles.container}>
       <ThemedView style={styles.container}>
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
           <View style={styles.header}>
@@ -399,143 +728,84 @@ export default function CalendarScreen() {
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
+              scrollEnabled={!pinching}
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                scrollY.current = e.nativeEvent.contentOffset.y;
+              }}
+              onLayout={(e) => {
+                viewportHeight.current = e.nativeEvent.layout.height;
+              }}
               onContentSizeChange={() => {
-                if (didAutoScroll.current) return;
-                didAutoScroll.current = true;
-                const targetY = isToday ? px(nowMinutes) - 140 : px(6 * 60) - 20;
-                scrollRef.current?.scrollTo({ y: Math.max(0, targetY), animated: false });
+                if (!didAutoScroll.current) {
+                  didAutoScroll.current = true;
+                  const targetY = isToday ? px(nowMinutes) - 140 : px(6 * 60) - 20;
+                  scrollRef.current?.scrollTo({ y: Math.max(0, targetY), animated: false });
+                  return;
+                }
+                const pending = pendingScrollY.current;
+                if (pending == null) return;
+                pendingScrollY.current = null;
+                scrollRef.current?.scrollTo({ y: pending, animated: false });
               }}>
               <View style={[styles.timeline, { height: totalHeight }]}>
-                {/* Часовые линии и подписи */}
-                {Array.from({ length: 25 }).map((_, h) => (
-                  <View
-                    key={`hl-${h}`}
-                    pointerEvents="none"
-                    style={[
-                      styles.hourLine,
-                      { top: h * hourHeight, backgroundColor: theme.backgroundSelected },
-                    ]}
-                  />
-                ))}
-                {Array.from({ length: 24 }).map((_, h) => (
-                  <View
-                    key={`ha-${h}`}
-                    pointerEvents="none"
-                    style={[styles.hourLabel, { top: h * hourHeight - 8 }]}>
-                    <ThemedText style={styles.hourNum}>{pad2(h)}</ThemedText>
-                    <ThemedText style={styles.hourSup} themeColor="textSecondary">
-                      00
-                    </ThemedText>
-                  </View>
-                ))}
+                <TimelineGrid
+                  hourHeight={hourHeight}
+                  step={gridStep}
+                  hourLineColor={theme.backgroundSelected}
+                  minorLineColor={theme.backgroundElement}
+                />
 
-                {/* Мелкая сетка (адаптивно по зуму) */}
-                {minorMarks.map((mk, i) => (
-                  <View key={`m-${i}`} pointerEvents="none">
-                    <View
-                      style={[
-                        styles.minorLine,
-                        { top: mk.top, backgroundColor: theme.backgroundElement },
-                      ]}
-                    />
-                    {mk.label && (
-                      <ThemedText
-                        style={[styles.minorLabel, { top: mk.top - 8 }]}
-                        themeColor="textSecondary">
-                        {mk.label}
-                      </ThemedText>
-                    )}
-                  </View>
-                ))}
+                <TimelineBlocks
+                  sessions={sessions}
+                  hourHeight={hourHeight}
+                  dayStartMs={dayStartMs}
+                  onEdit={openEntryEditor}
+                  t={t}
+                />
 
-                {/* Блоки активностей из сохранённых сессий */}
-                {sessions.map((s) => {
-                  const startMin = (s.start - dayStartMs) / 60000;
-                  const endMin = (s.end - dayStartMs) / 60000;
-                  const clampedStart = Math.max(0, Math.min(24 * 60, startMin));
-                  const clampedEnd = Math.max(0, Math.min(24 * 60, endMin));
-                  if (clampedEnd <= clampedStart) return null;
-
-                  const top = px(clampedStart);
-                  const height = px(clampedEnd) - top;
-                  const meta = KIND_META[s.kind];
+                {/* Активные сессии (растут в реальном времени) */}
+                {liveBlocks.map((block) => {
+                  const meta = KIND_META[block.kind];
                   const fg = ACTIVITY_FG[meta.gradKey];
-                  const showText = height >= 16;
-                  const showTime = height >= 34;
-
                   return (
-                    <Pressable
-                      key={s.id}
-                      accessibilityLabel={t('editor.editLabel', { label: t(`kind.${s.kind}`) })}
-                      onPress={() => openEntryEditor(s)}
-                      style={({ pressed }) => [styles.block, { top, height }, pressed && styles.pressed]}>
-                      <LinearGradient
-                        colors={ACTIVITY_GRADIENTS[meta.gradKey]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.blockGradient}>
-                        {showText && (
-                          <View style={styles.blockContent}>
-                            <View style={styles.blockRow}>
-                              <MaterialCommunityIcons name={meta.icon} size={14} color={fg} />
-                              <ThemedText
-                                style={[styles.blockTitle, { color: fg }]}
-                                numberOfLines={1}>
-                                {t(`kind.${s.kind}`)}
-                                {s.kind === 'feeding' && s.milkMl ? ` · ${s.milkMl} ${t('unit.ml')}` : ''}
-                              </ThemedText>
-                            </View>
-                            {showTime && (
-                              <ThemedText
-                                style={[styles.blockTime, { color: fg }]}
-                                numberOfLines={1}>
-                                {fmtTime(s.start)}–{fmtTime(s.end)}
-                              </ThemedText>
-                            )}
+                    <LinearGradient
+                      key={`live-${block.kind}`}
+                      colors={ACTIVITY_GRADIENTS[meta.gradKey]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.block,
+                        styles.liveBlock,
+                        {
+                          top: block.top,
+                          height: block.height,
+                          left: laneLeft(block.kind),
+                          borderColor: ACTIVITY_ACCENT[meta.gradKey],
+                        },
+                      ]}>
+                      {block.height >= 16 && (
+                        <View style={styles.blockContent}>
+                          <View style={styles.blockRow}>
+                            <MaterialCommunityIcons name={meta.icon} size={14} color={fg} />
+                            <ThemedText
+                              style={[styles.blockTitle, { color: fg }]}
+                              numberOfLines={1}>
+                              {t(`kind.${block.kind}`)}
+                            </ThemedText>
                           </View>
-                        )}
-                      </LinearGradient>
-                    </Pressable>
+                          {block.height >= 34 && (
+                            <ThemedText
+                              style={[styles.blockTime, { color: fg }]}
+                              numberOfLines={1}>
+                              {fmtTime(block.start)}–{t('calendar.now')}
+                            </ThemedText>
+                          )}
+                        </View>
+                      )}
+                    </LinearGradient>
                   );
                 })}
-
-                {/* Активная сессия (растёт в реальном времени) */}
-                {live && liveMeta && (
-                  <LinearGradient
-                    key="live"
-                    colors={ACTIVITY_GRADIENTS[liveMeta.gradKey]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[
-                      styles.block,
-                      styles.liveBlock,
-                      { top: live.top, height: live.height, borderColor: ACTIVITY_ACCENT[liveMeta.gradKey] },
-                    ]}>
-                    {live.height >= 16 && (
-                      <View style={styles.blockContent}>
-                        <View style={styles.blockRow}>
-                          <MaterialCommunityIcons
-                            name={liveMeta.icon}
-                            size={14}
-                            color={ACTIVITY_FG[liveMeta.gradKey]}
-                          />
-                          <ThemedText
-                            style={[styles.blockTitle, { color: ACTIVITY_FG[liveMeta.gradKey] }]}
-                            numberOfLines={1}>
-                            {t(`kind.${live.kind}`)}
-                          </ThemedText>
-                        </View>
-                        {live.height >= 34 && (
-                          <ThemedText
-                            style={[styles.blockTime, { color: ACTIVITY_FG[liveMeta.gradKey] }]}
-                            numberOfLines={1}>
-                            {fmtTime(live.start)}–{t('calendar.now')}
-                          </ThemedText>
-                        )}
-                      </View>
-                    )}
-                  </LinearGradient>
-                )}
 
                 {/* Линия текущего времени */}
                 {isToday && (
@@ -556,11 +826,12 @@ export default function CalendarScreen() {
             </View>
           )}
 
+          <ZoomBadge label={zoomLabel} zoom={zoom} />
+
           <Modal visible={statsVisible} transparent animationType="fade" onRequestClose={() => setStatsVisible(false)}>
             <Pressable style={styles.modalBackdrop} onPress={() => setStatsVisible(false)}>
               <BlurView
-                blurTarget={blurTargetRef}
-                blurMethod="dimezisBlurViewSdk31Plus"
+                experimentalBlurMethod="dimezisBlurView"
                 intensity={45}
                 tint="dark"
                 pointerEvents="none"
@@ -587,6 +858,16 @@ export default function CalendarScreen() {
                   <ThemedText style={styles.statLabel}>{t('calendar.milk')}</ThemedText>
                   <ThemedText type="smallBold">{milkMl} {t('unit.ml')}</ThemedText>
                 </View>
+                <View style={styles.statRow}>
+                  <MaterialCommunityIcons name="emoticon-poop" size={24} color={ACTIVITY_ACCENT.poop} />
+                  <ThemedText style={styles.statLabel}>{t('kind.poop')}</ThemedText>
+                  <ThemedText type="smallBold">{poopCount}</ThemedText>
+                </View>
+                <View style={styles.statRow}>
+                  <MaterialCommunityIcons name="diaper-outline" size={24} color={ACTIVITY_ACCENT.diaper} />
+                  <ThemedText style={styles.statLabel}>{t('kind.diaper')}</ThemedText>
+                  <ThemedText type="smallBold">{diaperCount}</ThemedText>
+                </View>
               </Pressable>
             </Pressable>
           </Modal>
@@ -594,8 +875,7 @@ export default function CalendarScreen() {
           <Modal visible={!!entryToEdit} transparent animationType="fade" onRequestClose={closeEntryEditor}>
             <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
               <BlurView
-                blurTarget={blurTargetRef}
-                blurMethod="dimezisBlurViewSdk31Plus"
+                experimentalBlurMethod="dimezisBlurView"
                 intensity={45}
                 tint="dark"
                 pointerEvents="none"
@@ -603,11 +883,22 @@ export default function CalendarScreen() {
               />
               <Pressable style={StyleSheet.absoluteFill} onPress={closeEntryEditor} />
               <View style={[styles.modalCard, { backgroundColor: theme.background }]}>
-                <ThemedText style={styles.modalTitle}>
-                  {entryToEdit ? t(`kind.${entryToEdit.kind}`) : t('activity.title')}
-                </ThemedText>
+                <View style={styles.modalHeader}>
+                  <ThemedText style={styles.modalTitle}>
+                    {entryToEdit ? t(`kind.${entryToEdit.kind}`) : t('activity.title')}
+                  </ThemedText>
+                  <Pressable
+                    accessibilityLabel={t('editor.delete')}
+                    onPress={deleteEntry}
+                    hitSlop={12}
+                    style={({ pressed }) => pressed && styles.pressed}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={24} color={DANGER_COLOR} />
+                  </Pressable>
+                </View>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {t('editor.editTimes')}
+                  {editingEvent
+                    ? t('editor.editStart', { n: EVENT_DURATION_MS / 60000 })
+                    : t('editor.editTimes')}
                 </ThemedText>
                 <View style={styles.timeFields}>
                   <View style={styles.timeField}>
@@ -622,18 +913,21 @@ export default function CalendarScreen() {
                       style={[styles.timeInput, { color: theme.text, backgroundColor: theme.backgroundElement }]}
                     />
                   </View>
-                  <View style={styles.timeField}>
-                    <ThemedText type="small" themeColor="textSecondary">{t('editor.end')}</ThemedText>
-                    <TextInput
-                      value={endInput}
-                      onChangeText={(value) => { setEndInput(normalizeTimeInput(value)); setEditorError(''); }}
-                      keyboardType="number-pad"
-                      maxLength={5}
-                      placeholder="00:00"
-                      placeholderTextColor={theme.textSecondary}
-                      style={[styles.timeInput, { color: theme.text, backgroundColor: theme.backgroundElement }]}
-                    />
-                  </View>
+                  {/* Конец у разовых отметок не редактируется — он всегда старт + 5 минут. */}
+                  {!editingEvent && (
+                    <View style={styles.timeField}>
+                      <ThemedText type="small" themeColor="textSecondary">{t('editor.end')}</ThemedText>
+                      <TextInput
+                        value={endInput}
+                        onChangeText={(value) => { setEndInput(normalizeTimeInput(value)); setEditorError(''); }}
+                        keyboardType="number-pad"
+                        maxLength={5}
+                        placeholder="00:00"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.timeInput, { color: theme.text, backgroundColor: theme.backgroundElement }]}
+                      />
+                    </View>
+                  )}
                 </View>
                 {entryToEdit?.kind === 'feeding' && (
                   <>
@@ -667,7 +961,6 @@ export default function CalendarScreen() {
           </Modal>
         </SafeAreaView>
       </ThemedView>
-      </BlurTargetView>
     </GestureHandlerRootView>
   );
 }
@@ -715,7 +1008,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.six,
+    paddingBottom: SCROLL_BOTTOM_PAD,
   },
   timeline: {
     position: 'relative',
@@ -771,6 +1064,27 @@ const styles = StyleSheet.create({
   liveBlock: {
     borderWidth: 2,
   },
+  eventBlock: {
+    position: 'absolute',
+    right: Spacing.two,
+    // Эмодзи прижато вправо и выступает за низкий блок — поэтому здесь без overflow.
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingRight: Spacing.two,
+  },
+  eventStripes: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  eventStripe: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: STRIPE_THICKNESS,
+    transform: [{ skewX: STRIPE_SKEW }],
+  },
   blockContent: {
     paddingHorizontal: Spacing.two,
     paddingTop: 2,
@@ -816,6 +1130,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  zoomBadgeWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomBadge: {
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  zoomBadgeText: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -838,6 +1175,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#3A3D43',
     padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.three,
   },
   modalTitle: {
@@ -893,7 +1236,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorText: {
-    color: '#FF6B6B',
+    color: DANGER_COLOR,
     fontSize: 13,
     lineHeight: 18,
   },

@@ -6,13 +6,14 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { LANGUAGES } from '@/i18n';
-import { useAppState } from '@/state/app-state';
+import { useAppStore } from '@/state/app-state';
 
 const MENU_WIDTH = 60;
 
 export function LanguageSelect() {
   const theme = useTheme();
-  const { language, setLanguage } = useAppState();
+  const language = useAppStore((state) => state.language);
+  const setLanguage = useAppStore((state) => state.setLanguage);
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState({ x: 0, y: 0, w: 0, h: 0 });
@@ -40,7 +41,7 @@ export function LanguageSelect() {
           { backgroundColor: theme.backgroundElement },
           pressed && styles.pressed,
         ]}>
-        <ThemedText style={styles.flag}>{current.flag}</ThemedText>
+        <ThemedText style={styles.code}>{current.code.toUpperCase()}</ThemedText>
         <MaterialCommunityIcons name="chevron-down" size={16} color={theme.text} />
       </Pressable>
 
@@ -71,7 +72,11 @@ export function LanguageSelect() {
                     active && { backgroundColor: theme.backgroundSelected },
                     pressed && styles.pressed,
                   ]}>
-                  <ThemedText style={styles.flag}>{lang.flag}</ThemedText>
+                  <ThemedText
+                    style={styles.code}
+                    themeColor={active ? 'text' : 'textSecondary'}>
+                    {lang.code.toUpperCase()}
+                  </ThemedText>
                 </Pressable>
               );
             })}
@@ -89,12 +94,15 @@ const styles = StyleSheet.create({
     gap: 1,
     paddingLeft: Spacing.two,
     paddingRight: Spacing.one,
-    paddingVertical: Spacing.one,
+    // Буквы ниже флага — добираем padding, чтобы область нажатия не съёжилась.
+    paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
   },
-  flag: {
-    fontSize: 22,
-    lineHeight: 28,
+  code: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   pressed: {
     opacity: 0.6,

@@ -16,7 +16,8 @@ import {
   TIMER_MAX,
   TIMER_MIN,
   TIMER_STEP,
-  useAppState,
+  useAppStore,
+  useT,
 } from '@/state/app-state';
 
 type SettingSliderProps = {
@@ -87,16 +88,14 @@ function SettingSlider({
 }
 
 export default function SettingsScreen() {
-  const {
-    sleepMinutes,
-    awakeMinutes,
-    feedingMinutes,
-    setSleepMinutes,
-    setAwakeMinutes,
-    setFeedingMinutes,
-    language,
-    t,
-  } = useAppState();
+  const sleepMinutes = useAppStore((state) => state.sleepMinutes);
+  const awakeMinutes = useAppStore((state) => state.awakeMinutes);
+  const feedingMinutes = useAppStore((state) => state.feedingMinutes);
+  const setSleepMinutes = useAppStore((state) => state.setSleepMinutes);
+  const setAwakeMinutes = useAppStore((state) => state.setAwakeMinutes);
+  const setFeedingMinutes = useAppStore((state) => state.setFeedingMinutes);
+  const language = useAppStore((state) => state.language);
+  const t = useT();
   const timerFmt = (v: number) => formatHm(v, language);
   const minutesFmt = (v: number) => `${v} ${t('unit.minutes')}`;
 
