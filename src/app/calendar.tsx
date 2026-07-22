@@ -858,14 +858,22 @@ export default function CalendarScreen() {
                   <ThemedText style={styles.statLabel}>{t('calendar.milk')}</ThemedText>
                   <ThemedText type="smallBold">{milkMl} {t('unit.ml')}</ThemedText>
                 </View>
-                <View style={styles.statRow}>
+                {/* Разовые отметки — только иконка и число. Подпись остаётся
+                    в accessibilityLabel, иначе VoiceOver прочитает голую цифру. */}
+                <View
+                  style={styles.statRow}
+                  accessible
+                  accessibilityLabel={`${t('kind.poop')}: ${poopCount}`}>
                   <MaterialCommunityIcons name="emoticon-poop" size={24} color={ACTIVITY_ACCENT.poop} />
-                  <ThemedText style={styles.statLabel}>{t('kind.poop')}</ThemedText>
+                  <View style={styles.statSpacer} />
                   <ThemedText type="smallBold">{poopCount}</ThemedText>
                 </View>
-                <View style={styles.statRow}>
+                <View
+                  style={styles.statRow}
+                  accessible
+                  accessibilityLabel={`${t('kind.diaper')}: ${diaperCount}`}>
                   <MaterialCommunityIcons name="diaper-outline" size={24} color={ACTIVITY_ACCENT.diaper} />
-                  <ThemedText style={styles.statLabel}>{t('kind.diaper')}</ThemedText>
+                  <View style={styles.statSpacer} />
                   <ThemedText type="smallBold">{diaperCount}</ThemedText>
                 </View>
               </Pressable>
@@ -1195,6 +1203,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   statLabel: {
+    flex: 1,
+  },
+  /** Держит число у правого края в строках без подписи. */
+  statSpacer: {
     flex: 1,
   },
   timeFields: {
