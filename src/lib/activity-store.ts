@@ -2,9 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { type ActivityKind } from '@/lib/notifications';
 
+/**
+ * Разовые отметки. В отличие от сна/кормления они не тикают: нажал — записалось.
+ * На шкале рисуются фиксированным блоком в {@link EVENT_DURATION_MS}.
+ */
+export type EventKind = 'poop' | 'diaper';
+
+export const EVENT_DURATION_MS = 5 * 60_000;
+
+/** Всё, что попадает в журнал дня: таймеры и разовые отметки. */
+export type SessionKind = ActivityKind | EventKind;
+
 export type ActivitySession = {
   id: string;
-  kind: ActivityKind;
+  kind: SessionKind;
   start: number;
   end: number;
 
@@ -45,6 +56,16 @@ export async function saveSession(session: ActivitySession): Promise<void> {
   } catch {
     // ошибки записи для MVP игнорируем
   }
+}
+
+/** Удаляет запись из дня, в котором она была сохранена. */
+export async function deleteSession(sessionId: string, originalDate: Date): Promise<void> {
+  const key = storageKey(dayKeyFromDate(originalDate));
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return;
+
+  const list = JSON.parse(raw) as ActivitySession[];
+  await AsyncStorage.setItem(key, JSON.stringify(list.filter((s) => s.id !== sessionId)));
 }
 
 /** Обновляет сохранённую активность в дне, где она была записана. */
