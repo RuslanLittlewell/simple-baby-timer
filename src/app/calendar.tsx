@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
@@ -201,6 +202,8 @@ const TimelineBlocks = memo(function TimelineBlocks({
         const clampedStart = Math.max(0, Math.min(24 * 60, startMin));
         const clampedEnd = Math.max(0, Math.min(24 * 60, endMin));
         if (clampedEnd <= clampedStart) return null;
+        const visibleStart = dayStartMs + clampedStart * 60000;
+        const visibleEnd = dayStartMs + clampedEnd * 60000;
 
         const top = px(clampedStart);
         const spanHeight = px(clampedEnd) - top;
@@ -269,7 +272,7 @@ const TimelineBlocks = memo(function TimelineBlocks({
                   </View>
                   {showTime && (
                     <ThemedText style={[styles.blockTime, { color: fg }]} numberOfLines={1}>
-                      {fmtTime(s.start)}–{fmtTime(s.end)}
+                      {fmtTime(visibleStart)}–{fmtTime(visibleEnd)}
                     </ThemedText>
                   )}
                 </View>
@@ -322,7 +325,8 @@ export default function CalendarScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const didAutoScroll = useRef(false);
 
-  const today = useMemo(() => new Date(), []);
+  const [today, setToday] = useState(() => new Date());
+  const todayRef = useRef(today);
   const [view, setView] = useState<'day' | 'month'>('day');
   const [shownDay, setShownDay] = useState<Date>(today);
   const [monthCursor, setMonthCursor] = useState<Date>(
@@ -343,6 +347,27 @@ export default function CalendarScreen() {
   const [endInput, setEndInput] = useState('');
   const [milkInput, setMilkInput] = useState('');
   const [editorError, setEditorError] = useState('');
+
+  const syncCurrentDate = useCallback(() => {
+    const nextToday = new Date();
+    const previousToday = todayRef.current;
+    if (!isSameDay(previousToday, nextToday)) {
+      todayRef.current = nextToday;
+      setToday(nextToday);
+      setShownDay((current) => {
+        if (!isSameDay(current, previousToday)) return current;
+        didAutoScroll.current = false;
+        return nextToday;
+      });
+      setMonthCursor((current) =>
+        current.getFullYear() === previousToday.getFullYear() &&
+        current.getMonth() === previousToday.getMonth()
+          ? new Date(nextToday.getFullYear(), nextToday.getMonth(), 1)
+          : current,
+      );
+    }
+    setNow(nextToday.getTime());
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -402,12 +427,18 @@ export default function CalendarScreen() {
       originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
       startTime.hours, startTime.minutes,
     ).getTime();
-    const end = fixedDuration
+    let end = fixedDuration
       ? start + EVENT_DURATION_MS
       : new Date(
           originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
           endTime.hours, endTime.minutes,
         ).getTime();
+    if (!fixedDuration && end < start) {
+      end = new Date(
+        originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate() + 1,
+        endTime.hours, endTime.minutes,
+      ).getTime();
+    }
     if (end <= start) {
       setEditorError(t('editor.errEndAfterStart'));
       return;
@@ -429,10 +460,16 @@ export default function CalendarScreen() {
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (view !== 'day' || !isSameDay(shownDay, today)) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [view, shownDay, today]);
+    syncCurrentDate();
+    const id = view === 'day' ? setInterval(syncCurrentDate, 1000) : undefined;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') syncCurrentDate();
+    });
+    return () => {
+      if (id) clearInterval(id);
+      subscription.remove();
+    };
+  }, [syncCurrentDate, view]);
 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const { step: gridStep, hourHeight } = ZOOM_MODES[zoom];
@@ -587,41 +624,50 @@ export default function CalendarScreen() {
     shownDay.getMonth(),
     shownDay.getDate(),
   ).getTime();
+  const dayEndMs = new Date(
+    shownDay.getFullYear(),
+    shownDay.getMonth(),
+    shownDay.getDate() + 1,
+  ).getTime();
   const nowMinutes = (now - dayStartMs) / 60000;
   const totalHeight = 24 * hourHeight;
   const px = (minutes: number) => (minutes / 60) * hourHeight;
 
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
   const liveBlocks: { kind: ActivityKind; start: number; top: number; height: number }[] = [];
-  if (isToday) {
-    for (const item of [session, feeding]) {
-      if (!item) continue;
-      const startMin = clampDayMin((item.startedAt - dayStartMs) / 60000);
-      const endMin = clampDayMin(nowMinutes);
-      if (endMin <= startMin) continue;
-      liveBlocks.push({
-        kind: item.kind,
-        start: item.startedAt,
-        top: px(startMin),
-        height: px(endMin) - px(startMin),
-      });
-    }
+  for (const item of [session, feeding]) {
+    if (!item || item.startedAt >= dayEndMs || now <= dayStartMs) continue;
+    const startMin = clampDayMin((item.startedAt - dayStartMs) / 60000);
+    const endMin = clampDayMin(nowMinutes);
+    if (endMin <= startMin) continue;
+    liveBlocks.push({
+      kind: item.kind,
+      start: item.startedAt,
+      top: px(startMin),
+      height: px(endMin) - px(startMin),
+    });
   }
 
+  const durationInShownDay = (start: number, end: number) =>
+    Math.max(0, Math.min(end, dayEndMs) - Math.max(start, dayStartMs));
   const completedSleepMs = sessions
     .filter((item) => item.kind === 'sleep')
-    .reduce((sum, item) => sum + Math.max(0, item.end - item.start), 0);
+    .reduce((sum, item) => sum + durationInShownDay(item.start, item.end), 0);
   const completedAwakeMs = sessions
     .filter((item) => item.kind === 'awake')
-    .reduce((sum, item) => sum + Math.max(0, item.end - item.start), 0);
-  const liveMainMs = session ? Math.max(0, now - session.startedAt) : 0;
+    .reduce((sum, item) => sum + durationInShownDay(item.start, item.end), 0);
+  const liveMainMs = session ? durationInShownDay(session.startedAt, now) : 0;
   const sleepMs = completedSleepMs + (session?.kind === 'sleep' ? liveMainMs : 0);
   const awakeMs = completedAwakeMs + (session?.kind === 'awake' ? liveMainMs : 0);
   const milkMl = sessions
-    .filter((item) => item.kind === 'feeding')
+    .filter((item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs)
     .reduce((sum, item) => sum + (item.milkMl ?? 0), 0);
-  const poopCount = sessions.filter((item) => item.kind === 'poop').length;
-  const diaperCount = sessions.filter((item) => item.kind === 'diaper').length;
+  const poopCount = sessions.filter(
+    (item) => item.kind === 'poop' && item.start >= dayStartMs && item.start < dayEndMs,
+  ).length;
+  const diaperCount = sessions.filter(
+    (item) => item.kind === 'diaper' && item.start >= dayStartMs && item.start < dayEndMs,
+  ).length;
 
   const zoomLabel =
     gridStep === 60 ? `1 ${t('unit.hours')}` : `${gridStep} ${t('unit.minutes')}`;
