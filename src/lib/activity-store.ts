@@ -79,13 +79,32 @@ export async function updateSession(
   originalDate: Date,
   updates: Pick<ActivitySession, 'start' | 'end'> & { milkMl?: number },
 ): Promise<void> {
-  const key = storageKey(dayKeyFromDate(originalDate));
-  const raw = await AsyncStorage.getItem(key);
-  if (!raw) return;
+  const oldKey = storageKey(dayKeyFromDate(originalDate));
+  const newKey = storageKey(dayKeyFromDate(new Date(updates.start)));
 
+  const raw = await AsyncStorage.getItem(oldKey);
+  if (!raw) return;
   const list = JSON.parse(raw) as ActivitySession[];
-  const next = list.map((session) =>
-    session.id === sessionId ? { ...session, ...updates } : session,
-  ).sort((a, b) => a.start - b.start);
-  await AsyncStorage.setItem(key, JSON.stringify(next));
+  const existing = list.find((session) => session.id === sessionId);
+  if (!existing) return;
+  const updated = { ...existing, ...updates };
+
+  if (newKey === oldKey) {
+    const next = list
+      .map((session) => (session.id === sessionId ? updated : session))
+      .sort((a, b) => a.start - b.start);
+    await AsyncStorage.setItem(oldKey, JSON.stringify(next));
+    return;
+  }
+
+  // Start moved to another day — relocate the entry to that day's bucket.
+  await AsyncStorage.setItem(
+    oldKey,
+    JSON.stringify(list.filter((session) => session.id !== sessionId)),
+  );
+  const targetRaw = await AsyncStorage.getItem(newKey);
+  const targetList: ActivitySession[] = targetRaw ? JSON.parse(targetRaw) : [];
+  targetList.push(updated);
+  targetList.sort((a, b) => a.start - b.start);
+  await AsyncStorage.setItem(newKey, JSON.stringify(targetList));
 }
