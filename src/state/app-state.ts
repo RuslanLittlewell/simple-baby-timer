@@ -11,7 +11,13 @@ import {
   type LanguageCode,
   type TranslateParams,
 } from '@/i18n';
-import { EVENT_DURATION_MS, saveSession, type EventKind } from '@/lib/activity-store';
+import {
+  EVENT_DURATION_MS,
+  claimUnownedSessions,
+  saveSession,
+  type ActivitySession,
+  type EventKind,
+} from '@/lib/activity-store';
 import {
   MAX_CHILDREN,
   isChildGradientKey,
@@ -19,6 +25,13 @@ import {
   type ChildGradientKey,
 } from '@/lib/children';
 import { startLiveActivity, stopLiveActivity } from '@/lib/live-activity';
+import {
+  clearLiveSession,
+  enqueueSessionUpsert,
+  pushLiveSession,
+  type LiveTrack,
+  type RemoteChild,
+} from '@/lib/sync';
 import {
   cancelReminder,
   configureNotificationHandler,
@@ -66,6 +79,10 @@ const sanitizeChildren = (value: unknown): Child[] => {
         typeof (item as Child).name === 'string' &&
         isChildGradientKey((item as Child).gradientKey),
     )
+    .map((item) => ({
+      ...item,
+      remoteId: typeof item.remoteId === 'string' ? item.remoteId : undefined,
+    }))
     .slice(0, MAX_CHILDREN);
 };
 
@@ -81,7 +98,19 @@ export type Session = {
   kind: ActivityKind;
   startedAt: number;
   reminderId: string | null;
+  childId?: string;
+  // True once the timer was announced in live_sessions — only such timers may
+  // be cancelled locally when the partner stops them remotely.
+  livePushed?: boolean;
 } | null;
+
+// A timer running on the partner's device (from live_sessions).
+export interface RemoteLive {
+  childId: string;
+  track: LiveTrack;
+  kind: ActivityKind;
+  startedAt: number;
+}
 
 const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
@@ -90,12 +119,20 @@ type AppStore = PersistedState & {
   dataVersion: number;
   session: Session;
   feeding: Session;
+  remoteLive: RemoteLive[];
+  reconcileRemoteLive: (list: RemoteLive[]) => void;
+  stopRemoteActivity: (track: LiveTrack) => Promise<void>;
   setSleepMinutes: (value: number) => void;
   setAwakeMinutes: (value: number) => void;
   setFeedingMinutes: (value: number) => void;
   setLanguage: (code: LanguageCode) => void;
   addChild: (name: string, gradientKey: ChildGradientKey) => void;
+  addSharedChild: (name: string, gradientKey: ChildGradientKey, remoteId: string) => Child | null;
+  upsertRemoteChildren: (remote: RemoteChild[]) => void;
+  setChildRemoteId: (id: string, remoteId: string) => void;
+  removeChild: (id: string) => void;
   selectChild: (id: string) => void;
+  bumpDataVersion: () => void;
   startActivity: (kind: ActivityKind) => Promise<void>;
   stopActivity: (kind: ActivityKind) => Promise<void>;
   logEvent: (kind: EventKind) => Promise<void>;
@@ -134,13 +171,33 @@ async function finalizeSession(current: NonNullable<Session>, feedingMinutes: nu
     if (end > limitEnd) end = limitEnd;
   }
   if (end - current.startedAt < 1000) return;
-  await saveSession({
+  const session: ActivitySession = {
     id: `${current.startedAt}-${current.kind}`,
     kind: current.kind,
     start: current.startedAt,
     end,
-  });
+    childId: current.childId,
+  };
+  await saveSession(session);
+  pushSessionIfShared(session);
   useAppStore.setState((state) => ({ dataVersion: state.dataVersion + 1 }));
+}
+
+function remoteIdOfChild(childId?: string): string | undefined {
+  if (!childId) return undefined;
+  return useAppStore.getState().children.find((c) => c.id === childId)?.remoteId;
+}
+
+// Queues the session for upload when its child is linked to Supabase.
+function pushSessionIfShared(session: ActivitySession) {
+  const remoteId = remoteIdOfChild(session.childId);
+  if (remoteId) enqueueSessionUpsert(remoteId, session);
+}
+
+// Fire-and-forget removal of the live-timer row for a stopped session.
+function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
+  const remoteId = remoteIdOfChild(current.childId);
+  if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -163,24 +220,138 @@ export const useAppStore = create<AppStore>()(
       dataVersion: 0,
       session: null,
       feeding: null,
+      remoteLive: [],
+
+      // Applies the fresh live-timer list; also cancels local timers that the
+      // partner already stopped (they saved the completed record themselves).
+      reconcileRemoteLive: (list) => {
+        for (const track of ['session', 'feeding'] as const) {
+          const current = get()[track === 'feeding' ? 'feeding' : 'session'];
+          if (!current?.livePushed || !current.childId) continue;
+          const stillLive = list.some(
+            (item) =>
+              item.childId === current.childId &&
+              item.track === track &&
+              item.startedAt === current.startedAt,
+          );
+          if (stillLive) continue;
+          if (track === 'feeding') clearAutoStop();
+          stopLiveActivity(track);
+          cancelReminder(current.reminderId);
+          set(track === 'feeding' ? { feeding: null } : { session: null });
+        }
+        set({ remoteLive: list });
+      },
+
+      // Stops a timer that runs on the partner's device: saves the completed
+      // record and removes the live row so both sides converge.
+      stopRemoteActivity: async (track) => {
+        const state = get();
+        const live = state.remoteLive.find(
+          (item) => item.track === track && item.childId === state.activeChildId,
+        );
+        if (!live) return;
+        const remoteId = remoteIdOfChild(live.childId);
+
+        let end = Date.now();
+        if (live.kind === 'feeding') {
+          const limitEnd = live.startedAt + state.feedingMinutes * 60_000;
+          if (end > limitEnd) end = limitEnd;
+        }
+        if (end - live.startedAt >= 1000) {
+          const session: ActivitySession = {
+            id: `${live.startedAt}-${live.kind}`,
+            kind: live.kind,
+            start: live.startedAt,
+            end,
+            childId: live.childId,
+          };
+          await saveSession(session);
+          if (remoteId) enqueueSessionUpsert(remoteId, session);
+        }
+        if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
+        set((current) => ({
+          remoteLive: current.remoteLive.filter((item) => item !== live),
+          dataVersion: current.dataVersion + 1,
+        }));
+      },
 
       setSleepMinutes: (value) => set({ sleepMinutes: clampTimer(value) }),
       setAwakeMinutes: (value) => set({ awakeMinutes: clampTimer(value) }),
       setFeedingMinutes: (value) => set({ feedingMinutes: clampFeeding(value) }),
       setLanguage: (code) => set({ language: normalizeLanguage(code) }),
 
-      addChild: (name, gradientKey) =>
+      addChild: (name, gradientKey) => {
+        const trimmed = name.trim();
+        const state = get();
+        if (!trimmed || state.children.length >= MAX_CHILDREN) return;
+        const child: Child = { id: `${Date.now()}`, name: trimmed, gradientKey };
+        const isFirst = state.children.length === 0;
+        set({ children: [...state.children, child], activeChildId: child.id });
+        // The first child adopts the history recorded before children existed.
+        if (isFirst) claimUnownedSessions(child.id);
+      },
+
+      addSharedChild: (name, gradientKey, remoteId) => {
+        const state = get();
+        const existing = state.children.find((child) => child.remoteId === remoteId);
+        if (existing) {
+          set({ activeChildId: existing.id });
+          return existing;
+        }
+        if (state.children.length >= MAX_CHILDREN) return null;
+        const child: Child = { id: `${Date.now()}`, name: name.trim(), gradientKey, remoteId };
+        set({ children: [...state.children, child], activeChildId: child.id });
+        return child;
+      },
+
+      // Restores account children missing on this device (new device / reinstall).
+      upsertRemoteChildren: (remote) =>
         set((state) => {
-          const trimmed = name.trim();
-          if (!trimmed || state.children.length >= MAX_CHILDREN) return {};
-          const child: Child = { id: `${Date.now()}`, name: trimmed, gradientKey };
-          return { children: [...state.children, child], activeChildId: child.id };
+          const children = [...state.children];
+          let changed = false;
+          for (const item of remote) {
+            if (children.some((child) => child.remoteId === item.remoteId)) continue;
+            if (children.length >= MAX_CHILDREN) break;
+            children.push({
+              id: `${Date.now()}-${item.remoteId.slice(0, 8)}`,
+              name: item.name,
+              gradientKey: isChildGradientKey(item.gradientKey) ? item.gradientKey : 'sky',
+              remoteId: item.remoteId,
+            });
+            changed = true;
+          }
+          if (!changed) return {};
+          return {
+            children,
+            activeChildId: state.activeChildId ?? children[0]?.id ?? null,
+          };
         }),
+
+      setChildRemoteId: (id, remoteId) =>
+        set((state) => ({
+          children: state.children.map((child) =>
+            child.id === id ? { ...child, remoteId } : child,
+          ),
+        })),
 
       selectChild: (id) =>
         set((state) =>
           state.children.some((child) => child.id === id) ? { activeChildId: id } : {},
         ),
+
+      removeChild: (id) =>
+        set((state) => {
+          const children = state.children.filter((child) => child.id !== id);
+          return {
+            children,
+            activeChildId:
+              state.activeChildId === id ? (children[0]?.id ?? null) : state.activeChildId,
+            dataVersion: state.dataVersion + 1,
+          };
+        }),
+
+      bumpDataVersion: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
 
       startActivity: async (kind) => {
         const track = trackOf(kind);
@@ -189,6 +360,7 @@ export const useAppStore = create<AppStore>()(
         const prev = get()[track];
         if (prev) {
           if (track === 'feeding') clearAutoStop();
+          clearLiveIfShared(prev, track);
           await cancelReminder(prev.reminderId);
           await finalizeSession(prev, feedingMinutes);
         }
@@ -217,12 +389,31 @@ export const useAppStore = create<AppStore>()(
             const current = get().feeding;
             if (current?.startedAt !== startedAt) return;
             stopLiveActivity('feeding');
+            clearLiveIfShared(current, 'feeding');
             finalizeSession(current, get().feedingMinutes).then(() => set({ feeding: null }));
           }, limitMinutes * 60_000);
         }
 
-        const started = { kind, startedAt, reminderId };
+        const started = {
+          kind,
+          startedAt,
+          reminderId,
+          childId: get().activeChildId ?? undefined,
+        };
         set(track === 'feeding' ? { feeding: started } : { session: started });
+
+        // Announce the timer to the partner's devices.
+        const remoteChildId = remoteIdOfChild(started.childId);
+        if (remoteChildId) {
+          pushLiveSession(remoteChildId, track, kind, startedAt)
+            .then(() => {
+              const current = get()[track];
+              if (current?.startedAt !== startedAt) return;
+              const updated = { ...current, livePushed: true };
+              set(track === 'feeding' ? { feeding: updated } : { session: updated });
+            })
+            .catch(() => {});
+        }
       },
 
       stopActivity: async (kind) => {
@@ -231,6 +422,7 @@ export const useAppStore = create<AppStore>()(
         if (!current) return;
         if (track === 'feeding') clearAutoStop();
         stopLiveActivity(track);
+        clearLiveIfShared(current, track);
         await cancelReminder(current.reminderId);
         await finalizeSession(current, get().feedingMinutes);
         set(track === 'feeding' ? { feeding: null } : { session: null });
@@ -238,12 +430,15 @@ export const useAppStore = create<AppStore>()(
 
       logEvent: async (kind) => {
         const start = Date.now();
-        await saveSession({
+        const session: ActivitySession = {
           id: `${start}-${kind}`,
           kind,
           start,
           end: start + EVENT_DURATION_MS,
-        });
+          childId: get().activeChildId ?? undefined,
+        };
+        await saveSession(session);
+        pushSessionIfShared(session);
         set((state) => ({ dataVersion: state.dataVersion + 1 }));
       },
     }),
@@ -305,6 +500,12 @@ export function useT() {
 
 configureNotificationHandler();
 
+// Legacy sessions written before children existed belong to the first child.
+useAppStore.persist.onFinishHydration((state) => {
+  const first = state.children[0];
+  if (first) claimUnownedSessions(first.id);
+});
+
 const globalScope = globalThis as typeof globalThis & {
   __babytimerAppStateSub?: { remove: () => void };
 };
@@ -316,5 +517,6 @@ globalScope.__babytimerAppStateSub = RNAppState.addEventListener('change', (stat
   if (Date.now() - feeding.startedAt < feedingMinutes * 60_000) return;
   clearAutoStop();
   stopLiveActivity('feeding');
+  clearLiveIfShared(feeding, 'feeding');
   finalizeSession(feeding, feedingMinutes).then(() => useAppStore.setState({ feeding: null }));
 });
