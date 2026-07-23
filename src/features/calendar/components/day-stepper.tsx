@@ -7,6 +7,15 @@ import { Spacing } from '@/constants/theme';
 
 import { pad2, shiftDayMs, type Translate } from '../helpers';
 
+interface DayStepperProps {
+  dayMs: number;
+  weekdays: readonly string[];
+  textColor: string;
+  backgroundColor: string;
+  onChange: (next: number) => void;
+  t: Translate;
+}
+
 export const DayStepper = memo(function DayStepper({
   dayMs,
   weekdays,
@@ -14,14 +23,7 @@ export const DayStepper = memo(function DayStepper({
   backgroundColor,
   onChange,
   t,
-}: {
-  dayMs: number;
-  weekdays: readonly string[];
-  textColor: string;
-  backgroundColor: string;
-  onChange: (next: number) => void;
-  t: Translate;
-}) {
+}: DayStepperProps) {
   const d = new Date(dayMs);
   const label = `${weekdays[(d.getDay() + 6) % 7]}, ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
   return (

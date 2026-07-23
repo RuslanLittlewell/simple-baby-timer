@@ -8,25 +8,25 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-// Shared chrome for the week/month overlays: top bar (back / title / close)
-// and a centered card with prev/next navigation.
-export function OverlayShell({
-  title,
-  navLabel,
-  onBack,
-  onClose,
-  onPrev,
-  onNext,
-  children,
-}: {
-  title: string;
+interface OverlayShellProps {
   navLabel: string;
   onBack: () => void;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
   children: ReactNode;
-}) {
+}
+
+// Shared chrome for the week/month overlays: top bar (back / close)
+// and a centered card with prev/next navigation.
+export function OverlayShell({
+  navLabel,
+  onBack,
+  onClose,
+  onPrev,
+  onNext,
+  children,
+}: OverlayShellProps) {
   const theme = useTheme();
   return (
     <ThemedView style={styles.container}>
@@ -38,7 +38,6 @@ export function OverlayShell({
             style={({ pressed }) => pressed && styles.pressed}>
             <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text} />
           </Pressable>
-          <ThemedText type="subtitle">{title}</ThemedText>
           <Pressable
             onPress={onClose}
             hitSlop={12}

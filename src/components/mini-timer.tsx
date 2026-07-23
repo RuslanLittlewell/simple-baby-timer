@@ -72,7 +72,7 @@ export function MiniTimer() {
       ty.value = Math.min(Math.max(ny, minY), maxY);
     });
 
-  const goHome = () => router.navigate('/');
+  const goHome = () => router.navigate('/activity');
   const tap = Gesture.Tap().onEnd(() => {
     runOnJS(goHome)();
   });
@@ -82,7 +82,7 @@ export function MiniTimer() {
     transform: [{ translateX: tx.value }, { translateY: ty.value }],
   }));
 
-  if (running.length === 0 || pathname === '/') return null;
+  if (running.length === 0 || pathname === '/activity') return null;
 
   return (
     <Animated.View

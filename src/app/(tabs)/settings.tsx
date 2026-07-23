@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TabFade } from '@/components/tab-fade';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -20,7 +21,7 @@ import {
   useT,
 } from '@/state/app-state';
 
-type SettingSliderProps = {
+interface SettingSliderProps {
   label: string;
   hint: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -30,7 +31,7 @@ type SettingSliderProps = {
   max: number;
   step: number;
   format: (value: number) => string;
-};
+}
 
 function SettingSlider({
   label,
@@ -100,7 +101,8 @@ export default function SettingsScreen() {
   const minutesFmt = (v: number) => `${v} ${t('unit.minutes')}`;
 
   return (
-    <ThemedView style={styles.container}>
+    <TabFade>
+      <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
           style={styles.scroll}
@@ -108,13 +110,6 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}>
           <View style={styles.inner}>
-            <View style={styles.header}>
-              <ThemedText type="subtitle">{t('settings.title')}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {t('settings.subtitle')}
-              </ThemedText>
-            </View>
-
             <SettingSlider
               label={t('settings.sleepTime')}
               hint={t('settings.sleepHint')}
@@ -153,7 +148,8 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+      </ThemedView>
+    </TabFade>
   );
 }
 
@@ -170,6 +166,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.three,
     alignItems: 'center',
   },
@@ -177,11 +174,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
     gap: Spacing.four,
-  },
-  header: {
-    alignSelf: 'stretch',
-    gap: Spacing.one,
-    paddingTop: Spacing.four,
   },
   card: {
     alignSelf: 'stretch',

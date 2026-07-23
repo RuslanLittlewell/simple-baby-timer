@@ -6,10 +6,20 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
-import { useAppStore, useT } from '@/state/app-state';
+import { useAppStore } from '@/state/app-state';
 
 import { isSameDay, pad2 } from '../helpers';
 import { OverlayShell } from './overlay-shell';
+
+interface WeekViewProps {
+  weekStart: Date;
+  shownDay: Date;
+  today: Date;
+  onShiftWeek: (delta: number) => void;
+  onOpenMonth: () => void;
+  onClose: () => void;
+  onPickDay: (date: Date) => void;
+}
 
 export function WeekView({
   weekStart,
@@ -19,17 +29,8 @@ export function WeekView({
   onOpenMonth,
   onClose,
   onPickDay,
-}: {
-  weekStart: Date;
-  shownDay: Date;
-  today: Date;
-  onShiftWeek: (delta: number) => void;
-  onOpenMonth: () => void;
-  onClose: () => void;
-  onPickDay: (date: Date) => void;
-}) {
+}: WeekViewProps) {
   const theme = useTheme();
-  const t = useT();
   const language = useAppStore((state) => state.language);
   const WEEKDAYS = WEEKDAYS_I18N[language];
 
@@ -45,7 +46,6 @@ export function WeekView({
 
   return (
     <OverlayShell
-      title={t('calendar.week')}
       navLabel={rangeLabel}
       onBack={onOpenMonth}
       onClose={onClose}
