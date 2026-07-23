@@ -15,6 +15,8 @@ export type ActivitySession = {
   end: number;
 
   milkMl?: number;
+  // Absent only on legacy entries written before children existed.
+  childId?: string;
 };
 
 const PREFIX = 'babytimer.sessions.';
@@ -28,7 +30,10 @@ export function dayKeyFromDate(date: Date): string {
 
 const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
-export async function getSessionsForDay(date: Date): Promise<ActivitySession[]> {
+export async function getSessionsForDay(
+  date: Date,
+  childId?: string | null,
+): Promise<ActivitySession[]> {
   try {
     const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
     const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
@@ -48,9 +53,115 @@ export async function getSessionsForDay(date: Date): Promise<ActivitySession[]> 
 
     return sessions
       .filter((session) => session.start < dayEnd && session.end > dayStart)
+      .filter((session) => !childId || !session.childId || session.childId === childId)
       .sort((a, b) => a.start - b.start);
   } catch {
     return [];
+  }
+}
+
+export async function getAllSessionsForChild(childId: string): Promise<ActivitySession[]> {
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+  if (!keys.length) return [];
+  const storedDays = await AsyncStorage.multiGet(keys);
+  return storedDays.flatMap(([, raw]) => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as ActivitySession[];
+      return Array.isArray(parsed) ? parsed.filter((s) => s.childId === childId) : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+// One-time adoption: stamp legacy sessions (written before children existed)
+// with the given child id.
+export async function claimUnownedSessions(childId: string): Promise<void> {
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+    if (!keys.length) return;
+    const storedDays = await AsyncStorage.multiGet(keys);
+    for (const [key, raw] of storedDays) {
+      if (!raw) continue;
+      let list: ActivitySession[];
+      try {
+        list = JSON.parse(raw) as ActivitySession[];
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(list) || !list.some((s) => !s.childId)) continue;
+      const next = list.map((s) => (s.childId ? s : { ...s, childId }));
+      await AsyncStorage.setItem(key, JSON.stringify(next));
+    }
+  } catch {
+  }
+}
+
+// Removes every stored session of the given child (used when the child is
+// deleted from this device).
+export async function deleteSessionsForChild(childId: string): Promise<void> {
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+  if (!keys.length) return;
+  const storedDays = await AsyncStorage.multiGet(keys);
+  for (const [key, raw] of storedDays) {
+    if (!raw) continue;
+    let list: ActivitySession[];
+    try {
+      list = JSON.parse(raw) as ActivitySession[];
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(list)) continue;
+    const next = list.filter((session) => session.childId !== childId);
+    if (next.length === list.length) continue;
+    if (next.length) await AsyncStorage.setItem(key, JSON.stringify(next));
+    else await AsyncStorage.removeItem(key);
+  }
+}
+
+// Upsert sessions coming from sync. Handles entries that moved between day
+// buckets (start date edited remotely) and tombstoned deletions.
+export async function mergeRemoteSessions(
+  upserts: ActivitySession[],
+  deletedIds: string[],
+): Promise<void> {
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+  const storedDays = await AsyncStorage.multiGet(keys);
+  const buckets = new Map<string, ActivitySession[]>();
+  for (const [key, raw] of storedDays) {
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as ActivitySession[];
+      if (Array.isArray(parsed)) buckets.set(key, parsed);
+    } catch {
+    }
+  }
+
+  const dirty = new Set<string>();
+  const removeById = (id: string) => {
+    for (const [key, list] of buckets) {
+      const next = list.filter((s) => s.id !== id);
+      if (next.length !== list.length) {
+        buckets.set(key, next);
+        dirty.add(key);
+      }
+    }
+  };
+
+  for (const id of deletedIds) removeById(id);
+  for (const session of upserts) {
+    removeById(session.id);
+    const key = storageKey(dayKeyFromDate(new Date(session.start)));
+    const list = buckets.get(key) ?? [];
+    list.push(session);
+    list.sort((a, b) => a.start - b.start);
+    buckets.set(key, list);
+    dirty.add(key);
+  }
+
+  for (const key of dirty) {
+    await AsyncStorage.setItem(key, JSON.stringify(buckets.get(key) ?? []));
   }
 }
 
