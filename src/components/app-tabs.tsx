@@ -27,7 +27,7 @@ export default function AppTabs() {
       labelVisibilityMode="labeled"
       rippleColor={colors.backgroundSelected}
       disableTransparentOnScrollEdge>
-      <NativeTabs.Trigger name="index" disablePopToTop disableScrollToTop>
+      <NativeTabs.Trigger name="activity" disablePopToTop disableScrollToTop>
         <NativeTabs.Trigger.TabBar
           backgroundColor={colors.background}
           iconColor={tabContentColor}

@@ -36,16 +36,14 @@ import {
 import { modalStyles } from '../modal-styles';
 import { DayStepper } from './day-stepper';
 
-export function EntryEditor({
-  entry,
-  onClose,
-  onChanged,
-}: {
+interface EntryEditorProps {
   entry: ActivitySession | null;
   onClose: () => void;
   // Called after the entry was updated or deleted so the owner can reload.
   onChanged: () => void | Promise<void>;
-}) {
+}
+
+export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
   const theme = useTheme();
   const t = useT();
   const language = useAppStore((state) => state.language);

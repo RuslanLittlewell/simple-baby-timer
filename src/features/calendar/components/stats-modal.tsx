@@ -11,15 +11,13 @@ import { useT } from '@/state/app-state';
 import { formatDuration, type DayStats } from '../helpers';
 import { modalStyles } from '../modal-styles';
 
-export function StatsModal({
-  visible,
-  onClose,
-  stats,
-}: {
+interface StatsModalProps {
   visible: boolean;
   onClose: () => void;
   stats: DayStats;
-}) {
+}
+
+export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
   const theme = useTheme();
   const t = useT();
 

@@ -38,10 +38,10 @@ export const STRIPE_THICKNESS = 6;
 export const STRIPE_SKEW = '-45deg';
 export const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export type KindMeta = {
+export interface KindMeta {
   gradKey: keyof typeof ACTIVITY_GRADIENTS;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-};
+}
 
 export const KIND_META: Record<SessionKind, KindMeta> = {
   sleep: { gradKey: 'sleep', icon: 'moon-waning-crescent' },

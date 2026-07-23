@@ -3,10 +3,20 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MONTHS_I18N, WEEKDAYS_I18N } from '@/i18n';
-import { useAppStore, useT } from '@/state/app-state';
+import { useAppStore } from '@/state/app-state';
 
 import { buildMonthCells } from '../helpers';
 import { OverlayShell } from './overlay-shell';
+
+interface MonthViewProps {
+  monthCursor: Date;
+  shownDay: Date;
+  today: Date;
+  onShiftMonth: (delta: number) => void;
+  onBackToWeek: () => void;
+  onClose: () => void;
+  onPickDay: (day: number) => void;
+}
 
 export function MonthView({
   monthCursor,
@@ -16,16 +26,7 @@ export function MonthView({
   onBackToWeek,
   onClose,
   onPickDay,
-}: {
-  monthCursor: Date;
-  shownDay: Date;
-  today: Date;
-  onShiftMonth: (delta: number) => void;
-  onBackToWeek: () => void;
-  onClose: () => void;
-  onPickDay: (day: number) => void;
-}) {
-  const t = useT();
+}: MonthViewProps) {
   const language = useAppStore((state) => state.language);
   const WEEKDAYS = WEEKDAYS_I18N[language];
   const MONTHS = MONTHS_I18N[language];
@@ -37,7 +38,6 @@ export function MonthView({
 
   return (
     <OverlayShell
-      title={t('calendar.title')}
       navLabel={`${MONTHS[month]} ${year}`}
       onBack={onBackToWeek}
       onClose={onClose}

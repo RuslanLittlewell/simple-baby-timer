@@ -12,6 +12,12 @@ import {
   type TranslateParams,
 } from '@/i18n';
 import { EVENT_DURATION_MS, saveSession, type EventKind } from '@/lib/activity-store';
+import {
+  MAX_CHILDREN,
+  isChildGradientKey,
+  type Child,
+  type ChildGradientKey,
+} from '@/lib/children';
 import { startLiveActivity, stopLiveActivity } from '@/lib/live-activity';
 import {
   cancelReminder,
@@ -37,11 +43,30 @@ type Settings = {
   language: LanguageCode;
 };
 
+type PersistedState = Settings & {
+  children: Child[];
+  activeChildId: string | null;
+};
+
 const DEFAULT_SETTINGS: Settings = {
   sleepMinutes: 120,
   awakeMinutes: 120,
   feedingMinutes: 20,
   language: DEFAULT_LANGUAGE,
+};
+
+const sanitizeChildren = (value: unknown): Child[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (item): item is Child =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as Child).id === 'string' &&
+        typeof (item as Child).name === 'string' &&
+        isChildGradientKey((item as Child).gradientKey),
+    )
+    .slice(0, MAX_CHILDREN);
 };
 
 const clampTimer = (value: number) =>
@@ -61,7 +86,7 @@ export type Session = {
 const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
 
-type AppStore = Settings & {
+type AppStore = PersistedState & {
   dataVersion: number;
   session: Session;
   feeding: Session;
@@ -69,12 +94,14 @@ type AppStore = Settings & {
   setAwakeMinutes: (value: number) => void;
   setFeedingMinutes: (value: number) => void;
   setLanguage: (code: LanguageCode) => void;
+  addChild: (name: string, gradientKey: ChildGradientKey) => void;
+  selectChild: (id: string) => void;
   startActivity: (kind: ActivityKind) => Promise<void>;
   stopActivity: (kind: ActivityKind) => Promise<void>;
   logEvent: (kind: EventKind) => Promise<void>;
 };
 
-const storage: PersistStorage<Settings> = {
+const storage: PersistStorage<PersistedState> = {
   getItem: async (name) => {
     const raw = await AsyncStorage.getItem(name);
     if (!raw) return null;
@@ -131,6 +158,8 @@ export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
       ...DEFAULT_SETTINGS,
+      children: [],
+      activeChildId: null,
       dataVersion: 0,
       session: null,
       feeding: null,
@@ -139,6 +168,19 @@ export const useAppStore = create<AppStore>()(
       setAwakeMinutes: (value) => set({ awakeMinutes: clampTimer(value) }),
       setFeedingMinutes: (value) => set({ feedingMinutes: clampFeeding(value) }),
       setLanguage: (code) => set({ language: normalizeLanguage(code) }),
+
+      addChild: (name, gradientKey) =>
+        set((state) => {
+          const trimmed = name.trim();
+          if (!trimmed || state.children.length >= MAX_CHILDREN) return {};
+          const child: Child = { id: `${Date.now()}`, name: trimmed, gradientKey };
+          return { children: [...state.children, child], activeChildId: child.id };
+        }),
+
+      selectChild: (id) =>
+        set((state) =>
+          state.children.some((child) => child.id === id) ? { activeChildId: id } : {},
+        ),
 
       startActivity: async (kind) => {
         const track = trackOf(kind);
@@ -209,30 +251,44 @@ export const useAppStore = create<AppStore>()(
       name: STORAGE_KEY,
       storage,
       version: 1,
-      partialize: ({ sleepMinutes, awakeMinutes, feedingMinutes, language }) => ({
+      partialize: ({
         sleepMinutes,
         awakeMinutes,
         feedingMinutes,
         language,
+        children,
+        activeChildId,
+      }) => ({
+        sleepMinutes,
+        awakeMinutes,
+        feedingMinutes,
+        language,
+        children,
+        activeChildId,
       }),
       migrate: (persisted, version) => {
         const legacy = (persisted ?? {}) as LegacySettings;
-        if (version > 0) return legacy as Settings;
+        if (version > 0) return legacy as PersistedState;
         return {
           ...DEFAULT_SETTINGS,
           ...legacy,
           sleepMinutes: legacy.sleepMinutes ?? (legacy.sleepHours ?? NaN) * 60,
           awakeMinutes: legacy.awakeMinutes ?? (legacy.awakeHours ?? NaN) * 60,
-        } as Settings;
+        } as PersistedState;
       },
       merge: (persisted, current) => {
-        const saved = (persisted ?? {}) as Partial<Settings>;
+        const saved = (persisted ?? {}) as Partial<PersistedState>;
+        const children = sanitizeChildren(saved.children);
         return {
           ...current,
           sleepMinutes: pickNumber(saved.sleepMinutes, clampTimer, current.sleepMinutes),
           awakeMinutes: pickNumber(saved.awakeMinutes, clampTimer, current.awakeMinutes),
           feedingMinutes: pickNumber(saved.feedingMinutes, clampFeeding, current.feedingMinutes),
           language: normalizeLanguage(saved.language),
+          children,
+          activeChildId: children.some((child) => child.id === saved.activeChildId)
+            ? (saved.activeChildId ?? null)
+            : null,
         };
       },
     },

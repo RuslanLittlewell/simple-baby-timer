@@ -13,7 +13,12 @@ import { Spacing } from '@/constants/theme';
 
 import { ZOOM_BADGE_HOLD } from '../constants';
 
-export const ZoomBadge = memo(function ZoomBadge({ label, zoom }: { label: string; zoom: number }) {
+interface ZoomBadgeProps {
+  label: string;
+  zoom: number;
+}
+
+export const ZoomBadge = memo(function ZoomBadge({ label, zoom }: ZoomBadgeProps) {
   const opacity = useSharedValue(0);
   const mounted = useRef(false);
 

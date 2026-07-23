@@ -72,13 +72,13 @@ export function buildMonthCells(year: number, month: number): (number | null)[] 
   return cells;
 }
 
-export type DayStats = {
+export interface DayStats {
   sleepMs: number;
   awakeMs: number;
   milkMl: number;
   poopCount: number;
   diaperCount: number;
-};
+}
 
 export function computeDayStats(
   sessions: ActivitySession[],

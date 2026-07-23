@@ -6,17 +6,19 @@ import { ThemedText } from '@/components/themed-text';
 import { GUTTER } from '../constants';
 import { pad2 } from '../helpers';
 
+interface TimelineGridProps {
+  hourHeight: number;
+  step: number;
+  hourLineColor: string;
+  minorLineColor: string;
+}
+
 export const TimelineGrid = memo(function TimelineGrid({
   hourHeight,
   step,
   hourLineColor,
   minorLineColor,
-}: {
-  hourHeight: number;
-  step: number;
-  hourLineColor: string;
-  minorLineColor: string;
-}) {
+}: TimelineGridProps) {
   const marks: { top: number; label: string }[] = [];
   if (step < 60) {
     for (let h = 0; h < 24; h++) {

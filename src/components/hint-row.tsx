@@ -6,10 +6,10 @@ import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
 
-type HintRowProps = {
+interface HintRowProps {
   title?: string;
   hint?: ReactNode;
-};
+}
 
 export function HintRow({ title = 'Try editing', hint = 'app/index.tsx' }: HintRowProps) {
   return (

@@ -20,19 +20,21 @@ import {
 } from '../constants';
 import { fmtTime, isEvent, laneLeft, type Translate } from '../helpers';
 
+interface TimelineBlocksProps {
+  sessions: ActivitySession[];
+  hourHeight: number;
+  dayStartMs: number;
+  onEdit: (entry: ActivitySession) => void;
+  t: Translate;
+}
+
 export const TimelineBlocks = memo(function TimelineBlocks({
   sessions,
   hourHeight,
   dayStartMs,
   onEdit,
   t,
-}: {
-  sessions: ActivitySession[];
-  hourHeight: number;
-  dayStartMs: number;
-  onEdit: (entry: ActivitySession) => void;
-  t: Translate;
-}) {
+}: TimelineBlocksProps) {
   const px = (minutes: number) => (minutes / 60) * hourHeight;
   const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
 
@@ -127,9 +129,19 @@ export const TimelineBlocks = memo(function TimelineBlocks({
   );
 });
 
-export type LiveBlock = { kind: ActivityKind; start: number; top: number; height: number };
+export interface LiveBlock {
+  kind: ActivityKind;
+  start: number;
+  top: number;
+  height: number;
+}
 
-export function LiveBlocks({ blocks, t }: { blocks: LiveBlock[]; t: Translate }) {
+interface LiveBlocksProps {
+  blocks: LiveBlock[];
+  t: Translate;
+}
+
+export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
   return (
     <>
       {blocks.map((block) => {
