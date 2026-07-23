@@ -30,10 +30,25 @@ const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
 export async function getSessionsForDay(date: Date): Promise<ActivitySession[]> {
   try {
-    const raw = await AsyncStorage.getItem(storageKey(dayKeyFromDate(date)));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as ActivitySession[];
-    return Array.isArray(parsed) ? parsed.sort((a, b) => a.start - b.start) : [];
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+    if (!keys.length) return [];
+
+    const storedDays = await AsyncStorage.multiGet(keys);
+    const sessions = storedDays.flatMap(([, raw]) => {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw) as ActivitySession[];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    });
+
+    return sessions
+      .filter((session) => session.start < dayEnd && session.end > dayStart)
+      .sort((a, b) => a.start - b.start);
   } catch {
     return [];
   }
