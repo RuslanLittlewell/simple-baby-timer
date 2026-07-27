@@ -14,7 +14,6 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { isChildGradientKey } from '@/lib/children';
 import { pullChildSessions, redeemInvite } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
@@ -47,8 +46,7 @@ export function EnterCodeModal({ visible, onClose, onJoined }: EnterCodeModalPro
     setError(false);
     try {
       const redeemed = await redeemInvite(code);
-      const gradientKey = isChildGradientKey(redeemed.gradientKey) ? redeemed.gradientKey : 'sky';
-      const child = addSharedChild(redeemed.name, gradientKey, redeemed.remoteId);
+      const child = addSharedChild(redeemed);
       if (!child) throw new Error('limit');
       await pullChildSessions(redeemed.remoteId, child.id);
       bumpDataVersion();

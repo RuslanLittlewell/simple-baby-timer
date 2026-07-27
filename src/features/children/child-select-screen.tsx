@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LanguageSelect } from '@/components/language-select';
+import { AuroraBackground } from '@/components/aurora-background';
+import { MobileMenu } from '@/components/mobile-menu';
+import { ProRequiredModal } from '@/components/pro-required';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -18,7 +20,6 @@ import { getIsSignedIn } from '@/lib/supabase';
 import { leaveChild } from '@/lib/sync';
 
 import { AddChildModal } from './components/add-child-modal';
-import { AuroraBackground } from './components/aurora-background';
 import { AuthModal } from './components/auth-modal';
 import { ChildCard } from './components/child-card';
 import { EnterCodeModal } from './components/enter-code-modal';
@@ -34,10 +35,12 @@ export default function ChildSelectScreen() {
   const activeChildId = useAppStore((state) => state.activeChildId);
   const selectChild = useAppStore((state) => state.selectChild);
   const addChild = useAppStore((state) => state.addChild);
+  const proActive = useAppStore((state) => state.proActive);
   const [adding, setAdding] = useState(false);
   const [enteringCode, setEnteringCode] = useState(false);
   const [sharingChildId, setSharingChildId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [proPromptVisible, setProPromptVisible] = useState(false);
 
   const sharingChild = children.find((child) => child.id === sharingChildId) ?? null;
 
@@ -48,8 +51,15 @@ export default function ChildSelectScreen() {
 
   // Sharing needs an account — ask to sign in first, then continue.
   const requestAction = async (action: PendingAction) => {
-    if (await getIsSignedIn()) runAction(action);
-    else setPendingAction(action);
+    if (!(await getIsSignedIn())) {
+      setPendingAction(action);
+      return;
+    }
+    if (action.type === 'share' && !proActive) {
+      setProPromptVisible(true);
+      return;
+    }
+    runAction(action);
   };
 
   const pickChild = (child: Child) => {
@@ -57,22 +67,22 @@ export default function ChildSelectScreen() {
     router.navigate('/activity');
   };
 
-  const saveChild = (name: string, gradientKey: ChildGradientKey) => {
-    addChild(name, gradientKey);
+  const saveChild = (name: string, gradientKey: ChildGradientKey, birthday: number) => {
+    addChild(name, gradientKey, birthday);
     setAdding(false);
     router.navigate('/activity');
   };
 
   const performDelete = async (child: Child) => {
+    // Remove immediately even while offline. The store keeps a persisted
+    // remote tombstone so sync cannot restore a shared child in the meantime.
+    useAppStore.getState().removeChild(child.id);
     try {
-      // Shared child: leave it on the server first, otherwise the account
-      // restore would resurrect it on the next sync.
-      if (child.remoteId) await leaveChild(child.remoteId);
       await deleteSessionsForChild(child.id);
-      useAppStore.getState().removeChild(child.id);
     } catch {
-      Alert.alert(t('children.shareError'));
+      // The profile is already removed; stale local history is harmless.
     }
+    if (child.remoteId) leaveChild(child.remoteId).catch(() => {});
   };
 
   const confirmDelete = (child: Child) => {
@@ -89,7 +99,7 @@ export default function ChildSelectScreen() {
       <AuroraBackground />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.header}>
-          <LanguageSelect />
+          <MobileMenu />
         </View>
 
         <View style={styles.center}>
@@ -128,7 +138,7 @@ export default function ChildSelectScreen() {
                   onPress={() => requestAction({ type: 'enterCode' })}
                   style={({ pressed }) => pressed && styles.pressed}>
                   <ThemedView type="backgroundElement" style={styles.addCard}>
-                    <MaterialCommunityIcons name="key-outline" size={26} color={theme.text} />
+                    <MaterialCommunityIcons name="cloud-plus-outline" size={26} color={theme.text} />
                   </ThemedView>
                 </Pressable>
               </View>
@@ -154,15 +164,24 @@ export default function ChildSelectScreen() {
           }}
         />
         <ShareChildModal child={sharingChild} onClose={() => setSharingChildId(null)} />
+        <ProRequiredModal
+          visible={proPromptVisible}
+          onClose={() => setProPromptVisible(false)}
+        />
         <AuthModal
           visible={!!pendingAction}
           onClose={() => setPendingAction(null)}
-          onSignedIn={() => {
+          onSignedIn={async () => {
             const action = pendingAction;
             setPendingAction(null);
             // New device: children linked to this account appear in the list.
-            syncNow();
-            if (action) runAction(action);
+            await syncNow();
+            if (!action) return;
+            if (action.type === 'enterCode' || useAppStore.getState().proActive) {
+              runAction(action);
+            } else {
+              setProPromptVisible(true);
+            }
           }}
         />
       </SafeAreaView>

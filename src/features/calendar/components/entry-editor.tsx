@@ -35,6 +35,7 @@ import {
   startOfDayMs,
 } from '../helpers';
 import { modalStyles } from '../modal-styles';
+import { proDetailsIcon, proDetailsLabels } from '../pro-details';
 import { DayStepper } from './day-stepper';
 
 interface EntryEditorProps {
@@ -72,7 +73,9 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
   }, [entry]);
 
   const editingEvent = entry ? isEvent(entry.kind) : false;
-  const editingDay = entry ? entry.kind === 'sleep' || entry.kind === 'awake' : false;
+  const editingDay = entry
+    ? entry.kind === 'settling' || entry.kind === 'sleep' || entry.kind === 'awake'
+    : false;
 
   const removeEntry = () => {
     if (!entry) return;
@@ -95,7 +98,8 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
   const saveEntry = async () => {
     if (!entry) return;
     const fixedDuration = isEvent(entry.kind);
-    const perDayDate = entry.kind === 'sleep' || entry.kind === 'awake';
+    const perDayDate =
+      entry.kind === 'settling' || entry.kind === 'sleep' || entry.kind === 'awake';
     const startTime = parseTime(startInput);
     const endTime = fixedDuration ? startTime : parseTime(endInput);
     if (!startTime || !endTime) {
@@ -176,6 +180,27 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
               ? t('editor.editStart', { n: EVENT_DURATION_MS / 60000 })
               : t('editor.editTimes')}
           </ThemedText>
+          {entry?.proDetails && (
+            <View style={styles.proSection}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {t('editor.proParameters')}
+              </ThemedText>
+              <View style={[styles.proDetails, { backgroundColor: theme.backgroundElement }]}>
+                <MaterialCommunityIcons
+                  name={proDetailsIcon(entry.proDetails) ?? 'star-outline'}
+                  size={20}
+                  color={theme.text}
+                />
+                <View style={styles.proDetailsColumn}>
+                  {proDetailsLabels(entry.proDetails, t).map((label, index) => (
+                    <ThemedText key={`${label}-${index}`} type="smallBold">
+                      {label}
+                    </ThemedText>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
           <View style={styles.timeFields}>
             <View style={styles.timeField}>
               <ThemedText type="small" themeColor="textSecondary">{t('editor.start')}</ThemedText>
@@ -260,6 +285,21 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
 }
 
 const styles = StyleSheet.create({
+  proSection: {
+    gap: Spacing.one,
+  },
+  proDetails: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  proDetailsColumn: {
+    flex: 1,
+    gap: Spacing.one,
+  },
   timeFields: {
     flexDirection: 'row',
     gap: Spacing.three,

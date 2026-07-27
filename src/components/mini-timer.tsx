@@ -19,6 +19,7 @@ type Meta = {
 };
 
 const META: Record<ActivityKind, Meta> = {
+  settling: { icon: 'weather-sunset-down', accentKey: 'settling' },
   sleep: { icon: 'moon-waning-crescent', accentKey: 'sleep' },
   feeding: { icon: 'baby-bottle-outline', accentKey: 'feed' },
   awake: { icon: 'white-balance-sunny', accentKey: 'awake' },

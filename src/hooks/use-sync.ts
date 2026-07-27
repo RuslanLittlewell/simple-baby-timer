@@ -5,9 +5,12 @@ import { AppState } from 'react-native';
 import { getIsSignedIn, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import {
   fetchLiveSessions,
+  fetchAccountProStatus,
   fetchRemoteChildren,
   flushQueue,
+  leaveChild,
   pullChildSessions,
+  syncChildProfile,
 } from '@/lib/sync';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 
@@ -18,7 +21,23 @@ export async function syncNow(): Promise<void> {
   if (!isSupabaseConfigured) return;
   try {
     await flushQueue();
-    if (!(await getIsSignedIn())) return;
+    if (!(await getIsSignedIn())) {
+      useAppStore.getState().setProStatus(false);
+      return;
+    }
+
+    const pro = await fetchAccountProStatus();
+    useAppStore.getState().setProStatus(pro.active, pro.expiresAt, pro.renewsAt);
+
+    const { removedRemoteIds, clearRemovedRemoteId } = useAppStore.getState();
+    for (const remoteId of removedRemoteIds) {
+      await leaveChild(remoteId);
+      clearRemovedRemoteId(remoteId);
+    }
+
+    for (const child of useAppStore.getState().children) {
+      await syncChildProfile(child);
+    }
 
     const remote = await fetchRemoteChildren();
     useAppStore.getState().upsertRemoteChildren(remote);
@@ -51,7 +70,13 @@ async function refreshLive(): Promise<void> {
   for (const row of rows) {
     const childId = localIdByRemote.get(row.remoteChildId);
     if (childId) {
-      mapped.push({ childId, track: row.track, kind: row.kind, startedAt: row.startedAt });
+      mapped.push({
+        childId,
+        track: row.track,
+        kind: row.kind,
+        startedAt: row.startedAt,
+        proDetails: row.proDetails,
+      });
     }
   }
   reconcileRemoteLive(mapped);
@@ -100,6 +125,8 @@ export function useSync() {
     getIsSignedIn().then(setAuthed);
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
+      if (session) syncNow();
+      else useAppStore.getState().setProStatus(false);
     });
     return () => data.subscription.unsubscribe();
   }, []);

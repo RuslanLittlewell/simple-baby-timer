@@ -21,10 +21,33 @@ import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../constants';
 import { BabySvg } from './baby-svg';
 import { GradientPicker } from './gradient-picker';
 
+const normalizeDateInput = (value: string) => {
+  const digits = value.replace(/[^0-9]/g, '').slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join('.');
+};
+
+// Parses "DD.MM.YYYY" into a local-midnight timestamp; rejects invalid,
+// future, or absurdly old dates.
+const parseBirthday = (value: string): number | null => {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
+  if (!m) return null;
+  const day = +m[1];
+  const month = +m[2];
+  const year = +m[3];
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  const now = new Date();
+  if (date.getTime() > now.getTime()) return null;
+  if (year < now.getFullYear() - 6) return null;
+  return date.getTime();
+};
+
 interface AddChildModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (name: string, gradientKey: ChildGradientKey) => void;
+  onSave: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
 }
 
 export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) {
@@ -32,15 +55,18 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
   const t = useT();
 
   const [name, setName] = useState('');
+  const [birthday, setBirthday] = useState('');
   const [gradientKey, setGradientKey] = useState<ChildGradientKey>('sky');
 
   useEffect(() => {
     if (!visible) return;
     setName('');
+    setBirthday('');
     setGradientKey('sky');
   }, [visible]);
 
-  const canSave = name.trim().length > 0;
+  const birthdayMs = parseBirthday(birthday);
+  const canSave = name.trim().length > 0 && birthdayMs !== null;
   const fg = CHILD_GRADIENT_FG[gradientKey];
 
   return (
@@ -82,13 +108,29 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
           />
 
           <ThemedText type="small" themeColor="textSecondary">
+            {t('children.birthday')}
+          </ThemedText>
+          <TextInput
+            value={birthday}
+            onChangeText={(value) => setBirthday(normalizeDateInput(value))}
+            keyboardType="number-pad"
+            maxLength={10}
+            placeholder={t('children.birthdayPlaceholder')}
+            placeholderTextColor={theme.textSecondary}
+            style={[
+              styles.dateInput,
+              { color: theme.text, backgroundColor: theme.backgroundElement },
+            ]}
+          />
+
+          <ThemedText type="small" themeColor="textSecondary">
             {t('children.color')}
           </ThemedText>
           <GradientPicker selected={gradientKey} onSelect={setGradientKey} />
 
           <Pressable
             disabled={!canSave}
-            onPress={() => onSave(name, gradientKey)}
+            onPress={() => birthdayMs !== null && onSave(name, gradientKey, birthdayMs)}
             style={({ pressed }) => [
               styles.saveButton,
               { backgroundColor: theme.text },
@@ -152,6 +194,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
+  },
+  dateInput: {
+    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   saveButton: {
     alignItems: 'center',

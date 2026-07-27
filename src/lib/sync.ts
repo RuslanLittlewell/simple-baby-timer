@@ -21,6 +21,7 @@ interface SessionRow {
   start_ms: number;
   end_ms: number;
   milk_ml: number | null;
+  pro_details: ActivitySession['proDetails'] | null;
   deleted: boolean;
   updated_at: string;
 }
@@ -38,8 +39,24 @@ const toRow = (op: QueuedOp) => ({
   start_ms: op.session.start,
   end_ms: op.session.end,
   milk_ml: op.session.milkMl ?? null,
+  pro_details: op.session.proDetails ?? null,
   deleted: op.deleted,
 });
+
+async function upsertSessionRows(rows: ReturnType<typeof toRow>[]): Promise<void> {
+  let result = await supabase.from('sessions').upsert(rows);
+  if (
+    result.error &&
+    (result.error.code === '42703' ||
+      result.error.code === 'PGRST204' ||
+      result.error.message.includes('pro_details'))
+  ) {
+    result = await supabase.from('sessions').upsert(
+      rows.map(({ pro_details: _proDetails, ...row }) => row),
+    );
+  }
+  if (result.error) throw result.error;
+}
 
 const readQueue = async (): Promise<QueuedOp[]> => {
   try {
@@ -72,6 +89,51 @@ export const enqueueSessionUpsert = (remoteChildId: string, session: ActivitySes
 export const enqueueSessionDelete = (remoteChildId: string, session: ActivitySession) =>
   enqueue({ remoteChildId, session, deleted: true });
 
+export interface AccountProStatus {
+  active: boolean;
+  expiresAt?: number;
+  renewsAt?: number;
+}
+
+export async function fetchAccountProStatus(): Promise<AccountProStatus> {
+  if (!isSupabaseConfigured) return { active: false };
+  await requireSession();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('pro_active, trial_ends_at, pro_renews_at')
+    .single();
+  // Keep the rest of account sync working while the profile migration is
+  // still being applied to an existing Supabase project.
+  if (
+    error?.code === '42P01' ||
+    error?.code === 'PGRST116' ||
+    error?.code === 'PGRST205'
+  ) return { active: false };
+  if (error) throw error;
+  const trialEndsAt =
+    typeof data?.trial_ends_at === 'string' ? Date.parse(data.trial_ends_at) : NaN;
+  const renewsAt =
+    typeof data?.pro_renews_at === 'string' ? Date.parse(data.pro_renews_at) : NaN;
+  const paid = data?.pro_active === true;
+  const trialActive = Number.isFinite(trialEndsAt) && trialEndsAt > Date.now();
+  const paidActive =
+    paid && (!Number.isFinite(renewsAt) || renewsAt > Date.now());
+  return {
+    active: paidActive || trialActive,
+    expiresAt: !paidActive && trialActive ? trialEndsAt : undefined,
+    renewsAt: paidActive && Number.isFinite(renewsAt) ? renewsAt : undefined,
+  };
+}
+
+export async function activateTestPro(): Promise<number> {
+  await requireSession();
+  const { data, error } = await supabase.rpc('activate_test_pro');
+  if (error) throw error;
+  const renewsAt = Date.parse(data as string);
+  if (!Number.isFinite(renewsAt)) throw new Error('invalid renewal date');
+  return renewsAt;
+}
+
 let flushing = false;
 
 // Uploads all queued ops; keeps the queue intact when the network fails.
@@ -84,8 +146,7 @@ export async function flushQueue(): Promise<void> {
     await requireSession();
     for (let i = 0; i < queue.length; i += UPSERT_CHUNK) {
       const chunk = queue.slice(i, i + UPSERT_CHUNK);
-      const { error } = await supabase.from('sessions').upsert(chunk.map(toRow));
-      if (error) throw error;
+      await upsertSessionRows(chunk.map(toRow));
       await writeQueue(queue.slice(i + UPSERT_CHUNK));
     }
   } finally {
@@ -97,13 +158,28 @@ export async function flushQueue(): Promise<void> {
 // child's local history. Returns the remote uuid to store on the local child.
 export async function shareChild(child: Child): Promise<string> {
   await requireSession();
-  const { data, error } = await supabase
+  let result = await supabase
     .from('children')
-    .insert({ name: child.name, gradient_key: child.gradientKey })
+    .insert({
+      name: child.name,
+      gradient_key: child.gradientKey,
+      birthday_ms: child.birthday ?? null,
+      pro_enabled: true,
+    })
     .select('id')
     .single();
-  if (error) throw error;
-  const remoteId = data.id as string;
+
+  // Existing installations can briefly run against the previous schema while
+  // the birthday migration is being deployed. Sharing must still work there.
+  if (result.error && isMissingBirthdayColumn(result.error)) {
+    result = await supabase
+      .from('children')
+      .insert({ name: child.name, gradient_key: child.gradientKey })
+      .select('id')
+      .single();
+  }
+  if (result.error) throw result.error;
+  const remoteId = result.data.id as string;
 
   const { data: auth } = await supabase.auth.getSession();
   const userId = auth.session?.user.id;
@@ -116,10 +192,9 @@ export async function shareChild(child: Child): Promise<string> {
   const sessions = await getAllSessionsForChild(child.id);
   for (let i = 0; i < sessions.length; i += UPSERT_CHUNK) {
     const chunk = sessions.slice(i, i + UPSERT_CHUNK);
-    const { error: pushError } = await supabase.from('sessions').upsert(
+    await upsertSessionRows(
       chunk.map((session) => toRow({ remoteChildId: remoteId, session, deleted: false })),
     );
-    if (pushError) throw pushError;
   }
   return remoteId;
 }
@@ -131,23 +206,61 @@ export async function createInviteCode(remoteId: string): Promise<string> {
   return data as string;
 }
 
+// Keeps profile fields in sync and backfills birthdays for children that were
+// shared while the server was still running the pre-birthday schema.
+export async function syncChildProfile(child: Child): Promise<void> {
+  if (!child.remoteId) return;
+  await requireSession();
+  const profile: {
+    name: string;
+    gradient_key: ChildGradientKey;
+    birthday_ms?: number;
+  } = {
+    name: child.name,
+    gradient_key: child.gradientKey,
+  };
+  if (child.birthday !== undefined) profile.birthday_ms = child.birthday;
+  const { error } = await supabase
+    .from('children')
+    .update(profile)
+    .eq('id', child.remoteId);
+  if (error && !isMissingBirthdayColumn(error)) throw error;
+}
+
 export interface RemoteChild {
   remoteId: string;
   name: string;
   gradientKey: ChildGradientKey;
+  birthday?: number;
+  proEnabled?: boolean;
 }
+
+const birthdayFromRow = (value: unknown): number | undefined =>
+  value === null || value === undefined ? undefined : Number(value);
+
+const isMissingBirthdayColumn = (error: { code?: string; message?: string }): boolean =>
+  error.code === '42703' ||
+  error.code === 'PGRST204' ||
+  error.message?.includes('birthday_ms') === true;
 
 // All children the signed-in account has access to (RLS narrows the select
 // to own + member rows). Used to restore children on a new device.
 export async function fetchRemoteChildren(): Promise<RemoteChild[]> {
   if (!isSupabaseConfigured) return [];
   await requireSession();
-  const { data, error } = await supabase.from('children').select('id, name, gradient_key');
-  if (error) throw error;
-  return (data ?? []).map((row) => ({
+  let result = await supabase
+    .from('children')
+    .select('id, name, gradient_key, birthday_ms, pro_enabled');
+  if (result.error && isMissingBirthdayColumn(result.error)) {
+    result = await supabase.from('children').select('id, name, gradient_key');
+  }
+  if (result.error) throw result.error;
+  return (result.data ?? []).map((row) => ({
     remoteId: row.id as string,
     name: row.name as string,
     gradientKey: row.gradient_key as ChildGradientKey,
+    birthday: birthdayFromRow('birthday_ms' in row ? row.birthday_ms : undefined),
+    proEnabled: row.pro_enabled === true,
   }));
 }
 
@@ -161,6 +274,8 @@ export async function redeemInvite(code: string): Promise<RemoteChild> {
     remoteId: row.child_id as string,
     name: row.name as string,
     gradientKey: row.gradient_key as ChildGradientKey,
+    birthday: birthdayFromRow(row.birthday_ms),
+    proEnabled: row.pro_enabled === true,
   };
 }
 
@@ -171,6 +286,7 @@ export interface RemoteLiveRow {
   track: LiveTrack;
   kind: ActivityKind;
   startedAt: number;
+  proDetails?: ActivitySession['proDetails'];
 }
 
 // Announces a running timer to the child's members (start = upsert).
@@ -191,6 +307,21 @@ export async function pushLiveSession(
   if (error) throw error;
 }
 
+export async function updateLiveSessionDetails(
+  remoteChildId: string,
+  track: LiveTrack,
+  proDetails: ActivitySession['proDetails'],
+): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  await requireSession();
+  const { error } = await supabase
+    .from('live_sessions')
+    .update({ pro_details: proDetails ?? null })
+    .eq('child_id', remoteChildId)
+    .eq('track', track);
+  if (error) throw error;
+}
+
 export async function clearLiveSession(remoteChildId: string, track: LiveTrack): Promise<void> {
   if (!isSupabaseConfigured) return;
   await requireSession();
@@ -207,16 +338,17 @@ export async function fetchLiveSessions(remoteChildIds: string[]): Promise<Remot
   await requireSession();
   const { data, error } = await supabase
     .from('live_sessions')
-    .select('child_id, track, kind, started_at_ms')
+    .select('*')
     .in('child_id', remoteChildIds);
   if (error) throw error;
   return (data ?? [])
-    .filter((row) => ['sleep', 'awake', 'feeding'].includes(row.kind as string))
+    .filter((row) => ['settling', 'sleep', 'awake', 'feeding'].includes(row.kind as string))
     .map((row) => ({
       remoteChildId: row.child_id as string,
       track: row.track === 'feeding' ? 'feeding' : 'session',
       kind: row.kind as ActivityKind,
       startedAt: Number(row.started_at_ms),
+      proDetails: row.pro_details as ActivitySession['proDetails'] | undefined,
     }));
 }
 
@@ -264,6 +396,7 @@ export async function pullChildSessions(
         start: Number(row.start_ms),
         end: Number(row.end_ms),
         milkMl: row.milk_ml ?? undefined,
+        proDetails: row.pro_details ?? undefined,
         childId: localChildId,
       }));
     const deletedIds = rows.filter((row) => row.deleted).map((row) => row.id);

@@ -12,6 +12,7 @@ import { getSessionsForDay, type ActivitySession } from '@/lib/activity-store';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { EntryEditor } from './components/entry-editor';
+import { AddActivityModal } from './components/add-activity-modal';
 import { MonthView } from './components/month-view';
 import { StatsModal } from './components/stats-modal';
 import { LiveBlocks, TimelineBlocks, type LiveBlock } from './components/timeline-blocks';
@@ -38,13 +39,19 @@ export default function CalendarScreen() {
 
   const dataVersion = useAppStore((state) => state.dataVersion);
   const activeChildId = useAppStore((state) => state.activeChildId);
+  const children = useAppStore((state) => state.children);
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
   const remoteLive = useAppStore((state) => state.remoteLive);
+  const proActive = useAppStore((state) => state.proActive);
+  const activeChild = children.find((child) => child.id === activeChildId);
+  const proAccess = proActive || activeChild?.proEnabled === true;
+  const addManualActivity = useAppStore((state) => state.addManualActivity);
   const t = useT();
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [statsVisible, setStatsVisible] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<ActivitySession | null>(null);
+  const [addingActivity, setAddingActivity] = useState(false);
 
   const syncCurrentDate = useCallback(() => {
     const nextToday = new Date();
@@ -198,6 +205,7 @@ export default function CalendarScreen() {
       start: item.startedAt,
       top: px(startMin),
       height: px(endMin) - px(startMin),
+      proDetails: 'proDetails' in item ? item.proDetails : undefined,
     });
   }
 
@@ -222,13 +230,22 @@ export default function CalendarScreen() {
                 {pad2(shownDay.getMonth() + 1)}.{shownDay.getFullYear()}
               </ThemedText>
             </View>
-            <Pressable
-              accessibilityLabel={t('calendar.stats')}
-              onPress={() => setStatsVisible(true)}
-              hitSlop={12}
-              style={({ pressed }) => [styles.statsBtn, pressed && styles.pressed]}>
-              <MaterialCommunityIcons name="chart-box-outline" size={26} color={theme.text} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                accessibilityLabel={t('calendar.stats')}
+                onPress={() => setStatsVisible(true)}
+                hitSlop={12}
+                style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
+                <MaterialCommunityIcons name="chart-box-outline" size={26} color={theme.text} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t('manual.title')}
+                onPress={() => setAddingActivity(true)}
+                hitSlop={12}
+                style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
+                <MaterialCommunityIcons name="plus" size={27} color={theme.text} />
+              </Pressable>
+            </View>
           </View>
 
           <GestureDetector gesture={pinchGesture}>
@@ -286,7 +303,7 @@ export default function CalendarScreen() {
             </ScrollView>
           </GestureDetector>
 
-          {sessions.length === 0 && (
+          {sessions.length === 0 && liveBlocks.length === 0 && (
             <View style={styles.emptyOverlay} pointerEvents="none">
               <ThemedText type="small" themeColor="textSecondary">
                 {t('calendar.empty')}
@@ -306,6 +323,13 @@ export default function CalendarScreen() {
             entry={entryToEdit}
             onClose={closeEntryEditor}
             onChanged={refreshSessions}
+          />
+          <AddActivityModal
+            visible={addingActivity}
+            day={shownDay}
+            proActive={proAccess}
+            onClose={() => setAddingActivity(false)}
+            onSave={addManualActivity}
           />
         </SafeAreaView>
       </ThemedView>
@@ -334,10 +358,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsBtn: {
+  headerActions: {
     position: 'absolute',
     right: Spacing.four,
-    width: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  headerAction: {
+    width: 34,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -22,7 +22,7 @@ interface BlobSpec {
   duration: number;
 }
 
-// голубой / синий / розовый / фиолетовый
+// голубой / синий / молочный / розовый / фиолетовый
 const BLOBS: BlobSpec[] = [
   {
     id: 'sky',
@@ -43,6 +43,16 @@ const BLOBS: BlobSpec[] = [
     driftX: -80,
     driftY: 70,
     duration: 12000,
+  },
+  {
+    id: 'milk',
+    color: '#FFF4DC',
+    size: 360,
+    top: SCREEN_H * 0.5 - 180,
+    left: -170,
+    driftX: 55,
+    driftY: -35,
+    duration: 10500,
   },
   {
     id: 'pink',

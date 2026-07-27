@@ -1,6 +1,12 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
@@ -14,12 +20,25 @@ interface EventTileProps {
   onPress: () => void;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventTileProps) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}>
+      onPressIn={() => {
+        scale.value = withTiming(0.9, { duration: 90 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 8, stiffness: 260, mass: 0.45 });
+      }}
+      style={[styles.wrap, animatedStyle]}>
       <LinearGradient
         colors={ACTIVITY_GRADIENTS[gradKey]}
         start={{ x: 0, y: 0 }}
@@ -27,7 +46,7 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
         style={styles.tile}>
         <MaterialCommunityIcons name={icon} size={26} color={ACTIVITY_FG[gradKey]} />
       </LinearGradient>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -40,8 +59,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

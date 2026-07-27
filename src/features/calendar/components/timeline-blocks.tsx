@@ -19,6 +19,7 @@ import {
   STRIPE_THICKNESS,
 } from '../constants';
 import { fmtTime, isEvent, laneLeft, type Translate } from '../helpers';
+import { proDetailsIcon } from '../pro-details';
 
 interface TimelineBlocksProps {
   sessions: ActivitySession[];
@@ -53,6 +54,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
         const spanHeight = px(clampedEnd) - top;
         const meta = KIND_META[s.kind];
         const fg = ACTIVITY_FG[meta.gradKey];
+        const proIcon = proDetailsIcon(s.proDetails);
 
         if (isEvent(s.kind)) {
           const eventHeight = Math.max(spanHeight, MIN_EVENT_HEIGHT);
@@ -86,7 +88,9 @@ export const TimelineBlocks = memo(function TimelineBlocks({
           );
         }
 
-        const height = spanHeight;
+        // Short tracked sessions keep their real timestamps, but render as at
+        // least five minutes tall (and never below the minimum touch target).
+        const height = Math.max(spanHeight, px(5), MIN_EVENT_HEIGHT);
         const showText = height >= 16;
         const showTime = height >= 34;
 
@@ -109,6 +113,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
                 <View style={styles.blockContent}>
                   <View style={styles.blockRow}>
                     <MaterialCommunityIcons name={meta.icon} size={14} color={fg} />
+                    {proIcon && <MaterialCommunityIcons name={proIcon} size={14} color={fg} />}
                     <ThemedText style={[styles.blockTitle, { color: fg }]} numberOfLines={1}>
                       {t(`kind.${s.kind}`)}
                       {s.kind === 'feeding' && s.milkMl ? ` · ${s.milkMl} ${t('unit.ml')}` : ''}
@@ -134,6 +139,7 @@ export interface LiveBlock {
   start: number;
   top: number;
   height: number;
+  proDetails?: ActivitySession['proDetails'];
 }
 
 interface LiveBlocksProps {
@@ -147,6 +153,7 @@ export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
       {blocks.map((block) => {
         const meta = KIND_META[block.kind];
         const fg = ACTIVITY_FG[meta.gradKey];
+        const proIcon = proDetailsIcon(block.proDetails);
         return (
           <LinearGradient
             key={`live-${block.kind}`}
@@ -167,6 +174,7 @@ export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
               <View style={styles.blockContent}>
                 <View style={styles.blockRow}>
                   <MaterialCommunityIcons name={meta.icon} size={14} color={fg} />
+                  {proIcon && <MaterialCommunityIcons name={proIcon} size={14} color={fg} />}
                   <ThemedText style={[styles.blockTitle, { color: fg }]} numberOfLines={1}>
                     {t(`kind.${block.kind}`)}
                   </ThemedText>

@@ -53,6 +53,19 @@ export default function AppTabs() {
         <Label>{t('calendar.title')}</Label>
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="regimes" disablePopToTop disableScrollToTop>
+        <NativeTabs.Trigger.TabBar
+          backgroundColor={colors.background}
+          iconColor={tabContentColor}
+          disableTransparentOnScrollEdge
+        />
+        <Icon
+          src={<VectorIcon family={MaterialCommunityIcons} name="clock-outline" />}
+          selectedColor={tabContentColor}
+        />
+        <Label>{t('regimes.title')}</Label>
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="settings" disablePopToTop disableScrollToTop>
         <NativeTabs.Trigger.TabBar
           backgroundColor={colors.background}

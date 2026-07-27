@@ -8,6 +8,39 @@ export const EVENT_DURATION_MS = 5 * 60_000;
 
 export type SessionKind = ActivityKind | EventKind;
 
+export type ProDetails =
+  | {
+      type: 'settling';
+      methods: Array<
+        | 'rocking'
+        | 'fitball'
+        | 'inArms'
+        | 'crib'
+        | 'pacifier'
+        | 'whiteNoise'
+        | 'music'
+        | 'swaddling'
+        | 'darkRoom'
+        | 'walk'
+        | 'independent'
+      >;
+    }
+  | {
+      type: 'sleep';
+      place: 'crib' | 'stroller' | 'carSeat' | 'coSleeping' | 'carrier';
+    }
+  | {
+      type: 'feeding';
+      mode: 'breast';
+      side: 'left' | 'right' | 'both';
+    }
+  | {
+      type: 'feeding';
+      mode: 'bottle';
+      content: 'formula' | 'breastMilk' | 'water';
+      volumeMl?: number;
+    };
+
 export type ActivitySession = {
   id: string;
   kind: SessionKind;
@@ -15,6 +48,7 @@ export type ActivitySession = {
   end: number;
 
   milkMl?: number;
+  proDetails?: ProDetails;
   // Absent only on legacy entries written before children existed.
   childId?: string;
 };
