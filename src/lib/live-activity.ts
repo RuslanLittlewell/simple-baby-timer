@@ -6,12 +6,14 @@ import { type ActivityKind } from '@/lib/notifications';
 
 
 const ICONS: Record<ActivityKind, string> = {
+  settling: 'la-sleep',
   sleep: 'la-sleep',
   feeding: 'la-feed',
   awake: 'la-awake',
 };
 
 const TINTS: Record<ActivityKind, string> = {
+  settling: ACTIVITY_ACCENT.settling,
   sleep: ACTIVITY_ACCENT.sleep,
   feeding: ACTIVITY_ACCENT.feed,
   awake: ACTIVITY_ACCENT.awake,

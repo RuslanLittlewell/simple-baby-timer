@@ -23,6 +23,7 @@ export const ZOOM_BADGE_HOLD = 700;
 export const SCROLL_BOTTOM_PAD = Spacing.six;
 
 export const LANES: Record<SessionKind, number> = {
+  settling: 0,
   sleep: 0,
   awake: 0,
   feeding: 1,
@@ -44,6 +45,7 @@ export interface KindMeta {
 }
 
 export const KIND_META: Record<SessionKind, KindMeta> = {
+  settling: { gradKey: 'settling', icon: 'weather-sunset-down' },
   sleep: { gradKey: 'sleep', icon: 'moon-waning-crescent' },
   feeding: { gradKey: 'feed', icon: 'baby-bottle-outline' },
   awake: { gradKey: 'awake', icon: 'white-balance-sunny' },

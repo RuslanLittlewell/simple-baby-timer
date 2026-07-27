@@ -1,9 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Slider from '@react-native-community/slider';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuroraBackground } from '@/components/aurora-background';
 import { TabFade } from '@/components/tab-fade';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -26,6 +27,8 @@ interface SettingSliderProps {
   hint: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   value: number;
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
   onCommit: (value: number) => void;
   min: number;
   max: number;
@@ -38,6 +41,8 @@ function SettingSlider({
   hint,
   icon,
   value,
+  enabled,
+  onEnabledChange,
   onCommit,
   min,
   max,
@@ -56,7 +61,16 @@ function SettingSlider({
           <MaterialCommunityIcons name={icon} size={22} color={theme.text} />
           <ThemedText type="smallBold">{label}</ThemedText>
         </View>
-        <ThemedText type="smallBold">{format(local)}</ThemedText>
+        <View style={styles.headerControls}>
+          <ThemedText type="smallBold">{format(local)}</ThemedText>
+          <Switch
+            accessibilityLabel={label}
+            value={enabled}
+            onValueChange={onEnabledChange}
+            trackColor={{ false: theme.backgroundSelected, true: '#C4B5FD' }}
+            style={styles.switch}
+          />
+        </View>
       </View>
 
       <Slider
@@ -67,9 +81,9 @@ function SettingSlider({
         value={value}
         onValueChange={setLocal}
         onSlidingComplete={onCommit}
-        minimumTrackTintColor="#3c87f7"
+        minimumTrackTintColor="#C4B5FD"
         maximumTrackTintColor={theme.backgroundSelected}
-        thumbTintColor="#3c87f7"
+        thumbTintColor="#C4B5FD"
       />
 
       <View style={styles.scaleRow}>
@@ -92,9 +106,19 @@ export default function SettingsScreen() {
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const feedingMinutes = useAppStore((state) => state.feedingMinutes);
+  const sleepNotificationsEnabled = useAppStore(
+    (state) => state.sleepNotificationsEnabled,
+  );
+  const awakeNotificationsEnabled = useAppStore(
+    (state) => state.awakeNotificationsEnabled,
+  );
+  const feedingNotificationsEnabled = useAppStore(
+    (state) => state.feedingNotificationsEnabled,
+  );
   const setSleepMinutes = useAppStore((state) => state.setSleepMinutes);
   const setAwakeMinutes = useAppStore((state) => state.setAwakeMinutes);
   const setFeedingMinutes = useAppStore((state) => state.setFeedingMinutes);
+  const setNotificationsEnabled = useAppStore((state) => state.setNotificationsEnabled);
   const language = useAppStore((state) => state.language);
   const t = useT();
   const timerFmt = (v: number) => formatHm(v, language);
@@ -103,18 +127,21 @@ export default function SettingsScreen() {
   return (
     <TabFade>
       <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          showsHorizontalScrollIndicator={false}>
-          <View style={styles.inner}>
+        <AuroraBackground />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}>
+            <View style={styles.inner}>
             <SettingSlider
               label={t('settings.sleepTime')}
               hint={t('settings.sleepHint')}
               icon="moon-waning-crescent"
               value={sleepMinutes}
+              enabled={sleepNotificationsEnabled}
+              onEnabledChange={(enabled) => setNotificationsEnabled('sleep', enabled)}
               onCommit={setSleepMinutes}
               min={TIMER_MIN}
               max={TIMER_MAX}
@@ -127,6 +154,8 @@ export default function SettingsScreen() {
               hint={t('settings.awakeHint')}
               icon="white-balance-sunny"
               value={awakeMinutes}
+              enabled={awakeNotificationsEnabled}
+              onEnabledChange={(enabled) => setNotificationsEnabled('awake', enabled)}
               onCommit={setAwakeMinutes}
               min={TIMER_MIN}
               max={TIMER_MAX}
@@ -139,15 +168,17 @@ export default function SettingsScreen() {
               hint={t('settings.feedingHint')}
               icon="baby-bottle-outline"
               value={feedingMinutes}
+              enabled={feedingNotificationsEnabled}
+              onEnabledChange={(enabled) => setNotificationsEnabled('feeding', enabled)}
               onCommit={setFeedingMinutes}
               min={FEEDING_MIN}
               max={FEEDING_MAX}
               step={FEEDING_STEP}
               format={minutesFmt}
             />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </ThemedView>
     </TabFade>
   );
@@ -190,6 +221,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  switch: {
+    transform: [{ scale: 0.78 }],
   },
   slider: {
     width: '100%',

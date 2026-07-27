@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Simple Baby Tracker",
+    "name": "Baby Tracker",
     "slug": "BabyTimer",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.littlewell.babytimer",
+      "bundleIdentifier": "com.littlewell.babylifetracker",
       "buildNumber": "1",
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true
@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "package": "com.littlewell.babylifetracker",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-export type ActivityKind = 'sleep' | 'feeding' | 'awake';
+export type ActivityKind = 'settling' | 'sleep' | 'feeding' | 'awake';
 
 const ANDROID_CHANNEL = 'reminders';
 

@@ -20,12 +20,13 @@ export interface EventMeta {
 }
 
 export const ACTIVITIES: ActivityMeta[] = [
+  { id: 'settling', gradKey: 'settling', icon: 'weather-sunset-down' },
   { id: 'sleep', gradKey: 'sleep', icon: 'moon-waning-crescent' },
   { id: 'feeding', gradKey: 'feed', icon: 'baby-bottle-outline' },
   { id: 'awake', gradKey: 'awake', icon: 'white-balance-sunny' },
 ];
 
-export const MAIN_ACTIVITIES = ACTIVITIES.filter((a) => a.id !== 'feeding');
+export const MAIN_ACTIVITIES = ACTIVITIES.filter((a) => a.id === 'sleep' || a.id === 'awake');
 export const FEEDING = ACTIVITIES.find((a) => a.id === 'feeding')!;
 
 export const EVENTS: EventMeta[] = [

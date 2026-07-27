@@ -1,5 +1,6 @@
 
 export const ACTIVITY_GRADIENTS = {
+  settling: ['#8ED8F8', '#3B82C4'] as const,
 
   sleep: ['#5B9BE8', '#1E3A8A'] as const,
 
@@ -13,6 +14,7 @@ export const ACTIVITY_GRADIENTS = {
 };
 
 export const ACTIVITY_FG = {
+  settling: '#12324A',
   sleep: '#FFFFFF',
   feed: '#8A6B00',
   awake: '#245018',
@@ -21,6 +23,7 @@ export const ACTIVITY_FG = {
 } as const;
 
 export const ACTIVITY_ACCENT = {
+  settling: '#67C5EF',
   sleep: '#3B6FD1',
   feed: '#E8B800',
   awake: '#56C271',

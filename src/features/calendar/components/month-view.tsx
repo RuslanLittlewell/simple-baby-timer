@@ -34,6 +34,10 @@ export function MonthView({
   const year = monthCursor.getFullYear();
   const month = monthCursor.getMonth();
   const cells = buildMonthCells(year, month);
+  const weeks = Array.from(
+    { length: cells.length / 7 },
+    (_, index) => cells.slice(index * 7, index * 7 + 7),
+  );
   const selectedInMonth = shownDay.getFullYear() === year && shownDay.getMonth() === month;
 
   return (
@@ -54,24 +58,30 @@ export function MonthView({
       </View>
 
       <View style={styles.daysGrid}>
-        {cells.map((day, index) => {
-          if (day === null) return <View key={`e-${index}`} style={styles.cell} />;
-          const isToday =
-            today.getFullYear() === year &&
-            today.getMonth() === month &&
-            today.getDate() === day;
-          const isSelected = selectedInMonth && shownDay.getDate() === day;
-          return (
-            <Pressable key={day} style={styles.cell} onPress={() => onPickDay(day)}>
-              <ThemedView
-                type={isSelected ? 'backgroundSelected' : undefined}
-                style={styles.dayCircle}>
-                <ThemedText type={isToday ? 'smallBold' : 'small'}>{day}</ThemedText>
-                {isToday && <View style={styles.todayDot} />}
-              </ThemedView>
-            </Pressable>
-          );
-        })}
+        {weeks.map((week, weekIndex) => (
+          <View key={weekIndex} style={styles.weekRow}>
+            {week.map((day, dayIndex) => {
+              if (day === null) {
+                return <View key={`e-${weekIndex}-${dayIndex}`} style={styles.cell} />;
+              }
+              const isToday =
+                today.getFullYear() === year &&
+                today.getMonth() === month &&
+                today.getDate() === day;
+              const isSelected = selectedInMonth && shownDay.getDate() === day;
+              return (
+                <Pressable key={day} style={styles.cell} onPress={() => onPickDay(day)}>
+                  <ThemedView
+                    type={isSelected ? 'backgroundSelected' : undefined}
+                    style={styles.dayCircle}>
+                    <ThemedText type={isToday ? 'smallBold' : 'small'}>{day}</ThemedText>
+                    {isToday && <View style={styles.todayDot} />}
+                  </ThemedView>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
       </View>
     </OverlayShell>
   );
@@ -82,11 +92,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignSelf: 'stretch',
   },
   cell: {
-    width: `${100 / 7}%`,
+    flex: 1,
+    flexBasis: 0,
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
