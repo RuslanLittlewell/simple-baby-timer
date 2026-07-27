@@ -23,8 +23,10 @@ export default function ActivityScreen() {
   const router = useRouter();
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
+  const remoteLive = useAppStore((state) => state.remoteLive);
   const startActivity = useAppStore((state) => state.startActivity);
   const stopActivity = useAppStore((state) => state.stopActivity);
+  const stopRemoteActivity = useAppStore((state) => state.stopRemoteActivity);
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const feedingMinutes = useAppStore((state) => state.feedingMinutes);
@@ -37,16 +39,40 @@ export default function ActivityScreen() {
 
   const activeChild = children.find((child) => child.id === activeChildId);
 
+  // Partner-run timers for the active child; hidden while a local timer of
+  // the same track exists.
+  const remoteMain = session
+    ? null
+    : (remoteLive.find(
+        (item) => item.childId === activeChildId && item.track === 'session',
+      ) ?? null);
+  const remoteFeeding = feeding
+    ? null
+    : (remoteLive.find(
+        (item) => item.childId === activeChildId && item.track === 'feeding',
+      ) ?? null);
+
+  const mainSession =
+    session ??
+    (remoteMain
+      ? { kind: remoteMain.kind, startedAt: remoteMain.startedAt }
+      : null);
+  const feedingSession =
+    feeding ??
+    (remoteFeeding
+      ? { kind: remoteFeeding.kind, startedAt: remoteFeeding.startedAt }
+      : null);
+
   useEffect(() => {
-    if (!session && !feeding) return;
+    if (!mainSession && !feedingSession) return;
     setNowTs(Date.now());
     const id = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [session, feeding]);
+  }, [mainSession?.startedAt, feedingSession?.startedAt]);
 
   const secondsSince = (from: number) => Math.max(0, Math.floor((nowTs - from) / 1000));
 
-  const primary = session ?? feeding;
+  const primary = mainSession ?? feedingSession;
   const active = primary ? ACTIVITIES.find((a) => a.id === primary.kind) : undefined;
   const elapsed = primary ? secondsSince(primary.startedAt) : 0;
   let statusNote = '';
@@ -89,12 +115,14 @@ export default function ActivityScreen() {
             gradKey={active?.gradKey ?? null}
             elapsed={elapsed}
             statusNote={statusNote}
-            feedingElapsed={session && feeding ? secondsSince(feeding.startedAt) : null}
+            feedingElapsed={
+              mainSession && feedingSession ? secondsSince(feedingSession.startedAt) : null
+            }
           />
 
           <View style={styles.list}>
             {MAIN_ACTIVITIES.map((activity) => {
-              const isActive = session?.kind === activity.id;
+              const isActive = mainSession?.kind === activity.id;
               return (
                 <ActivityRow
                   key={activity.id}
@@ -102,10 +130,19 @@ export default function ActivityScreen() {
                   gradKey={activity.gradKey}
                   label={t(`kind.${activity.id}`)}
                   isActive={isActive}
-                  dimmed={!!session && !isActive}
-                  onPress={() =>
-                    isActive ? stopActivity(activity.id) : startActivity(activity.id)
-                  }
+                  dimmed={!!mainSession && !isActive}
+                  onPress={async () => {
+                    if (isActive) {
+                      // Stop whichever side runs it — ours or the partner's.
+                      if (session) stopActivity(activity.id);
+                      else await stopRemoteActivity('session');
+                      return;
+                    }
+                    // Switching over a partner-run timer: close it first so
+                    // its record is saved, then start ours.
+                    if (remoteMain) await stopRemoteActivity('session');
+                    startActivity(activity.id);
+                  }}
                 />
               );
             })}
@@ -124,10 +161,12 @@ export default function ActivityScreen() {
                   icon={FEEDING.icon}
                   gradKey={FEEDING.gradKey}
                   label={t('kind.feeding')}
-                  isActive={!!feeding}
-                  onPress={() =>
-                    feeding ? stopActivity('feeding') : startActivity('feeding')
-                  }
+                  isActive={!!feedingSession}
+                  onPress={() => {
+                    if (feeding) stopActivity('feeding');
+                    else if (remoteFeeding) stopRemoteActivity('feeding');
+                    else startActivity('feeding');
+                  }}
                 />
               </View>
               <View style={styles.eventNarrow}>

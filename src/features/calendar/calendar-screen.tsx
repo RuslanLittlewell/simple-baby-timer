@@ -37,8 +37,10 @@ export default function CalendarScreen() {
   );
 
   const dataVersion = useAppStore((state) => state.dataVersion);
+  const activeChildId = useAppStore((state) => state.activeChildId);
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
+  const remoteLive = useAppStore((state) => state.remoteLive);
   const t = useT();
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -70,17 +72,17 @@ export default function CalendarScreen() {
 
   useEffect(() => {
     let alive = true;
-    getSessionsForDay(shownDay).then((list) => {
+    getSessionsForDay(shownDay, activeChildId).then((list) => {
       if (alive) setSessions(list);
     });
     return () => {
       alive = false;
     };
-  }, [shownDay, dataVersion]);
+  }, [shownDay, dataVersion, activeChildId]);
 
   const refreshSessions = useCallback(async () => {
-    setSessions(await getSessionsForDay(shownDay));
-  }, [shownDay]);
+    setSessions(await getSessionsForDay(shownDay, activeChildId));
+  }, [shownDay, activeChildId]);
 
   const openEntryEditor = useCallback((entry: ActivitySession) => setEntryToEdit(entry), []);
   const closeEntryEditor = useCallback(() => setEntryToEdit(null), []);
@@ -178,9 +180,16 @@ export default function CalendarScreen() {
   const px = (minutes: number) => (minutes / 60) * hourHeight;
 
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
+  // Partner-run timers for the active child, unless our own timer covers
+  // the same track already.
+  const remoteLiveItems = remoteLive
+    .filter((item) => item.childId === activeChildId)
+    .filter((item) => (item.track === 'session' ? !session : !feeding))
+    .map((item) => ({ kind: item.kind, startedAt: item.startedAt, childId: item.childId }));
   const liveBlocks: LiveBlock[] = [];
-  for (const item of [session, feeding]) {
+  for (const item of [session, feeding, ...remoteLiveItems]) {
     if (!item || item.startedAt >= dayEndMs || now <= dayStartMs) continue;
+    if (activeChildId && item.childId && item.childId !== activeChildId) continue;
     const startMin = clampDayMin((item.startedAt - dayStartMs) / 60000);
     const endMin = clampDayMin(nowMinutes);
     if (endMin <= startMin) continue;

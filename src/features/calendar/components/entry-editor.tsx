@@ -22,6 +22,7 @@ import {
   updateSession,
   type ActivitySession,
 } from '@/lib/activity-store';
+import { enqueueSessionDelete, enqueueSessionUpsert } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { DANGER_COLOR } from '../constants';
@@ -47,7 +48,11 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
   const theme = useTheme();
   const t = useT();
   const language = useAppStore((state) => state.language);
+  const children = useAppStore((state) => state.children);
   const WEEKDAYS = WEEKDAYS_I18N[language];
+
+  const remoteIdOf = (childId?: string) =>
+    childId ? children.find((child) => child.id === childId)?.remoteId : undefined;
 
   const [startInput, setStartInput] = useState('');
   const [endInput, setEndInput] = useState('');
@@ -78,6 +83,8 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
         style: 'destructive',
         onPress: async () => {
           await deleteSession(entry.id, new Date(entry.start));
+          const remoteId = remoteIdOf(entry.childId);
+          if (remoteId) enqueueSessionDelete(remoteId, entry);
           await onChanged();
           onClose();
         },
@@ -132,6 +139,8 @@ export function EntryEditor({ entry, onClose, onChanged }: EntryEditorProps) {
     }
     const milkMl = entry.kind === 'feeding' && milkInput ? parsedMilk : undefined;
     await updateSession(entry.id, originalDate, { start, end, milkMl });
+    const remoteId = remoteIdOf(entry.childId);
+    if (remoteId) enqueueSessionUpsert(remoteId, { ...entry, start, end, milkMl });
     await onChanged();
     onClose();
   };

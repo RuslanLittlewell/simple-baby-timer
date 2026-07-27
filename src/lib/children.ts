@@ -8,6 +8,8 @@ export interface Child {
   id: string;
   name: string;
   gradientKey: ChildGradientKey;
+  // Supabase children.id (uuid) once the child is shared / joined.
+  remoteId?: string;
 }
 
 export const isChildGradientKey = (value: unknown): value is ChildGradientKey =>
