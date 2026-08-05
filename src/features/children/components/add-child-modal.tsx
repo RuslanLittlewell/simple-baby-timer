@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { WheelField } from '@/components/wheel-field';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { type ChildGradientKey } from '@/lib/children';
@@ -21,10 +22,10 @@ import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../constants';
 import { BabySvg } from './baby-svg';
 import { GradientPicker } from './gradient-picker';
 
-const normalizeDateInput = (value: string) => {
-  const digits = value.replace(/[^0-9]/g, '').slice(0, 8);
-  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join('.');
-};
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+const formatBirthday = (date: Date) =>
+  `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`;
 
 // Parses "DD.MM.YYYY" into a local-midnight timestamp; rejects invalid,
 // future, or absurdly old dates.
@@ -43,6 +44,8 @@ const parseBirthday = (value: string): number | null => {
   if (year < now.getFullYear() - 6) return null;
   return date.getTime();
 };
+
+const BIRTHDAY_MIN_DATE = new Date(new Date().getFullYear() - 6, 0, 1);
 
 interface AddChildModalProps {
   visible: boolean;
@@ -110,16 +113,17 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
           <ThemedText type="small" themeColor="textSecondary">
             {t('children.birthday')}
           </ThemedText>
-          <TextInput
-            value={birthday}
-            onChangeText={(value) => setBirthday(normalizeDateInput(value))}
-            keyboardType="number-pad"
-            maxLength={10}
-            placeholder={t('children.birthdayPlaceholder')}
-            placeholderTextColor={theme.textSecondary}
-            style={[
-              styles.dateInput,
-              { color: theme.text, backgroundColor: theme.backgroundElement },
+          <WheelField
+            mode="date"
+            value={birthdayMs !== null ? new Date(birthdayMs) : new Date()}
+            displayText={birthday || t('children.birthdayPlaceholder')}
+            onChange={(date) => setBirthday(formatBirthday(date))}
+            minimumDate={BIRTHDAY_MIN_DATE}
+            maximumDate={new Date()}
+            style={[styles.dateInput, { backgroundColor: theme.backgroundElement }]}
+            textStyle={[
+              styles.dateInputText,
+              { color: birthday ? theme.text : theme.textSecondary },
             ]}
           />
 
@@ -199,7 +203,9 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
-    textAlign: 'center',
+    alignItems: 'center',
+  },
+  dateInputText: {
     fontSize: 20,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],

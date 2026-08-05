@@ -53,7 +53,7 @@ export default function RegimesScreen() {
 
   if (!proActive) {
     return (
-      <ThemedView style={styles.container}>
+      <ThemedView gradient style={styles.container}>
         <SafeAreaView style={[styles.safe, styles.locked]} edges={['top', 'left', 'right']}>
           <ProRequiredCard />
         </SafeAreaView>
@@ -62,7 +62,7 @@ export default function RegimesScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView gradient style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <AgePicker
           labels={regimes.map((r) => r.age)}

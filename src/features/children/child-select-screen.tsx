@@ -95,7 +95,7 @@ export default function ChildSelectScreen() {
   const canAdd = children.length < MAX_CHILDREN;
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView gradient style={styles.container}>
       <AuroraBackground />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.header}>

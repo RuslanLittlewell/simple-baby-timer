@@ -1,10 +1,10 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACTIVITY_ACCENT } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
+import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/state/app-state';
 
 import { type GradKey } from '../constants';
@@ -16,8 +16,8 @@ interface StatusCardProps {
   gradKey: GradKey | null;
   elapsed: number;
   statusNote: string;
-  // Secondary feeding line when it runs alongside a main session.
-  feedingElapsed: number | null;
+  // Feeding also running alongside the primary session.
+  feedingActive: boolean;
 }
 
 export function StatusCard({
@@ -25,17 +25,24 @@ export function StatusCard({
   gradKey,
   elapsed,
   statusNote,
-  feedingElapsed,
+  feedingActive,
 }: StatusCardProps) {
   const t = useT();
+  const theme = useTheme();
+  const { accent } = useActivityColors();
 
   return (
-    <ThemedView type="backgroundElement" style={styles.card}>
+    <ThemedView
+      type="surfaceElevated"
+      style={[styles.card, { borderColor: theme.border }]}>
       {primaryKind && gradKey ? (
         <>
           <View style={styles.head}>
-            <View style={[styles.dot, { backgroundColor: ACTIVITY_ACCENT[gradKey] }]} />
+            <View style={[styles.dot, { backgroundColor: accent[gradKey] }]} />
             <ThemedText type="smallBold">{t(`kind.${primaryKind}`)}</ThemedText>
+            {feedingActive && (
+              <View style={[styles.dot, { backgroundColor: accent.feed }]} />
+            )}
           </View>
           <ThemedText style={styles.timer}>{formatElapsed(elapsed)}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -55,20 +62,6 @@ export function StatusCard({
           </ThemedText>
         </>
       )}
-
-      {feedingElapsed !== null && (
-        <View style={styles.secondary}>
-          <MaterialCommunityIcons
-            name="baby-bottle-outline"
-            size={18}
-            color={ACTIVITY_ACCENT.feed}
-          />
-          <ThemedText type="smallBold" style={styles.secondaryLabel}>
-            {t('kind.feeding')}
-          </ThemedText>
-          <ThemedText style={styles.secondaryTimer}>{formatElapsed(feedingElapsed)}</ThemedText>
-        </View>
-      )}
     </ThemedView>
   );
 }
@@ -78,7 +71,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     alignItems: 'center',
     borderRadius: Spacing.four,
-    paddingVertical: Spacing.four,
+    borderWidth: 1,
+    paddingVertical: Spacing.three,
     gap: Spacing.one,
   },
   head: {
@@ -94,27 +88,6 @@ const styles = StyleSheet.create({
   timer: {
     fontSize: 44,
     lineHeight: 50,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  secondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-    paddingTop: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
-  secondaryLabel: {
-    marginRight: Spacing.one,
-  },
-  secondaryTimer: {
-    fontSize: 17,
-    lineHeight: 22,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },

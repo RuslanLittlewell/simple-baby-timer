@@ -6,7 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-import { KIND_STYLE } from '../constants';
+import { useKindStyle } from '../constants';
 import { type RegimeStep, type RegimeVariant } from '../types';
 
 interface RegimeCycleProps {
@@ -16,10 +16,11 @@ interface RegimeCycleProps {
 
 export function RegimeCycle({ variant, onSelect }: RegimeCycleProps) {
   const theme = useTheme();
+  const kindStyle = useKindStyle();
   return (
     <View style={styles.list}>
       {variant.steps.map((step, index) => {
-        const style = KIND_STYLE[step.kind];
+        const style = kindStyle[step.kind];
         return (
           <Pressable
             key={index}

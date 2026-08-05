@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import { ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 
 import { type RegimeKind } from './types';
 
@@ -23,15 +23,18 @@ interface KindStyle {
   icon: IconName;
 }
 
-export const KIND_STYLE: Record<RegimeKind, KindStyle> = {
-  sleep: { colors: ACTIVITY_GRADIENTS.sleep, fg: ACTIVITY_FG.sleep, icon: 'moon-waning-crescent' },
-  milk: { colors: ACTIVITY_GRADIENTS.feed, fg: ACTIVITY_FG.feed, icon: 'baby-bottle-outline' },
-  meal: { colors: ACTIVITY_GRADIENTS.feed, fg: ACTIVITY_FG.feed, icon: 'silverware-fork-knife' },
-  wake: { colors: ACTIVITY_GRADIENTS.awake, fg: ACTIVITY_FG.awake, icon: 'white-balance-sunny' },
-  play: { colors: ACTIVITY_GRADIENTS.awake, fg: ACTIVITY_FG.awake, icon: 'baby-face-outline' },
-  ritual: { colors: RITUAL_GRADIENT, fg: '#FFFFFF', icon: 'book-open-outline' },
-  other: { colors: OTHER_GRADIENT, fg: '#FFFFFF', icon: 'star-four-points-outline' },
-};
+export function useKindStyle(): Record<RegimeKind, KindStyle> {
+  const { gradients, fg } = useActivityColors();
+  return {
+    sleep: { colors: gradients.sleep, fg: fg.sleep, icon: 'moon-waning-crescent' },
+    milk: { colors: gradients.feed, fg: fg.feed, icon: 'baby-bottle-outline' },
+    meal: { colors: gradients.feed, fg: fg.feed, icon: 'silverware-fork-knife' },
+    wake: { colors: gradients.awake, fg: fg.awake, icon: 'white-balance-sunny' },
+    play: { colors: gradients.awake, fg: fg.awake, icon: 'baby-face-outline' },
+    ritual: { colors: RITUAL_GRADIENT, fg: '#FFFFFF', icon: 'book-open-outline' },
+    other: { colors: OTHER_GRADIENT, fg: '#FFFFFF', icon: 'star-four-points-outline' },
+  };
+}
 
 // Awake-window fill: yellow-lime block with just a sun icon.
 export const AWAKE_FILL_GRADIENT = ['#CFE95C', '#EAF69B'] as const;

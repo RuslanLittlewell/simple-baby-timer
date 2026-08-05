@@ -12,10 +12,11 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
-import { ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 
-import { type GradKey, type IconName } from '../constants';
+import { CARD_HEIGHT, type GradKey, type IconName } from '../constants';
+import { TimerToggleIcon } from './timer-toggle-icon';
 
 interface ActivityRowProps {
   icon: IconName;
@@ -36,7 +37,9 @@ export function ActivityRow({
   onPress,
   onStop,
 }: ActivityRowProps) {
-  const fg = ACTIVITY_FG[gradKey];
+  const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
+  const fg = fgColors[gradKey];
+  const accent = accentColors[gradKey];
   const sheenX = useSharedValue(-140);
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export function ActivityRow({
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
       <LinearGradient
-        colors={ACTIVITY_GRADIENTS[gradKey]}
+        colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.row, dimmed && styles.rowDimmed]}>
@@ -74,7 +77,7 @@ export function ActivityRow({
             />
           </Animated.View>
         )}
-        <MaterialCommunityIcons name={icon} size={26} color={fg} />
+        <MaterialCommunityIcons name={icon} size={26} color={accent} />
         <ThemedText style={[styles.label, { color: fg }]} numberOfLines={1}>
           {label}
         </ThemedText>
@@ -86,14 +89,10 @@ export function ActivityRow({
               event.stopPropagation();
               onStop();
             }}>
-            <MaterialCommunityIcons name="stop-circle" size={28} color={fg} />
+            <TimerToggleIcon active accent={accent} />
           </Pressable>
         ) : (
-          <MaterialCommunityIcons
-            name={isActive ? 'stop-circle' : 'play-circle'}
-            size={28}
-            color={fg}
-          />
+          <TimerToggleIcon active={isActive} accent={accent} />
         )}
       </LinearGradient>
     </Pressable>
@@ -105,6 +104,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+    minHeight: CARD_HEIGHT,
     paddingVertical: Spacing.four,
     paddingHorizontal: Spacing.four,
     borderRadius: Spacing.four,

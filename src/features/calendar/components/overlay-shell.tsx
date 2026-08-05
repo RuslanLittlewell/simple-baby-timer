@@ -29,7 +29,7 @@ export function OverlayShell({
 }: OverlayShellProps) {
   const theme = useTheme();
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView gradient style={styles.container}>
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
         <View style={styles.top}>
           <Pressable

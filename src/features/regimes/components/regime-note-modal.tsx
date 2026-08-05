@@ -7,7 +7,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/state/app-state';
 
-import { KIND_STYLE } from '../constants';
+import { useKindStyle } from '../constants';
 import { formatMin } from '../helpers';
 import { type RegimeStep } from '../types';
 
@@ -19,7 +19,8 @@ interface RegimeNoteModalProps {
 export function RegimeNoteModal({ step, onClose }: RegimeNoteModalProps) {
   const theme = useTheme();
   const t = useT();
-  const style = step ? KIND_STYLE[step.kind] : null;
+  const kindStyle = useKindStyle();
+  const style = step ? kindStyle[step.kind] : null;
 
   const timeLabel = step
     ? step.startMin === null

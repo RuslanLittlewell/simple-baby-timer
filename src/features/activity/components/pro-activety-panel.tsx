@@ -11,14 +11,15 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
-import { ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { type EventKind, type ProDetails } from '@/lib/activity-store';
 import { useT } from '@/state/app-state';
 
 import { EVENTS, MAIN_ACTIVITIES } from '../constants';
 import { ActivityRow } from './activity-row';
 import { EventTile } from './event-tile';
+import { TimerToggleIcon } from './timer-toggle-icon';
 
 type FeedingMode = 'breast' | 'bottle';
 type BreastSide = 'left' | 'right' | 'both';
@@ -66,6 +67,7 @@ export function ProActivityPanel({
   onExpandedChange,
 }: ProActivityPanelProps) {
   const t = useT();
+  const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
   const [expandedKind, setExpandedKind] = useState<ProKind | null>(null);
   const [mode, setMode] = useState<FeedingMode>('breast');
   const [side, setSide] = useState<BreastSide>('left');
@@ -78,11 +80,8 @@ export function ProActivityPanel({
   const expanded = expandedKind !== null;
   const isSleep = expandedKind === 'sleep';
   const isSettling = expandedKind === 'settling';
-  const fg = isSettling
-    ? ACTIVITY_FG.settling
-    : isSleep
-      ? ACTIVITY_FG.sleep
-      : ACTIVITY_FG.feed;
+  const expandedGradKey = isSettling ? 'settling' : isSleep ? 'sleep' : 'feed';
+  const fg = fgColors[expandedGradKey];
 
   const open = async (kind: ProKind) => {
     if (kind === 'settling' && !settlingActive) await onToggleSettling();
@@ -186,7 +185,7 @@ export function ProActivityPanel({
         })
       }>
       <ActivityRow
-        icon="weather-sunset-down"
+        icon="sleep"
         gradKey="settling"
         label={t('kind.settling')}
         isActive={settlingActive}
@@ -211,14 +210,6 @@ export function ProActivityPanel({
         }}
       />
       <View style={styles.eventRow}>
-        <View style={styles.eventNarrow}>
-          <EventTile
-            icon={EVENTS[0].icon}
-            gradKey={EVENTS[0].gradKey}
-            accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
-            onPress={() => void onLogEvent(EVENTS[0].id)}
-          />
-        </View>
         <View style={styles.eventWide}>
           <ActivityRow
             icon="baby-bottle-outline"
@@ -227,6 +218,14 @@ export function ProActivityPanel({
             isActive={feedingActive}
             onStop={() => void onToggleFeeding()}
             onPress={() => void open('feeding')}
+          />
+        </View>
+        <View style={styles.eventNarrow}>
+          <EventTile
+            icon={EVENTS[0].icon}
+            gradKey={EVENTS[0].gradKey}
+            accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
+            onPress={() => void onLogEvent(EVENTS[0].id)}
           />
         </View>
         <View style={styles.eventNarrow}>
@@ -244,9 +243,7 @@ export function ProActivityPanel({
           style={[styles.overlay, overlayStyle]}
           onTouchEnd={(event) => event.stopPropagation()}>
           <LinearGradient
-            colors={
-              ACTIVITY_GRADIENTS[isSettling ? 'settling' : isSleep ? 'sleep' : 'feed']
-            }
+            colors={gradients[expandedGradKey]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.card}>
@@ -254,7 +251,7 @@ export function ProActivityPanel({
               <MaterialCommunityIcons
                 name={
                   isSettling
-                    ? 'weather-sunset-down'
+                    ? 'sleep'
                     : isSleep
                       ? 'moon-waning-crescent'
                       : 'baby-bottle-outline'
@@ -272,7 +269,7 @@ export function ProActivityPanel({
                   event.stopPropagation();
                   close(true);
                 }}>
-                <MaterialCommunityIcons name="stop-circle" size={28} color={fg} />
+                <TimerToggleIcon active accent={accentColors[expandedGradKey]} />
               </Pressable>
             </Pressable>
 

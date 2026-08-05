@@ -91,7 +91,9 @@ export function EnterCodeModal({ visible, onClose, onJoined }: EnterCodeModalPro
           />
 
           {error && (
-            <ThemedText style={styles.errorText}>{t('children.errCode')}</ThemedText>
+            <ThemedText themeColor="danger" style={styles.errorText}>
+              {t('children.errCode')}
+            </ThemedText>
           )}
 
           <Pressable
@@ -158,7 +160,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   errorText: {
-    color: '#FF6B6B',
     fontSize: 13,
     lineHeight: 18,
   },

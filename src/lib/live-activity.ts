@@ -12,11 +12,13 @@ const ICONS: Record<ActivityKind, string> = {
   awake: 'la-awake',
 };
 
+// The lock-screen widget always renders in its own dark chrome (see
+// backgroundColor/titleColor below), independent of the in-app theme.
 const TINTS: Record<ActivityKind, string> = {
-  settling: ACTIVITY_ACCENT.settling,
-  sleep: ACTIVITY_ACCENT.sleep,
-  feeding: ACTIVITY_ACCENT.feed,
-  awake: ACTIVITY_ACCENT.awake,
+  settling: ACTIVITY_ACCENT.dark.settling,
+  sleep: ACTIVITY_ACCENT.dark.sleep,
+  feeding: ACTIVITY_ACCENT.dark.feed,
+  awake: ACTIVITY_ACCENT.dark.awake,
 };
 
 export const liveActivitySupported = Platform.OS === 'ios';

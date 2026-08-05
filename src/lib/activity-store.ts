@@ -222,7 +222,10 @@ export async function deleteSession(sessionId: string, originalDate: Date): Prom
 export async function updateSession(
   sessionId: string,
   originalDate: Date,
-  updates: Pick<ActivitySession, 'start' | 'end'> & { milkMl?: number },
+  updates: Pick<ActivitySession, 'start' | 'end'> & {
+    milkMl?: number;
+    proDetails?: ProDetails;
+  },
 ): Promise<void> {
   const oldKey = storageKey(dayKeyFromDate(originalDate));
   const newKey = storageKey(dayKeyFromDate(new Date(updates.start)));

@@ -3,8 +3,8 @@ import { BlurView } from 'expo-blur';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ACTIVITY_ACCENT } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/state/app-state';
 
@@ -19,6 +19,7 @@ interface StatsModalProps {
 
 export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
   const theme = useTheme();
+  const { accent } = useActivityColors();
   const t = useT();
 
   return (
@@ -39,7 +40,7 @@ export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
             <MaterialCommunityIcons
               name="moon-waning-crescent"
               size={24}
-              color={ACTIVITY_ACCENT.sleep}
+              color={accent.sleep}
             />
             <ThemedText style={styles.statLabel}>{t('kind.sleep')}</ThemedText>
             <ThemedText type="smallBold">
@@ -50,7 +51,7 @@ export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
             <MaterialCommunityIcons
               name="white-balance-sunny"
               size={24}
-              color={ACTIVITY_ACCENT.awake}
+              color={accent.awake}
             />
             <ThemedText style={styles.statLabel}>{t('kind.awake')}</ThemedText>
             <ThemedText type="smallBold">
@@ -61,7 +62,7 @@ export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
             <MaterialCommunityIcons
               name="baby-bottle-outline"
               size={24}
-              color={ACTIVITY_ACCENT.feed}
+              color={accent.feed}
             />
             <ThemedText style={styles.statLabel}>{t('calendar.milk')}</ThemedText>
             <ThemedText type="smallBold">
@@ -72,7 +73,7 @@ export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
             style={styles.statRow}
             accessible
             accessibilityLabel={`${t('kind.poop')}: ${stats.poopCount}`}>
-            <MaterialCommunityIcons name="emoticon-poop" size={24} color={ACTIVITY_ACCENT.poop} />
+            <MaterialCommunityIcons name="emoticon-poop" size={24} color={accent.poop} />
             <View style={styles.statSpacer} />
             <ThemedText type="smallBold">{stats.poopCount}</ThemedText>
           </View>
@@ -83,7 +84,7 @@ export function StatsModal({ visible, onClose, stats }: StatsModalProps) {
             <MaterialCommunityIcons
               name="diaper-outline"
               size={24}
-              color={ACTIVITY_ACCENT.diaper}
+              color={accent.diaper}
             />
             <View style={styles.statSpacer} />
             <ThemedText type="smallBold">{stats.diaperCount}</ThemedText>

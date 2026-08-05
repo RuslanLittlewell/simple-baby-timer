@@ -9,17 +9,18 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ACTIVITY_ACCENT } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { type ActivityKind } from '@/lib/notifications';
 import { useAppStore } from '@/state/app-state';
 
 type Meta = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  accentKey: keyof typeof ACTIVITY_ACCENT;
+  accentKey: keyof typeof ACTIVITY_ACCENT.dark;
 };
 
 const META: Record<ActivityKind, Meta> = {
-  settling: { icon: 'weather-sunset-down', accentKey: 'settling' },
+  settling: { icon: 'sleep', accentKey: 'settling' },
   sleep: { icon: 'moon-waning-crescent', accentKey: 'sleep' },
   feeding: { icon: 'baby-bottle-outline', accentKey: 'feed' },
   awake: { icon: 'white-balance-sunny', accentKey: 'awake' },
@@ -34,6 +35,7 @@ const fmt = (s: number) =>
 
 export function MiniTimer() {
   const theme = useTheme();
+  const { accent } = useActivityColors();
   const router = useRouter();
   const pathname = usePathname();
   const session = useAppStore((state) => state.session);
@@ -97,13 +99,13 @@ export function MiniTimer() {
         }
       }}>
       <GestureDetector gesture={gesture}>
-        <ThemedView type="backgroundElement" style={styles.card}>
+        <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
           {running.map((item) => {
             const meta = META[item.kind];
             const elapsed = Math.max(0, Math.floor((nowTs - item.startedAt) / 1000));
             return (
               <View key={item.kind} style={styles.line}>
-                <View style={[styles.dot, { backgroundColor: ACTIVITY_ACCENT[meta.accentKey] }]} />
+                <View style={[styles.dot, { backgroundColor: accent[meta.accentKey] }]} />
                 <MaterialCommunityIcons name={meta.icon} size={20} color={theme.text} />
                 <ThemedText style={styles.time}>{fmt(elapsed)}</ThemedText>
               </View>
@@ -128,7 +130,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: Spacing.four,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.15)',
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 10,

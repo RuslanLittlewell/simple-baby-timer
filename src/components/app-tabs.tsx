@@ -3,12 +3,13 @@ import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native
 import { DynamicColorIOS, Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { useT } from '@/state/app-state';
+import { useAppStore, useT } from '@/state/app-state';
 
 export default function AppTabs() {
   const t = useT();
+  const themeMode = useAppStore((state) => state.themeMode);
 
-  const colors = Colors.dark;
+  const colors = Colors[themeMode];
   const tabContentColor =
     Platform.OS === 'ios'
       ? DynamicColorIOS({ dark: colors.text, light: colors.text })
@@ -17,7 +18,7 @@ export default function AppTabs() {
   return (
     <NativeTabs
       backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
+      indicatorColor={colors.navigationActive}
       tintColor={tabContentColor}
       iconColor={{ default: tabContentColor, selected: tabContentColor }}
       labelStyle={{
@@ -34,7 +35,7 @@ export default function AppTabs() {
           disableTransparentOnScrollEdge
         />
         <Icon
-          src={<VectorIcon family={MaterialCommunityIcons} name="baby-face-outline" />}
+          src={<VectorIcon family={MaterialCommunityIcons} name="timer-outline" />}
           selectedColor={tabContentColor}
         />
         <Label>{t('activity.title')}</Label>

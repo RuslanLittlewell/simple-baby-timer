@@ -5,12 +5,11 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { type Child } from '@/lib/children';
 
 import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../constants';
 import { BabySvg } from './baby-svg';
-
-const DANGER_COLOR = '#E5484D';
 
 interface ChildCardProps {
   child: Child;
@@ -32,13 +31,18 @@ export function ChildCard({
   deleteLabel,
 }: ChildCardProps) {
   const fg = CHILD_GRADIENT_FG[child.gradientKey];
+  const theme = useTheme();
 
   const renderDeleteAction = () => (
     <View style={styles.deleteWrap}>
       <Pressable
         accessibilityLabel={deleteLabel}
         onPress={onDelete}
-        style={({ pressed }) => [styles.deleteAction, pressed && styles.pressed]}>
+        style={({ pressed }) => [
+          styles.deleteAction,
+          { backgroundColor: theme.danger },
+          pressed && styles.pressed,
+        ]}>
         <MaterialCommunityIcons name="trash-can-outline" size={26} color="#FFFFFF" />
       </Pressable>
     </View>
@@ -104,7 +108,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Spacing.four,
-    backgroundColor: DANGER_COLOR,
   },
   pressed: {
     opacity: 0.7,
