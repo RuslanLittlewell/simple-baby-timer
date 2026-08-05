@@ -7,7 +7,6 @@ import { type SessionKind } from '@/lib/activity-store';
 
 export const GUTTER = 52;
 export const NOW_COLOR = '#FF3B30';
-export const DANGER_COLOR = '#FF6B6B';
 
 export const ZOOM_MODES = [
   { step: 60, hourHeight: 40 },
@@ -40,12 +39,12 @@ export const STRIPE_SKEW = '-45deg';
 export const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export interface KindMeta {
-  gradKey: keyof typeof ACTIVITY_GRADIENTS;
+  gradKey: keyof typeof ACTIVITY_GRADIENTS.dark;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }
 
 export const KIND_META: Record<SessionKind, KindMeta> = {
-  settling: { gradKey: 'settling', icon: 'weather-sunset-down' },
+  settling: { gradKey: 'settling', icon: 'sleep' },
   sleep: { gradKey: 'sleep', icon: 'moon-waning-crescent' },
   feeding: { gradKey: 'feed', icon: 'baby-bottle-outline' },
   awake: { gradKey: 'awake', icon: 'white-balance-sunny' },

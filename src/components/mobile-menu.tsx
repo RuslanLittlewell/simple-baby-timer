@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Dimensions, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Dimensions, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SelectField } from '@/components/select-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,12 +25,16 @@ export function MobileMenu() {
   const theme = useTheme();
   const t = useT();
   const language = useAppStore((state) => state.language);
+  const themeMode = useAppStore((state) => state.themeMode);
   const proActive = useAppStore((state) => state.proActive);
   const proExpiresAt = useAppStore((state) => state.proExpiresAt);
   const proRenewsAt = useAppStore((state) => state.proRenewsAt);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const setThemeMode = useAppStore((state) => state.setThemeMode);
   const activateTestPro = useAppStore((state) => state.activateTestPro);
   const [visible, setVisible] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const currentLanguage = LANGUAGES.find((item) => item.code === language) ?? LANGUAGES[0];
   const drawerX = useSharedValue(DRAWER_WIDTH);
   const sheenX = useSharedValue(-100);
   const dateLocale = {
@@ -39,6 +44,9 @@ export function MobileMenu() {
     pl: 'pl-PL',
     es: 'es-ES',
     fr: 'fr-FR',
+    de: 'de-DE',
+    pt: 'pt-PT',
+    it: 'it-IT',
   }[language];
   const formatDate = (timestamp: number) =>
     new Date(timestamp).toLocaleDateString(dateLocale, {
@@ -72,6 +80,7 @@ export function MobileMenu() {
   }));
 
   const close = () => {
+    setLangOpen(false);
     drawerX.value = withTiming(
       DRAWER_WIDTH,
       { duration: 240, easing: Easing.in(Easing.cubic) },
@@ -110,43 +119,43 @@ export function MobileMenu() {
             ]}>
             <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left']}>
               <View style={styles.drawerHeader}>
-                <ThemedText type="smallBold">{t('settings.language')}</ThemedText>
+                <ThemedText type="smallBold">{t('settings.title')}</ThemedText>
                 <Pressable onPress={close} hitSlop={10}>
                   <MaterialCommunityIcons name="close" size={24} color={theme.text} />
                 </Pressable>
               </View>
 
-              <View style={styles.languages}>
-                {LANGUAGES.map((item) => {
-                  const active = item.code === language;
-                  return (
-                    <Pressable
-                      key={item.code}
-                      onPress={() => {
-                        setLanguage(item.code);
-                        close();
-                      }}
-                      style={({ pressed }) => [
-                        styles.language,
-                        {
-                          borderColor: active
-                            ? '#A78BFA'
-                            : theme.backgroundSelected,
-                          backgroundColor: active
-                            ? 'rgba(124,58,237,0.18)'
-                            : theme.backgroundElement,
-                        },
-                        pressed && styles.pressed,
-                      ]}>
-                      <ThemedText style={styles.languageCode}>
-                        {item.code.toUpperCase()}
-                      </ThemedText>
-                      <ThemedText type="small" numberOfLines={1}>
-                        {item.label}
-                      </ThemedText>
-                    </Pressable>
-                  );
-                })}
+              <View style={[styles.section, langOpen && styles.sectionOpen]}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('settings.language')}
+                </ThemedText>
+                <SelectField
+                  value={currentLanguage.label}
+                  selectedValue={language}
+                  options={LANGUAGES.map((item) => ({ value: item.code, label: item.label }))}
+                  onSelect={(code) => setLanguage(code as typeof language)}
+                  open={langOpen}
+                  onOpenChange={setLangOpen}
+                />
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.themeRow}>
+                  <View style={styles.themeLabel}>
+                    <MaterialCommunityIcons
+                      name={themeMode === 'dark' ? 'weather-night' : 'white-balance-sunny'}
+                      size={18}
+                      color={theme.text}
+                    />
+                    <ThemedText type="smallBold">{t('settings.theme')}</ThemedText>
+                  </View>
+                  <Switch
+                    accessibilityLabel={t('settings.theme')}
+                    value={themeMode === 'light'}
+                    onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
+                    trackColor={{ false: theme.border, true: '#C4B5FD' }}
+                  />
+                </View>
               </View>
 
               <View style={styles.footer}>
@@ -239,22 +248,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: Spacing.three,
   },
-  languages: {
+  section: {
     gap: Spacing.two,
+    paddingBottom: Spacing.four,
   },
-  language: {
+  sectionOpen: {
+    zIndex: 9999,
+    elevation: 24,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  themeLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  languageCode: {
-    width: 24,
-    fontSize: 12,
-    fontWeight: '800',
   },
   footer: {
     flex: 1,

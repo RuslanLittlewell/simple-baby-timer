@@ -1,7 +1,9 @@
 
 
 import { Colors } from '@/constants/theme';
+import { useAppStore } from '@/state/app-state';
 
 export function useTheme() {
-  return Colors.dark;
+  const mode = useAppStore((state) => state.themeMode);
+  return Colors[mode];
 }

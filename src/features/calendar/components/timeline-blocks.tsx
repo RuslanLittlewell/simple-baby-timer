@@ -4,8 +4,8 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ACTIVITY_ACCENT, ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { type ActivitySession } from '@/lib/activity-store';
 import { type ActivityKind } from '@/lib/notifications';
 
@@ -36,6 +36,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
   onEdit,
   t,
 }: TimelineBlocksProps) {
+  const { gradients, fg: fgColors } = useActivityColors();
   const px = (minutes: number) => (minutes / 60) * hourHeight;
   const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
 
@@ -53,12 +54,12 @@ export const TimelineBlocks = memo(function TimelineBlocks({
         const top = px(clampedStart);
         const spanHeight = px(clampedEnd) - top;
         const meta = KIND_META[s.kind];
-        const fg = ACTIVITY_FG[meta.gradKey];
+        const fg = fgColors[meta.gradKey];
         const proIcon = proDetailsIcon(s.proDetails);
 
         if (isEvent(s.kind)) {
           const eventHeight = Math.max(spanHeight, MIN_EVENT_HEIGHT);
-          const stripeColor = ACTIVITY_GRADIENTS[meta.gradKey][0];
+          const stripeColor = gradients[meta.gradKey][0];
           const blockWidth = SCREEN_WIDTH - laneLeft(s.kind) - Spacing.two;
           const stripes = Math.ceil((blockWidth + 2 * eventHeight) / STRIPE_PITCH);
 
@@ -105,7 +106,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
               pressed && styles.pressed,
             ]}>
             <LinearGradient
-              colors={ACTIVITY_GRADIENTS[meta.gradKey]}
+              colors={gradients[meta.gradKey]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.blockGradient}>
@@ -148,16 +149,17 @@ interface LiveBlocksProps {
 }
 
 export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
+  const { gradients, fg: fgColors, accent } = useActivityColors();
   return (
     <>
       {blocks.map((block) => {
         const meta = KIND_META[block.kind];
-        const fg = ACTIVITY_FG[meta.gradKey];
+        const fg = fgColors[meta.gradKey];
         const proIcon = proDetailsIcon(block.proDetails);
         return (
           <LinearGradient
             key={`live-${block.kind}`}
-            colors={ACTIVITY_GRADIENTS[meta.gradKey]}
+            colors={gradients[meta.gradKey]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[
@@ -167,7 +169,7 @@ export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
                 top: block.top,
                 height: block.height,
                 left: laneLeft(block.kind),
-                borderColor: ACTIVITY_ACCENT[meta.gradKey],
+                borderColor: accent[meta.gradKey],
               },
             ]}>
             {block.height >= 16 && (

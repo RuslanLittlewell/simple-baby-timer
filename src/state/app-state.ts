@@ -4,6 +4,7 @@ import { AppState as RNAppState } from 'react-native';
 import { create } from 'zustand';
 import { persist, type PersistStorage } from 'zustand/middleware';
 
+import { type ThemeMode } from '@/constants/theme';
 import {
   DEFAULT_LANGUAGE,
   normalizeLanguage,
@@ -60,6 +61,7 @@ type Settings = {
   awakeNotificationsEnabled: boolean;
   feedingNotificationsEnabled: boolean;
   language: LanguageCode;
+  themeMode: ThemeMode;
 };
 
 type PersistedState = Settings & {
@@ -78,6 +80,7 @@ const DEFAULT_SETTINGS: Settings = {
   awakeNotificationsEnabled: true,
   feedingNotificationsEnabled: true,
   language: DEFAULT_LANGUAGE,
+  themeMode: 'dark',
 };
 
 const sanitizeChildren = (value: unknown): Child[] => {
@@ -152,6 +155,7 @@ type AppStore = PersistedState & {
   ) => void;
   setActiveProDetails: (details: ProDetails) => void;
   setLanguage: (code: LanguageCode) => void;
+  setThemeMode: (mode: ThemeMode) => void;
   addChild: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
   addSharedChild: (child: RemoteChild) => Child | null;
   upsertRemoteChildren: (remote: RemoteChild[]) => void;
@@ -342,6 +346,7 @@ export const useAppStore = create<AppStore>()(
         if (remoteId) updateLiveSessionDetails(remoteId, track, details).catch(() => {});
       },
       setLanguage: (code) => set({ language: normalizeLanguage(code) }),
+      setThemeMode: (mode) => set({ themeMode: mode }),
 
       addChild: (name, gradientKey, birthday) => {
         const trimmed = name.trim();
@@ -635,6 +640,7 @@ export const useAppStore = create<AppStore>()(
         awakeNotificationsEnabled,
         feedingNotificationsEnabled,
         language,
+        themeMode,
         children,
         activeChildId,
         removedRemoteIds,
@@ -646,6 +652,7 @@ export const useAppStore = create<AppStore>()(
         awakeNotificationsEnabled,
         feedingNotificationsEnabled,
         language,
+        themeMode,
         children,
         activeChildId,
         removedRemoteIds,
@@ -681,6 +688,7 @@ export const useAppStore = create<AppStore>()(
               ? saved.feedingNotificationsEnabled
               : true,
           language: normalizeLanguage(saved.language),
+          themeMode: saved.themeMode === 'light' ? 'light' : 'dark',
           children,
           removedRemoteIds: Array.isArray(saved.removedRemoteIds)
             ? saved.removedRemoteIds.filter((id): id is string => typeof id === 'string')

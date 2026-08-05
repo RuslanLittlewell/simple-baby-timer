@@ -215,7 +215,7 @@ export default function CalendarScreen() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <ThemedView style={styles.container}>
+      <ThemedView gradient style={styles.container}>
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
           <View style={styles.header}>
             <Pressable
@@ -279,7 +279,7 @@ export default function CalendarScreen() {
                 <TimelineGrid
                   hourHeight={hourHeight}
                   step={gridStep}
-                  hourLineColor={theme.backgroundSelected}
+                  hourLineColor={theme.border}
                   minorLineColor={theme.backgroundElement}
                 />
 
@@ -321,6 +321,7 @@ export default function CalendarScreen() {
 
           <EntryEditor
             entry={entryToEdit}
+            proActive={proAccess}
             onClose={closeEntryEditor}
             onChanged={refreshSessions}
           />

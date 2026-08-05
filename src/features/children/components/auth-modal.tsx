@@ -118,11 +118,11 @@ export function AuthModal({ visible, onClose, onSignedIn }: AuthModalProps) {
               </Pressable>
 
               <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.backgroundSelected }]} />
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                 <ThemedText type="small" themeColor="textSecondary">
                   {t('auth.or')}
                 </ThemedText>
-                <View style={[styles.dividerLine, { backgroundColor: theme.backgroundSelected }]} />
+                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
               </View>
 
               <TextInput
@@ -203,7 +203,11 @@ export function AuthModal({ visible, onClose, onSignedIn }: AuthModalProps) {
             </>
           )}
 
-          {error && <ThemedText style={styles.errorText}>{t('auth.error')}</ThemedText>}
+          {error && (
+            <ThemedText themeColor="danger" style={styles.errorText}>
+              {t('auth.error')}
+            </ThemedText>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -286,7 +290,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorText: {
-    color: '#FF6B6B',
     fontSize: 13,
     lineHeight: 18,
   },

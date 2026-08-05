@@ -12,19 +12,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuroraBackground } from '@/components/aurora-background';
 import { MobileMenu } from '@/components/mobile-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { computeDayStats } from '@/features/calendar/helpers';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { formatHm } from '@/i18n';
-import { type EventKind } from '@/lib/activity-store';
+import { getSessionsForDay, type ActivitySession, type EventKind } from '@/lib/activity-store';
 import { formatAge } from '@/lib/children';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { ActivityRow } from './components/activity-row';
+import { DayStatsRow } from './components/day-stats-row';
 import { EventTile } from './components/event-tile';
+import { FloatingIcons } from './components/floating-icons';
 import { ProActivityPanel } from './components/pro-activety-panel';
 import { StatusCard } from './components/status-card';
 import { ACTIVITIES, EVENTS, FEEDING, MAIN_ACTIVITIES } from './constants';
@@ -48,16 +51,29 @@ export default function ActivityScreen() {
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
   const activeChildId = useAppStore((state) => state.activeChildId);
+  const dataVersion = useAppStore((state) => state.dataVersion);
   const activeChild = children.find((child) => child.id === activeChildId);
   const proAccess = proActive || activeChild?.proEnabled === true;
   const t = useT();
+  const { accent } = useActivityColors();
   const [nowTs, setNowTs] = useState(Date.now());
   const [panelWidth, setPanelWidth] = useState(1);
   const [panelIndex, setPanelIndex] = useState(proAccess ? 1 : 0);
   const [proExpanded, setProExpanded] = useState(false);
   const [proDismissSignal, setProDismissSignal] = useState(0);
   const [proPaywallVisible, setProPaywallVisible] = useState(false);
+  const [todaySessions, setTodaySessions] = useState<ActivitySession[]>([]);
   const pagerRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSessionsForDay(new Date(), activeChildId).then((list) => {
+      if (alive) setTodaySessions(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [activeChildId, dataVersion]);
 
   // Partner-run timers for the active child; hidden while a local timer of
   // the same track exists.
@@ -113,9 +129,22 @@ export default function ActivityScreen() {
 
   const secondsSince = (from: number) => Math.max(0, Math.floor((nowTs - from) / 1000));
 
+  const todayStartMs = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+  const todayEndMs = todayStartMs + 24 * 60 * 60 * 1000;
+  const dayStats = computeDayStats(todaySessions, session, nowTs, todayStartMs, todayEndMs);
+
   const primary = mainSession ?? feedingSession;
   const active = primary ? ACTIVITIES.find((a) => a.id === primary.kind) : undefined;
   const elapsed = primary ? secondsSince(primary.startedAt) : 0;
+  const concurrentFeeding = !!(mainSession && feedingSession);
+  const floatingKinds = active
+    ? [
+        { icon: active.icon, color: accent[active.gradKey] },
+        ...(concurrentFeeding && active.gradKey !== 'feed'
+          ? [{ icon: FEEDING.icon, color: accent.feed }]
+          : []),
+      ]
+    : [];
   let statusNote = '';
   if (primary?.kind === 'sleep')
     statusNote = t('activity.noteSleep', { time: formatHm(sleepMinutes, language) });
@@ -128,11 +157,12 @@ export default function ActivityScreen() {
 
   return (
     <ThemedView
+      gradient
       style={styles.container}
       onTouchEnd={() => {
         if (proExpanded) setProDismissSignal((value) => value + 1);
       }}>
-      <AuroraBackground />
+      {floatingKinds.length > 0 && <FloatingIcons kinds={floatingKinds} />}
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           {activeChild ? (
@@ -168,14 +198,14 @@ export default function ActivityScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Spacing.two}
           style={styles.center}>
+          <DayStatsRow stats={dayStats} />
+
           <StatusCard
             primaryKind={primary?.kind ?? null}
             gradKey={active?.gradKey ?? null}
             elapsed={elapsed}
             statusNote={statusNote}
-            feedingElapsed={
-              mainSession && feedingSession ? secondsSince(feedingSession.startedAt) : null
-            }
+            feedingActive={concurrentFeeding}
           />
 
           <View
@@ -219,14 +249,6 @@ export default function ActivityScreen() {
                 })}
 
                 <View style={styles.eventRow}>
-                  <View style={styles.eventNarrow}>
-                    <EventTile
-                      icon={EVENTS[0].icon}
-                      gradKey={EVENTS[0].gradKey}
-                      accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
-                      onPress={() => logEvent(EVENTS[0].id as EventKind)}
-                    />
-                  </View>
                   <View style={styles.eventWide}>
                     <ActivityRow
                       icon={FEEDING.icon}
@@ -238,6 +260,14 @@ export default function ActivityScreen() {
                         else if (remoteFeeding) stopRemoteActivity('feeding');
                         else startActivity('feeding');
                       }}
+                    />
+                  </View>
+                  <View style={styles.eventNarrow}>
+                    <EventTile
+                      icon={EVENTS[0].icon}
+                      gradKey={EVENTS[0].gradKey}
+                      accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
+                      onPress={() => logEvent(EVENTS[0].id as EventKind)}
                     />
                   </View>
                   <View style={styles.eventNarrow}>

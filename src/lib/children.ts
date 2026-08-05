@@ -52,6 +52,9 @@ const AGE_WORDS: Record<LanguageCode, AgeWords> = {
   pl: { day: ['dzień', 'dni', 'dni'], month: ['miesiąc', 'miesiące', 'miesięcy'] },
   es: { day: ['día', 'días', 'días'], month: ['mes', 'meses', 'meses'] },
   fr: { day: ['jour', 'jours', 'jours'], month: ['mois', 'mois', 'mois'] },
+  de: { day: ['Tag', 'Tage', 'Tage'], month: ['Monat', 'Monate', 'Monate'] },
+  pt: { day: ['dia', 'dias', 'dias'], month: ['mês', 'meses', 'meses'] },
+  it: { day: ['giorno', 'giorni', 'giorni'], month: ['mese', 'mesi', 'mesi'] },
 };
 
 function plural(n: number, lang: LanguageCode, forms: [string, string, string]): string {

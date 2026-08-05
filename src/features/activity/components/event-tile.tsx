@@ -8,10 +8,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { ACTIVITY_FG, ACTIVITY_GRADIENTS } from '@/constants/activities';
 import { Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 
-import { type GradKey, type IconName } from '../constants';
+import { CARD_HEIGHT, type GradKey, type IconName } from '../constants';
 
 interface EventTileProps {
   icon: IconName;
@@ -23,6 +23,7 @@ interface EventTileProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventTileProps) {
+  const { gradients, fg } = useActivityColors();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -40,11 +41,11 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
       }}
       style={[styles.wrap, animatedStyle]}>
       <LinearGradient
-        colors={ACTIVITY_GRADIENTS[gradKey]}
+        colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.tile}>
-        <MaterialCommunityIcons name={icon} size={26} color={ACTIVITY_FG[gradKey]} />
+        <MaterialCommunityIcons name={icon} size={26} color={fg[gradKey]} />
       </LinearGradient>
     </AnimatedPressable>
   );
@@ -57,6 +58,7 @@ const styles = StyleSheet.create({
   tile: {
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: CARD_HEIGHT,
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,
   },

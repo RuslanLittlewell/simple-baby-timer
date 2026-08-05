@@ -6,6 +6,25 @@ import { type Translate } from './helpers';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
+export type SettlingMethod = Extract<ProDetails, { type: 'settling' }>['methods'][number];
+
+export const SETTLING_METHODS: SettlingMethod[] = [
+  'rocking',
+  'fitball',
+  'inArms',
+  'crib',
+  'pacifier',
+  'whiteNoise',
+  'music',
+  'swaddling',
+  'darkRoom',
+  'walk',
+  'independent',
+];
+export const SLEEP_PLACES = ['crib', 'stroller', 'carSeat', 'coSleeping', 'carrier'] as const;
+export const BREAST_SIDES = ['left', 'right', 'both'] as const;
+export const BOTTLE_CONTENTS = ['formula', 'breastMilk', 'water'] as const;
+
 const SLEEP_ICONS: Record<Extract<ProDetails, { type: 'sleep' }>['place'], IconName> = {
   crib: 'bed-single-outline',
   stroller: 'baby-carriage',

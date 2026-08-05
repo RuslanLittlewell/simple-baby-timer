@@ -47,11 +47,6 @@ export const formatDuration = (milliseconds: number, hoursUnit: string, minutesU
   return `${hours} ${hoursUnit} ${minutes} ${minutesUnit}`;
 };
 
-export const normalizeTimeInput = (value: string) => {
-  const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
-};
-
 export const parseTime = (value: string) => {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
   const [hours, minutes] = value.split(':').map(Number);
@@ -76,6 +71,7 @@ export interface DayStats {
   sleepMs: number;
   awakeMs: number;
   milkMl: number;
+  feedingCount: number;
   poopCount: number;
   diaperCount: number;
 }
@@ -102,6 +98,9 @@ export function computeDayStats(
     milkMl: sessions
       .filter((item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs)
       .reduce((sum, item) => sum + (item.milkMl ?? 0), 0),
+    feedingCount: sessions.filter(
+      (item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs,
+    ).length,
     poopCount: sessions.filter(
       (item) => item.kind === 'poop' && item.start >= dayStartMs && item.start < dayEndMs,
     ).length,

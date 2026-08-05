@@ -12,9 +12,9 @@ import {
   AWAKE_FILL_ICON,
   GUTTER,
   HOUR_HEIGHT,
-  KIND_STYLE,
   MIN_BLOCK_HEIGHT,
   POINT_HEIGHT,
+  useKindStyle,
 } from '../constants';
 import { awakeFills, formatMin, windowForVariant } from '../helpers';
 import { type RegimeStep, type RegimeVariant } from '../types';
@@ -29,6 +29,7 @@ interface RegimeTimelineProps {
 export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
   const theme = useTheme();
   const t = useT();
+  const kindStyle = useKindStyle();
   const { startHour, endHour } = windowForVariant(variant);
   const winStart = startHour * 60;
   const winEnd = endHour * 60;
@@ -50,7 +51,7 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
   }));
 
   const renderFullBlock = (step: RegimeStep, key: string) => {
-    const style = KIND_STYLE[step.kind];
+    const style = kindStyle[step.kind];
     const top = y(step.startMin!);
     const blockHeight = Math.max(MIN_BLOCK_HEIGHT, y(step.endMin!) - top);
     return (
@@ -104,7 +105,7 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
   };
 
   const renderOverlay = (step: RegimeStep, key: string) => {
-    const style = KIND_STYLE[step.kind];
+    const style = kindStyle[step.kind];
     const isRange = step.endMin !== null;
     const chipHeight = isRange
       ? Math.max(POINT_HEIGHT, y(step.endMin!) - y(step.startMin!))
@@ -140,7 +141,7 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
       {Array.from({ length: endHour - startHour + 1 }).map((_, i) => (
         <View key={`h-${i}`} pointerEvents="none">
           <View
-            style={[styles.hourLine, { top: i * HOUR_HEIGHT, backgroundColor: theme.backgroundSelected }]}
+            style={[styles.hourLine, { top: i * HOUR_HEIGHT, backgroundColor: theme.border }]}
           />
           <View style={[styles.hourLabel, { top: i * HOUR_HEIGHT - 8 }]}>
             <ThemedText style={styles.hourNum}>{pad2(startHour + i)}</ThemedText>

@@ -67,7 +67,7 @@ function SettingSlider({
             accessibilityLabel={label}
             value={enabled}
             onValueChange={onEnabledChange}
-            trackColor={{ false: theme.backgroundSelected, true: '#C4B5FD' }}
+            trackColor={{ false: theme.border, true: '#C4B5FD' }}
             style={styles.switch}
           />
         </View>
@@ -82,7 +82,7 @@ function SettingSlider({
         onValueChange={setLocal}
         onSlidingComplete={onCommit}
         minimumTrackTintColor="#C4B5FD"
-        maximumTrackTintColor={theme.backgroundSelected}
+        maximumTrackTintColor={theme.border}
         thumbTintColor="#C4B5FD"
       />
 
@@ -120,13 +120,16 @@ export default function SettingsScreen() {
   const setFeedingMinutes = useAppStore((state) => state.setFeedingMinutes);
   const setNotificationsEnabled = useAppStore((state) => state.setNotificationsEnabled);
   const language = useAppStore((state) => state.language);
+  const themeMode = useAppStore((state) => state.themeMode);
+  const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const theme = useTheme();
   const t = useT();
   const timerFmt = (v: number) => formatHm(v, language);
   const minutesFmt = (v: number) => `${v} ${t('unit.minutes')}`;
 
   return (
     <TabFade>
-      <ThemedView style={styles.container}>
+      <ThemedView gradient style={styles.container}>
         <AuroraBackground />
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <ScrollView
@@ -135,6 +138,31 @@ export default function SettingsScreen() {
             showsVerticalScrollIndicator={false}
             showsHorizontalScrollIndicator={false}>
             <View style={styles.inner}>
+            <ThemedView type="backgroundElement" style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.labelRow}>
+                  <MaterialCommunityIcons
+                    name={themeMode === 'dark' ? 'weather-night' : 'white-balance-sunny'}
+                    size={22}
+                    color={theme.text}
+                  />
+                  <ThemedText type="smallBold">{t('settings.theme')}</ThemedText>
+                </View>
+                <View style={styles.headerControls}>
+                  <ThemedText type="smallBold">
+                    {themeMode === 'dark' ? t('settings.themeDark') : t('settings.themeLight')}
+                  </ThemedText>
+                  <Switch
+                    accessibilityLabel={t('settings.theme')}
+                    value={themeMode === 'light'}
+                    onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
+                    trackColor={{ false: theme.border, true: '#C4B5FD' }}
+                    style={styles.switch}
+                  />
+                </View>
+              </View>
+            </ThemedView>
+
             <SettingSlider
               label={t('settings.sleepTime')}
               hint={t('settings.sleepHint')}
