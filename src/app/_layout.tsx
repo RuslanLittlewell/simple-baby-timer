@@ -5,12 +5,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { MiniTimer } from '@/components/mini-timer';
+import { PaywallModal } from '@/features/onboarding/components/paywall-modal';
 import { useSync } from '@/hooks/use-sync';
+import { useAppStore } from '@/state/app-state';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useSync();
+  const pendingPaywall = useAppStore((state) => state.pendingPaywall);
+  const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -18,6 +22,7 @@ export default function RootLayout() {
         <AnimatedSplashOverlay />
         <Stack screenOptions={{ headerShown: false }} />
         <MiniTimer />
+        <PaywallModal visible={pendingPaywall} onClose={() => setPendingPaywall(false)} />
       </ThemeProvider>
     </GestureHandlerRootView>
   );
