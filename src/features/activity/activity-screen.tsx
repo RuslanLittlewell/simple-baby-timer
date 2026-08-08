@@ -168,7 +168,7 @@ export default function ActivityScreen() {
           {activeChild ? (
             <Pressable
               accessibilityLabel={activeChild.name}
-              onPress={() => router.navigate('/')}
+              onPress={() => router.navigate('/children')}
               style={({ pressed }) => [pressed && styles.pressed]}>
               <ThemedView type="backgroundElement" style={styles.childChip}>
                 <MaterialCommunityIcons

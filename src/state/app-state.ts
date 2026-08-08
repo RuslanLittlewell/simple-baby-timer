@@ -70,6 +70,8 @@ type PersistedState = Settings & {
   // remoteIds of children deleted locally, so account-restore sync won't bring
   // them back before the server-side leave takes effect.
   removedRemoteIds: string[];
+  // Gates the first-launch welcome/auth/child-setup flow.
+  onboardingComplete: boolean;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -137,6 +139,10 @@ const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
 
 type AppStore = PersistedState & {
+  // Transient (not persisted): tells the root layout to show the Paywall
+  // once, right after onboarding hands off into the app.
+  pendingPaywall: boolean;
+  setPendingPaywall: (pending: boolean) => void;
   dataVersion: number;
   proActive: boolean;
   proExpiresAt?: number;
@@ -156,6 +162,7 @@ type AppStore = PersistedState & {
   setActiveProDetails: (details: ProDetails) => void;
   setLanguage: (code: LanguageCode) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  setOnboardingComplete: (complete: boolean) => void;
   addChild: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
   addSharedChild: (child: RemoteChild) => Child | null;
   upsertRemoteChildren: (remote: RemoteChild[]) => void;
@@ -260,6 +267,8 @@ export const useAppStore = create<AppStore>()(
       children: [],
       activeChildId: null,
       removedRemoteIds: [],
+      onboardingComplete: false,
+      pendingPaywall: false,
       dataVersion: 0,
       proActive: false,
       proExpiresAt: undefined,
@@ -346,6 +355,8 @@ export const useAppStore = create<AppStore>()(
         if (remoteId) updateLiveSessionDetails(remoteId, track, details).catch(() => {});
       },
       setLanguage: (code) => set({ language: normalizeLanguage(code) }),
+      setOnboardingComplete: (complete) => set({ onboardingComplete: complete }),
+      setPendingPaywall: (pending) => set({ pendingPaywall: pending }),
       setThemeMode: (mode) => set({ themeMode: mode }),
 
       addChild: (name, gradientKey, birthday) => {
@@ -644,6 +655,7 @@ export const useAppStore = create<AppStore>()(
         children,
         activeChildId,
         removedRemoteIds,
+        onboardingComplete,
       }) => ({
         sleepMinutes,
         awakeMinutes,
@@ -656,6 +668,7 @@ export const useAppStore = create<AppStore>()(
         children,
         activeChildId,
         removedRemoteIds,
+        onboardingComplete,
       }),
       migrate: (persisted, version) => {
         const legacy = (persisted ?? {}) as LegacySettings;
@@ -696,6 +709,12 @@ export const useAppStore = create<AppStore>()(
           activeChildId: children.some((child) => child.id === saved.activeChildId)
             ? (saved.activeChildId ?? null)
             : null,
+          // Existing installs upgrading to this field shouldn't be sent back
+          // through onboarding — infer completion from having set up a child.
+          onboardingComplete:
+            typeof saved.onboardingComplete === 'boolean'
+              ? saved.onboardingComplete
+              : children.length > 0,
         };
       },
     },

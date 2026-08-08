@@ -58,12 +58,12 @@ export async function verifyEmailCode(email: string, token: string): Promise<voi
   if (error) throw error;
 }
 
-// Google OAuth through the system browser; the redirect returns to the app
-// via the babytimer:// scheme. Returns false when the user cancels.
-export async function signInWithGoogle(): Promise<boolean> {
+// Shared browser-based OAuth flow through Supabase; the redirect returns to
+// the app via the babytimer:// scheme. Returns false when the user cancels.
+async function signInWithOAuthProvider(provider: 'google' | 'apple'): Promise<boolean> {
   const redirectTo = Linking.createURL('auth-callback');
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider,
     options: { redirectTo, skipBrowserRedirect: true },
   });
   if (error || !data.url) throw error ?? new Error('no auth url');
@@ -91,3 +91,9 @@ export async function signInWithGoogle(): Promise<boolean> {
   if (setError) throw setError;
   return true;
 }
+
+export const signInWithGoogle = () => signInWithOAuthProvider('google');
+// Sign in with Apple via Supabase's hosted OAuth (not the native
+// expo-apple-authentication flow), so no extra native module or entitlement
+// is needed — just enable the Apple provider in the Supabase dashboard.
+export const signInWithApple = () => signInWithOAuthProvider('apple');
