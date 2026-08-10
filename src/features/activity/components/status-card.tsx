@@ -45,9 +45,11 @@ export function StatusCard({
             )}
           </View>
           <ThemedText style={styles.timer}>{formatElapsed(elapsed)}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {statusNote}
-          </ThemedText>
+          {!!statusNote && (
+            <ThemedText type="small" themeColor="textSecondary">
+              {statusNote}
+            </ThemedText>
+          )}
         </>
       ) : (
         <>

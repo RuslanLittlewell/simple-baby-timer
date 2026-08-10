@@ -48,7 +48,7 @@ interface AgeWords {
 const AGE_WORDS: Record<LanguageCode, AgeWords> = {
   en: { day: ['day', 'days', 'days'], month: ['month', 'months', 'months'] },
   ru: { day: ['день', 'дня', 'дней'], month: ['месяц', 'месяца', 'месяцев'] },
-  uk: { day: ['день', 'дні', 'днів'], month: ['місяць', 'місяці', 'місяців'] },
+  ua: { day: ['день', 'дні', 'днів'], month: ['місяць', 'місяці', 'місяців'] },
   pl: { day: ['dzień', 'dni', 'dni'], month: ['miesiąc', 'miesiące', 'miesięcy'] },
   es: { day: ['día', 'días', 'días'], month: ['mes', 'meses', 'meses'] },
   fr: { day: ['jour', 'jours', 'jours'], month: ['mois', 'mois', 'mois'] },
@@ -58,7 +58,7 @@ const AGE_WORDS: Record<LanguageCode, AgeWords> = {
 };
 
 function plural(n: number, lang: LanguageCode, forms: [string, string, string]): string {
-  const slavic = lang === 'ru' || lang === 'uk' || lang === 'pl';
+  const slavic = lang === 'ru' || lang === 'ua' || lang === 'pl';
   if (!slavic) return n === 1 ? forms[0] : forms[1];
   const mod10 = n % 10;
   const mod100 = n % 100;

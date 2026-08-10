@@ -93,22 +93,28 @@ export interface AccountProStatus {
   active: boolean;
   expiresAt?: number;
   renewsAt?: number;
+  // The 14-day trial is once per account: a trial that is running or already
+  // over both count as used, and the paywall stops offering it.
+  trialUsed: boolean;
 }
 
 export async function fetchAccountProStatus(): Promise<AccountProStatus> {
-  if (!isSupabaseConfigured) return { active: false };
+  if (!isSupabaseConfigured) return { active: false, trialUsed: false };
   await requireSession();
+  // maybeSingle, not single: an account whose profile row is missing (created
+  // before the profiles trigger existed) is a plain "no PRO", and single()
+  // would turn it into an HTTP 406 on every sync pass.
   const { data, error } = await supabase
     .from('profiles')
     .select('pro_active, trial_ends_at, pro_renews_at')
-    .single();
+    .maybeSingle();
   // Keep the rest of account sync working while the profile migration is
   // still being applied to an existing Supabase project.
   if (
     error?.code === '42P01' ||
     error?.code === 'PGRST116' ||
     error?.code === 'PGRST205'
-  ) return { active: false };
+  ) return { active: false, trialUsed: false };
   if (error) throw error;
   const trialEndsAt =
     typeof data?.trial_ends_at === 'string' ? Date.parse(data.trial_ends_at) : NaN;
@@ -122,7 +128,19 @@ export async function fetchAccountProStatus(): Promise<AccountProStatus> {
     active: paidActive || trialActive,
     expiresAt: !paidActive && trialActive ? trialEndsAt : undefined,
     renewsAt: paidActive && Number.isFinite(renewsAt) ? renewsAt : undefined,
+    trialUsed: Number.isFinite(trialEndsAt),
   };
+}
+
+// Starts the one-off trial for the signed-in account; the server refuses a
+// second call. Returns when the trial ends.
+export async function startTrial(): Promise<number> {
+  await requireSession();
+  const { data, error } = await supabase.rpc('start_trial');
+  if (error) throw error;
+  const endsAt = Date.parse(data as string);
+  if (!Number.isFinite(endsAt)) throw new Error('invalid trial end date');
+  return endsAt;
 }
 
 export async function activateTestPro(): Promise<number> {

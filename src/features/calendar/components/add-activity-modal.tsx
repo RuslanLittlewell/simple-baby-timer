@@ -12,10 +12,10 @@ import {
   View,
 } from 'react-native';
 
-import { SelectField } from '@/components/select-field';
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
-import { Spacing } from '@/constants/theme';
+import { WheelSelect } from '@/components/wheel-select';
+import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { type ProDetails } from '@/lib/activity-store';
 import { type ActivityKind } from '@/lib/notifications';
@@ -32,7 +32,6 @@ import {
 } from '../pro-details';
 
 type ManualKind = Extract<ActivityKind, 'settling' | 'sleep' | 'awake' | 'feeding'>;
-type SelectKey = 'kind' | 'sleepPlace' | 'feedingMode' | 'breastSide' | 'bottleContent';
 
 const KINDS: ManualKind[] = ['settling', 'sleep', 'awake', 'feeding'];
 
@@ -46,6 +45,7 @@ interface AddActivityModalProps {
     start: number,
     end: number,
     proDetails?: ProDetails,
+    milkMl?: number,
   ) => Promise<void>;
 }
 
@@ -61,7 +61,6 @@ export function AddActivityModal({
   const [kind, setKind] = useState<ManualKind>('settling');
   const [startInput, setStartInput] = useState('09:00');
   const [endInput, setEndInput] = useState('09:30');
-  const [openSelect, setOpenSelect] = useState<SelectKey | null>(null);
   const [sleepPlace, setSleepPlace] = useState<(typeof SLEEP_PLACES)[number]>('crib');
   const [feedingMode, setFeedingMode] = useState<'breast' | 'bottle'>('breast');
   const [breastSide, setBreastSide] = useState<(typeof BREAST_SIDES)[number]>('left');
@@ -93,7 +92,6 @@ export function AddActivityModal({
     setKind('settling');
     setStartInput(fmt(startMinutes));
     setEndInput(fmt(endMinutes));
-    setOpenSelect(null);
     setSleepPlace('crib');
     setFeedingMode('breast');
     setBreastSide('left');
@@ -104,17 +102,23 @@ export function AddActivityModal({
     setSaving(false);
   }, [day, visible]);
 
+  const parsedVolume = Number.parseInt(volume, 10);
+  // The one amount the form asks for; stored in both fields of the entry.
+  const bottleVolume =
+    kind === 'feeding' && feedingMode === 'bottle' && Number.isFinite(parsedVolume) && parsedVolume > 0
+      ? parsedVolume
+      : undefined;
+
   const buildDetails = (): ProDetails | undefined => {
     if (!proActive || kind === 'awake') return undefined;
     if (kind === 'settling') return { type: 'settling', methods: settlingMethods };
     if (kind === 'sleep') return { type: 'sleep', place: sleepPlace };
     if (feedingMode === 'breast') return { type: 'feeding', mode: 'breast', side: breastSide };
-    const parsedVolume = Number.parseInt(volume, 10);
     return {
       type: 'feeding',
       mode: 'bottle',
       content: bottleContent,
-      volumeMl: Number.isFinite(parsedVolume) && parsedVolume > 0 ? parsedVolume : undefined,
+      volumeMl: bottleVolume,
     };
   };
 
@@ -133,7 +137,7 @@ export function AddActivityModal({
     }
     setSaving(true);
     try {
-      await onSave(kind, start, end, buildDetails());
+      await onSave(kind, start, end, buildDetails(), bottleVolume);
       onClose();
     } finally {
       setSaving(false);
@@ -141,23 +145,14 @@ export function AddActivityModal({
   };
 
   const selectField = (
-    id: SelectKey,
     label: string,
     value: string,
     options: readonly { value: string; label: string }[],
     onSelect: (value: string) => void,
-    openUpward?: boolean,
   ) => (
-    <View style={[styles.field, openSelect === id && styles.fieldOpen]}>
+    <View style={styles.field}>
       <ThemedText type="small" themeColor="textSecondary">{label}</ThemedText>
-      <SelectField
-        value={value}
-        options={options}
-        onSelect={onSelect}
-        open={openSelect === id}
-        onOpenChange={(open) => setOpenSelect(open ? id : null)}
-        openUpward={openUpward}
-      />
+      <WheelSelect value={value} options={options} onSelect={onSelect} />
     </View>
   );
 
@@ -182,9 +177,8 @@ export function AddActivityModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}>
             {selectField(
-              'kind',
               t('manual.activity'),
-              t(`kind.${kind}`),
+              kind,
               KINDS.map((item) => ({ value: item, label: t(`kind.${item}`) })),
               (value) => setKind(value as ManualKind),
             )}
@@ -255,9 +249,8 @@ export function AddActivityModal({
 
                 {kind === 'sleep' &&
                   selectField(
-                    'sleepPlace',
                     t('manual.place'),
-                    t(`pro.${sleepPlace}`),
+                    sleepPlace,
                     SLEEP_PLACES.map((item) => ({ value: item, label: t(`pro.${item}`) })),
                     (value) => setSleepPlace(value as (typeof SLEEP_PLACES)[number]),
                   )}
@@ -265,9 +258,8 @@ export function AddActivityModal({
                 {kind === 'feeding' && (
                   <>
                     {selectField(
-                      'feedingMode',
                       t('manual.feedingType'),
-                      t(`pro.${feedingMode}`),
+                      feedingMode,
                       (['breast', 'bottle'] as const).map((item) => ({
                         value: item,
                         label: t(`pro.${item}`),
@@ -276,22 +268,18 @@ export function AddActivityModal({
                     )}
                     {feedingMode === 'breast' ? (
                       selectField(
-                        'breastSide',
                         t('manual.side'),
-                        t(`pro.${breastSide}`),
+                        breastSide,
                         BREAST_SIDES.map((item) => ({ value: item, label: t(`pro.${item}`) })),
                         (value) => setBreastSide(value as (typeof BREAST_SIDES)[number]),
-                        true,
                       )
                     ) : (
                       <>
                         {selectField(
-                          'bottleContent',
                           t('manual.content'),
-                          t(`pro.${bottleContent}`),
+                          bottleContent,
                           BOTTLE_CONTENTS.map((item) => ({ value: item, label: t(`pro.${item}`) })),
                           (value) => setBottleContent(value as (typeof BOTTLE_CONTENTS)[number]),
-                          true,
                         )}
                         <View style={styles.field}>
                           <ThemedText type="small" themeColor="textSecondary">
@@ -352,10 +340,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     zIndex: 1,
   },
-  fieldOpen: {
-    zIndex: 9999,
-    elevation: 24,
-  },
   timeRow: {
     flexDirection: 'row',
     gap: Spacing.two,
@@ -371,12 +355,14 @@ const styles = StyleSheet.create({
   },
   timeInputText: {
     fontSize: 16,
+    lineHeight: 22,
   },
   input: {
     minHeight: 46,
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
+    fontFamily: NunitoSans.regular,
   },
   proBlock: {
     gap: Spacing.three,

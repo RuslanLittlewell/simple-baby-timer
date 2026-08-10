@@ -7,9 +7,8 @@ import { type RegimeAge } from './types';
 // Returns the schedule dataset with all content strings translated into the
 // given language; unknown strings fall back to the Russian source.
 export function localizeRegimes(lang: LanguageCode): RegimeAge[] {
-  // The detailed schedule dataset is currently shared by the two closely
-  // related source languages; all surrounding UI is translated separately.
-  if (lang === 'ru' || lang === 'uk') return REGIMES;
+  // Russian is the source language of the dataset, so it needs no lookup.
+  if (lang === 'ru') return REGIMES;
   const tr = (s: string) => (s ? (REGIME_STRINGS[s]?.[lang] ?? s) : s);
   return REGIMES.map((age) => ({
     age: tr(age.age),
@@ -29,6 +28,9 @@ export function localizeRegimes(lang: LanguageCode): RegimeAge[] {
       name: tr(variant.name),
       steps: variant.steps.map((step) => ({
         ...step,
+        // Clock labels ("07:00", "08:00–09:15") are not in the string map and
+        // fall through unchanged; the 0–6 weeks cycle uses worded times here.
+        time: tr(step.time),
         action: tr(step.action),
         note: tr(step.note),
       })),

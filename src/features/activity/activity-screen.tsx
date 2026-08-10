@@ -1,9 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +17,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { computeDayStats } from '@/features/calendar/helpers';
 import { useActivityColors } from '@/hooks/use-activity-colors';
+import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { formatHm } from '@/i18n';
 import { getSessionsForDay, type ActivitySession, type EventKind } from '@/lib/activity-store';
@@ -44,10 +44,12 @@ export default function ActivityScreen() {
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const feedingMinutes = useAppStore((state) => state.feedingMinutes);
+  const sleepNotificationsEnabled = useAppStore((state) => state.sleepNotificationsEnabled);
+  const awakeNotificationsEnabled = useAppStore((state) => state.awakeNotificationsEnabled);
+  const feedingNotificationsEnabled = useAppStore((state) => state.feedingNotificationsEnabled);
   const logEvent = useAppStore((state) => state.logEvent);
   const setActiveProDetails = useAppStore((state) => state.setActiveProDetails);
   const proActive = useAppStore((state) => state.proActive);
-  const activateTestPro = useAppStore((state) => state.activateTestPro);
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
   const activeChildId = useAppStore((state) => state.activeChildId);
@@ -55,13 +57,13 @@ export default function ActivityScreen() {
   const activeChild = children.find((child) => child.id === activeChildId);
   const proAccess = proActive || activeChild?.proEnabled === true;
   const t = useT();
-  const { accent } = useActivityColors();
+  const openPaywall = useProPaywall();
+  const { float } = useActivityColors();
   const [nowTs, setNowTs] = useState(Date.now());
   const [panelWidth, setPanelWidth] = useState(1);
   const [panelIndex, setPanelIndex] = useState(proAccess ? 1 : 0);
   const [proExpanded, setProExpanded] = useState(false);
   const [proDismissSignal, setProDismissSignal] = useState(0);
-  const [proPaywallVisible, setProPaywallVisible] = useState(false);
   const [todaySessions, setTodaySessions] = useState<ActivitySession[]>([]);
   const pagerRef = useRef<ScrollView>(null);
 
@@ -106,13 +108,19 @@ export default function ActivityScreen() {
     return () => clearInterval(id);
   }, [mainSession?.startedAt, feedingSession?.startedAt]);
 
+  const backToBasicPanel = useCallback(() => {
+    setPanelIndex(0);
+    pagerRef.current?.scrollTo({ x: 0, animated: true });
+  }, []);
+
+  // Swiping to the pro panel without access opens the paywall; closing it
+  // without PRO slides back to the basic panel.
   useEffect(() => {
-    if (proAccess || panelIndex !== 1) {
-      setProPaywallVisible(false);
-      return;
-    }
-    setProPaywallVisible(true);
-  }, [panelIndex, proAccess]);
+    if (proAccess || panelIndex !== 1) return;
+    openPaywall((unlocked) => {
+      if (!unlocked) backToBasicPanel();
+    });
+  }, [panelIndex, proAccess, openPaywall, backToBasicPanel]);
 
   useEffect(() => {
     if (panelWidth <= 1) return;
@@ -120,12 +128,6 @@ export default function ActivityScreen() {
     setPanelIndex(targetIndex);
     pagerRef.current?.scrollTo({ x: targetIndex * panelWidth, animated: false });
   }, [panelWidth, proAccess]);
-
-  const closeProPreview = () => {
-    setProPaywallVisible(false);
-    setPanelIndex(0);
-    pagerRef.current?.scrollTo({ x: 0, animated: true });
-  };
 
   const secondsSince = (from: number) => Math.max(0, Math.floor((nowTs - from) / 1000));
 
@@ -139,18 +141,20 @@ export default function ActivityScreen() {
   const concurrentFeeding = !!(mainSession && feedingSession);
   const floatingKinds = active
     ? [
-        { icon: active.icon, color: accent[active.gradKey] },
+        { icon: active.icon, color: float[active.gradKey] },
         ...(concurrentFeeding && active.gradKey !== 'feed'
-          ? [{ icon: FEEDING.icon, color: accent.feed }]
+          ? [{ icon: FEEDING.icon, color: float.feed }]
           : []),
       ]
     : [];
+  // The note describes what the reminder will do, so it has nothing to say
+  // while that reminder is switched off in settings.
   let statusNote = '';
-  if (primary?.kind === 'sleep')
+  if (primary?.kind === 'sleep' && sleepNotificationsEnabled)
     statusNote = t('activity.noteSleep', { time: formatHm(sleepMinutes, language) });
-  else if (primary?.kind === 'awake')
+  else if (primary?.kind === 'awake' && awakeNotificationsEnabled)
     statusNote = t('activity.noteAwake', { time: formatHm(awakeMinutes, language) });
-  else if (primary?.kind === 'feeding')
+  else if (primary?.kind === 'feeding' && feedingNotificationsEnabled)
     statusNote = t('activity.noteFeeding', { n: feedingMinutes });
 
   const childAge = activeChild?.birthday ? formatAge(activeChild.birthday, language) : null;
@@ -293,10 +297,10 @@ export default function ActivityScreen() {
                   onExpandedChange={setProExpanded}
                   onDetailsChange={setActiveProDetails}
                   onLogEvent={logEvent}
-                  onToggleFeeding={async () => {
+                  onToggleFeeding={async (startedAt) => {
                     if (feeding) await stopActivity('feeding');
                     else if (remoteFeeding) await stopRemoteActivity('feeding');
-                    else await startActivity('feeding');
+                    else await startActivity('feeding', startedAt);
                   }}
                   onToggleSettling={async () => {
                     if (mainSession?.kind === 'settling') {
@@ -331,44 +335,6 @@ export default function ActivityScreen() {
                   />
               </View>
             </ScrollView>
-
-            <Modal
-              visible={proPaywallVisible}
-              transparent
-              animationType="fade"
-              onRequestClose={closeProPreview}>
-              <View style={styles.proPaywall}>
-                <View style={[styles.proPaywallCard, { backgroundColor: theme.backgroundElement }]}>
-                  <Pressable
-                    accessibilityLabel={t('editor.cancel')}
-                    onPress={closeProPreview}
-                    hitSlop={12}
-                    style={styles.proPaywallClose}>
-                    <MaterialCommunityIcons name="close" size={24} color={theme.text} />
-                  </Pressable>
-                  <MaterialCommunityIcons name="lock-outline" size={34} color="#C4B5FD" />
-                  <ThemedText style={styles.proPaywallTitle}>{t('proPaywall.title')}</ThemedText>
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={styles.proPaywallText}>
-                    {t('proPaywall.body')}
-                  </ThemedText>
-                  <Pressable
-                    onPress={() =>
-                      void activateTestPro()
-                        .then(() => setProPaywallVisible(false))
-                        .catch(() => {})
-                    }
-                    style={({ pressed }) => [
-                      styles.proPaywallBuy,
-                      pressed && styles.pressed,
-                    ]}>
-                    <ThemedText type="smallBold">{t('menu.buyPro')}</ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            </Modal>
 
             <View style={styles.pageIndicator}>
               {[0, 1].map((index) => (
@@ -451,49 +417,6 @@ const styles = StyleSheet.create({
   pageDotActive: {
     width: 18,
     backgroundColor: '#C4B5FD',
-  },
-  proPaywall: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.three,
-    backgroundColor: 'rgba(0,0,0,0.68)',
-  },
-  proPaywallCard: {
-    width: '100%',
-    maxWidth: 340,
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: Spacing.four,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderColor: '#4C3B73',
-  },
-  proPaywallClose: {
-    position: 'absolute',
-    top: Spacing.two,
-    right: Spacing.two,
-    zIndex: 1,
-  },
-  proPaywallTitle: {
-    fontSize: 18,
-    lineHeight: 23,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  proPaywallText: {
-    textAlign: 'center',
-    paddingHorizontal: Spacing.two,
-  },
-  proPaywallBuy: {
-    alignSelf: 'stretch',
-    minHeight: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    borderColor: '#C4B5FD',
-    marginTop: Spacing.two,
   },
   eventRow: {
     flexDirection: 'row',

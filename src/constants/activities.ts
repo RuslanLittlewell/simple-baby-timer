@@ -54,3 +54,11 @@ export const ACTIVITY_ACCENT = {
     diaper: '#7C5CD6',
   },
 } as const;
+
+// The icons drifting down the background run at 16–26% opacity, and the awake
+// green turns murky there — the sun reads as a sun only in yellow. Kept a shade
+// apart from `feed`, since a feeding and an awake stretch can fall together.
+export const ACTIVITY_FLOAT_ACCENT = {
+  dark: { ...ACTIVITY_ACCENT.dark, awake: '#FFE066' },
+  light: { ...ACTIVITY_ACCENT.light, awake: '#D99A00' },
+} as const;

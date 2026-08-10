@@ -11,7 +11,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/state/app-state';
 
 interface OnboardingAuthScreenProps {
-  onBack: () => void;
+  // Omitted when the screen is a gate rather than a step: a user whose account
+  // is gone has nowhere to go back to.
+  onBack?: () => void;
   onSignedIn: () => void;
 }
 
@@ -27,9 +29,11 @@ export function OnboardingAuthScreen({ onBack, onSignedIn }: OnboardingAuthScree
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.header}>
-            <Pressable accessibilityLabel={t('editor.cancel')} onPress={onBack} hitSlop={12}>
-              <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text} />
-            </Pressable>
+            {onBack && (
+              <Pressable accessibilityLabel={t('editor.cancel')} onPress={onBack} hitSlop={12}>
+                <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text} />
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.center}>

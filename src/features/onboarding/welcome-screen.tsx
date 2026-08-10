@@ -87,6 +87,7 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontSize: 22,
+    lineHeight: 28,
     fontWeight: '800',
   },
   center: {

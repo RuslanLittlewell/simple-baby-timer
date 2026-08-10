@@ -13,7 +13,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
-import { Spacing } from '@/constants/theme';
+import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { type ChildGradientKey } from '@/lib/children';
 import { useT } from '@/state/app-state';
@@ -198,6 +198,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
+    fontFamily: NunitoSans.bold,
   },
   dateInput: {
     borderRadius: Spacing.three,
@@ -207,6 +208,7 @@ const styles = StyleSheet.create({
   },
   dateInputText: {
     fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },

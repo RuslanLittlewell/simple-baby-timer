@@ -27,7 +27,7 @@ export type ProDetails =
     }
   | {
       type: 'sleep';
-      place: 'crib' | 'stroller' | 'carSeat' | 'coSleeping' | 'carrier';
+      place: 'crib' | 'stroller' | 'carSeat' | 'coSleeping' | 'carrier' | 'inArms';
     }
   | {
       type: 'feeding';
@@ -37,7 +37,9 @@ export type ProDetails =
   | {
       type: 'feeding';
       mode: 'bottle';
-      content: 'formula' | 'breastMilk' | 'water';
+      // Records written before water was dropped may still carry 'water' at
+      // runtime; the label for it is kept in the dictionary so they read right.
+      content: 'formula' | 'breastMilk';
       volumeMl?: number;
     };
 
@@ -64,13 +66,14 @@ export function dayKeyFromDate(date: Date): string {
 
 const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
-export async function getSessionsForDay(
-  date: Date,
+// Every session overlapping [startMs, endMs). One pass over the store, so a
+// month of stats costs the same read as a single day.
+export async function getSessionsInRange(
+  startMs: number,
+  endMs: number,
   childId?: string | null,
 ): Promise<ActivitySession[]> {
   try {
-    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
     const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
     if (!keys.length) return [];
 
@@ -86,12 +89,21 @@ export async function getSessionsForDay(
     });
 
     return sessions
-      .filter((session) => session.start < dayEnd && session.end > dayStart)
+      .filter((session) => session.start < endMs && session.end > startMs)
       .filter((session) => !childId || !session.childId || session.childId === childId)
       .sort((a, b) => a.start - b.start);
   } catch {
     return [];
   }
+}
+
+export async function getSessionsForDay(
+  date: Date,
+  childId?: string | null,
+): Promise<ActivitySession[]> {
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
+  return getSessionsInRange(dayStart, dayEnd, childId);
 }
 
 export async function getAllSessionsForChild(childId: string): Promise<ActivitySession[]> {

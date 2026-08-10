@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { getSessionsForDay, type ActivitySession } from '@/lib/activity-store';
 import { useAppStore, useT } from '@/state/app-state';
@@ -20,7 +21,7 @@ import { TimelineGrid } from './components/timeline-grid';
 import { WeekView } from './components/week-view';
 import { ZoomBadge } from './components/zoom-badge';
 import { GUTTER, NOW_COLOR, SCROLL_BOTTOM_PAD } from './constants';
-import { computeDayStats, isSameDay, pad2, startOfWeek } from './helpers';
+import { isSameDay, pad2, startOfWeek } from './helpers';
 import { usePinchZoom } from './use-pinch-zoom';
 
 export default function CalendarScreen() {
@@ -48,6 +49,7 @@ export default function CalendarScreen() {
   const proAccess = proActive || activeChild?.proEnabled === true;
   const addManualActivity = useAppStore((state) => state.addManualActivity);
   const t = useT();
+  const openPaywall = useProPaywall();
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [statsVisible, setStatsVisible] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<ActivitySession | null>(null);
@@ -143,35 +145,6 @@ export default function CalendarScreen() {
   const pickDay = (day: number) =>
     goToDay(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day));
 
-  if (view === 'week') {
-    return (
-      <WeekView
-        weekStart={weekStart}
-        shownDay={shownDay}
-        today={today}
-        onShiftWeek={shiftWeek}
-        onOpenMonth={openMonthFromWeek}
-        onClose={() => setView('day')}
-        onPickDay={goToDay}
-      />
-    );
-  }
-
-  if (view === 'month') {
-    return (
-      <MonthView
-        monthCursor={monthCursor}
-        shownDay={shownDay}
-        today={today}
-        onShiftMonth={shiftMonth}
-        onBackToWeek={() => setView('week')}
-        onClose={() => setView('day')}
-        onPickDay={pickDay}
-      />
-    );
-  }
-
-  const isToday = isSameDay(shownDay, today);
   const dayStartMs = new Date(
     shownDay.getFullYear(),
     shownDay.getMonth(),
@@ -182,6 +155,63 @@ export default function CalendarScreen() {
     shownDay.getMonth(),
     shownDay.getDate() + 1,
   ).getTime();
+  // The modal loads and navigates its own periods; it only needs the day the
+  // user was looking at as a starting point. Statistics are PRO, so without
+  // access the button opens the paywall instead.
+  const openStats = () => {
+    if (!proAccess) {
+      openPaywall((unlocked) => {
+        if (unlocked) setStatsVisible(true);
+      });
+      return;
+    }
+    setStatsVisible(true);
+  };
+  const dayStats = (
+    <StatsModal
+      visible={statsVisible}
+      onClose={() => setStatsVisible(false)}
+      day={shownDay}
+    />
+  );
+
+  if (view === 'week') {
+    return (
+      <>
+        <WeekView
+          weekStart={weekStart}
+          shownDay={shownDay}
+          today={today}
+          onShiftWeek={shiftWeek}
+          onOpenMonth={openMonthFromWeek}
+          onOpenStats={openStats}
+          onClose={() => setView('day')}
+          onPickDay={goToDay}
+        />
+        {dayStats}
+      </>
+    );
+  }
+
+  if (view === 'month') {
+    return (
+      <>
+        <MonthView
+          monthCursor={monthCursor}
+          shownDay={shownDay}
+          today={today}
+          onShiftMonth={shiftMonth}
+          onBackToWeek={() => setView('week')}
+          onOpenStats={openStats}
+          onClose={() => setView('day')}
+          onPickDay={pickDay}
+        />
+        {dayStats}
+      </>
+    );
+  }
+
+  const isToday = isSameDay(shownDay, today);
   const nowMinutes = (now - dayStartMs) / 60000;
   const totalHeight = 24 * hourHeight;
   const px = (minutes: number) => (minutes / 60) * hourHeight;
@@ -209,7 +239,6 @@ export default function CalendarScreen() {
     });
   }
 
-  const stats = computeDayStats(sessions, session, now, dayStartMs, dayEndMs);
   const zoomLabel =
     gridStep === 60 ? `1 ${t('unit.hours')}` : `${gridStep} ${t('unit.minutes')}`;
 
@@ -233,7 +262,7 @@ export default function CalendarScreen() {
             <View style={styles.headerActions}>
               <Pressable
                 accessibilityLabel={t('calendar.stats')}
-                onPress={() => setStatsVisible(true)}
+                onPress={openStats}
                 hitSlop={12}
                 style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
                 <MaterialCommunityIcons name="chart-box-outline" size={26} color={theme.text} />
@@ -313,11 +342,7 @@ export default function CalendarScreen() {
 
           <ZoomBadge label={zoomLabel} zoom={zoom} />
 
-          <StatsModal
-            visible={statsVisible}
-            onClose={() => setStatsVisible(false)}
-            stats={stats}
-          />
+          {dayStats}
 
           <EntryEditor
             entry={entryToEdit}

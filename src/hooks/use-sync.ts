@@ -2,7 +2,13 @@ import { type RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { getIsSignedIn, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import {
+  checkAccount,
+  getIsSignedIn,
+  isSupabaseConfigured,
+  signOutLocal,
+  supabase,
+} from '@/lib/supabase';
 import {
   fetchLiveSessions,
   fetchAccountProStatus,
@@ -14,20 +20,32 @@ import {
 } from '@/lib/sync';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 
-// Full sync pass: upload the pending queue, restore children linked to the
-// account (new device / reinstall) and pull remote sessions for every shared
-// child. Safe to call anytime — silently skips when offline or signed out.
+// Full sync pass: verify the account and its PRO status, upload the pending
+// queue, restore children linked to the account (new device / reinstall) and
+// pull remote sessions for every shared child. Safe to call anytime — silently
+// skips when offline, and asks for sign-in when the account is gone.
 export async function syncNow(): Promise<void> {
   if (!isSupabaseConfigured) return;
   try {
-    await flushQueue();
-    if (!(await getIsSignedIn())) {
+    // The account comes first: entering the app (and every return to it)
+    // re-checks that it still exists, and only then is there any point in
+    // uploading or pulling anything.
+    const account = await checkAccount();
+    // Offline: keep whatever the last successful pass established.
+    if (account === 'unreachable') return;
+    if (account !== 'ok') {
+      if (account === 'missing') await signOutLocal();
       useAppStore.getState().setProStatus(false);
+      useAppStore.getState().setAuthRequired(true);
       return;
     }
+    useAppStore.getState().setAuthRequired(false);
+    await flushQueue();
 
+    // Subscription and trial are re-evaluated here, so a plan that ran out
+    // while the app was closed locks PRO again on the way in.
     const pro = await fetchAccountProStatus();
-    useAppStore.getState().setProStatus(pro.active, pro.expiresAt, pro.renewsAt);
+    useAppStore.getState().setProStatus(pro.active, pro.expiresAt, pro.renewsAt, pro.trialUsed);
 
     const { removedRemoteIds, clearRemovedRemoteId } = useAppStore.getState();
     for (const remoteId of removedRemoteIds) {
@@ -125,8 +143,12 @@ export function useSync() {
     getIsSignedIn().then(setAuthed);
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
-      if (session) syncNow();
-      else useAppStore.getState().setProStatus(false);
+      if (session) {
+        syncNow();
+        return;
+      }
+      useAppStore.getState().setProStatus(false);
+      useAppStore.getState().setAuthRequired(true);
     });
     return () => data.subscription.unsubscribe();
   }, []);

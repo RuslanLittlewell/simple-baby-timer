@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { pullChildSessions, redeemInvite } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
@@ -158,6 +158,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
+    fontFamily: NunitoSans.bold,
   },
   errorText: {
     fontSize: 13,

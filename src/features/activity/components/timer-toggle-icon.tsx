@@ -8,9 +8,12 @@ interface TimerToggleIconProps {
   // Row's accent color — used as a solid fill in light mode, matching the
   // pale cards there. Dark mode keeps the neutral glass circle.
   accent: string;
+  // Some dark-theme activity cards (feeding) use a light gradient and need
+  // an opaque dark control for sufficient contrast.
+  darkBackgroundColor?: string;
 }
 
-export function TimerToggleIcon({ active, accent }: TimerToggleIconProps) {
+export function TimerToggleIcon({ active, accent, darkBackgroundColor }: TimerToggleIconProps) {
   const mode = useAppStore((state) => state.themeMode);
   const isLight = mode === 'light';
 
@@ -20,7 +23,9 @@ export function TimerToggleIcon({ active, accent }: TimerToggleIconProps) {
         styles.circle,
         isLight
           ? { backgroundColor: accent, borderColor: accent }
-          : styles.darkCircle,
+          : darkBackgroundColor
+            ? { backgroundColor: darkBackgroundColor, borderColor: darkBackgroundColor }
+            : styles.darkCircle,
       ]}>
       <MaterialCommunityIcons
         name={active ? 'stop' : 'play'}
