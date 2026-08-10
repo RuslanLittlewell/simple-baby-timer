@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SelectField } from '@/components/select-field';
 import { ThemedText } from '@/components/themed-text';
@@ -24,6 +24,19 @@ const DRAWER_WIDTH = Dimensions.get('window').width * 0.5;
 export function MobileMenu() {
   const theme = useTheme();
   const t = useT();
+  // A SafeAreaView mounted inside a Modal measures itself only after the first
+  // frame, which used to drop the header under the status bar on the very
+  // first open. Reading the insets out here — where they are already known —
+  // and padding by hand keeps the drawer correct from the start. The insets sit
+  // on top of the drawer's own padding, the way SafeAreaView stacked them.
+  const insets = useSafeAreaInsets();
+  const fallback = initialWindowMetrics?.insets;
+  const safeArea = {
+    paddingTop: Spacing.three + (insets.top || fallback?.top || 0),
+    paddingBottom: Spacing.three + (insets.bottom || fallback?.bottom || 0),
+    paddingLeft: Spacing.three + (insets.left || fallback?.left || 0),
+    paddingRight: Spacing.three + (insets.right || fallback?.right || 0),
+  };
   const language = useAppStore((state) => state.language);
   const themeMode = useAppStore((state) => state.themeMode);
   const proActive = useAppStore((state) => state.proActive);
@@ -31,7 +44,9 @@ export function MobileMenu() {
   const proRenewsAt = useAppStore((state) => state.proRenewsAt);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
-  const activateTestPro = useAppStore((state) => state.activateTestPro);
+  // The paywall lives in the root layout, so the menu just asks for it — and
+  // only once its own drawer is out of the way.
+  const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
   const [visible, setVisible] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const currentLanguage = LANGUAGES.find((item) => item.code === language) ?? LANGUAGES[0];
@@ -40,7 +55,7 @@ export function MobileMenu() {
   const dateLocale = {
     en: 'en-US',
     ru: 'ru-RU',
-    uk: 'uk-UA',
+    ua: 'uk-UA',
     pl: 'pl-PL',
     es: 'es-ES',
     fr: 'fr-FR',
@@ -79,13 +94,17 @@ export function MobileMenu() {
     transform: [{ translateX: sheenX.value }, { skewX: '-16deg' }],
   }));
 
-  const close = () => {
+  const close = (after?: () => void) => {
     setLangOpen(false);
+    const finish = () => {
+      setVisible(false);
+      after?.();
+    };
     drawerX.value = withTiming(
       DRAWER_WIDTH,
       { duration: 240, easing: Easing.in(Easing.cubic) },
       (finished) => {
-        if (finished) runOnJS(setVisible)(false);
+        if (finished) runOnJS(finish)();
       },
     );
   };
@@ -108,19 +127,19 @@ export function MobileMenu() {
         <MaterialCommunityIcons name="menu" size={28} color={theme.text} />
       </Pressable>
 
-      <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
+      <Modal visible={visible} transparent animationType="none" onRequestClose={() => close()}>
         <View style={styles.modal}>
-          <Pressable style={styles.overlay} onPress={close} />
+          <Pressable style={styles.overlay} onPress={() => close()} />
           <Animated.View
             style={[
               styles.drawer,
               { width: DRAWER_WIDTH, backgroundColor: theme.background },
               drawerStyle,
             ]}>
-            <SafeAreaView style={styles.safe} edges={['top', 'bottom', 'left']}>
+            <View style={[styles.safe, safeArea]}>
               <View style={styles.drawerHeader}>
                 <ThemedText type="smallBold">{t('settings.title')}</ThemedText>
-                <Pressable onPress={close} hitSlop={10}>
+                <Pressable onPress={() => close()} hitSlop={10}>
                   <MaterialCommunityIcons name="close" size={24} color={theme.text} />
                 </Pressable>
               </View>
@@ -137,6 +156,23 @@ export function MobileMenu() {
                   open={langOpen}
                   onOpenChange={setLangOpen}
                 />
+              </View>
+
+              <View style={styles.section}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => close(() => setPendingPaywall(true))}
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+                  <MaterialCommunityIcons name="star-circle-outline" size={18} color={theme.text} />
+                  <ThemedText type="smallBold" style={styles.rowLabel}>
+                    {t('menu.subscriptions')}
+                  </ThemedText>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </Pressable>
               </View>
 
               <View style={styles.section}>
@@ -170,7 +206,7 @@ export function MobileMenu() {
                   </LinearGradient>
                 ) : (
                   <Pressable
-                    onPress={() => void activateTestPro().catch(() => {})}
+                    onPress={() => close(() => setPendingPaywall(true))}
                     style={({ pressed }) => [
                       styles.buyButton,
                       pressed && styles.pressed,
@@ -191,7 +227,7 @@ export function MobileMenu() {
                   </Pressable>
                 )}
               </View>
-            </SafeAreaView>
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -240,7 +276,6 @@ const styles = StyleSheet.create({
   },
   safe: {
     flex: 1,
-    padding: Spacing.three,
   },
   drawerHeader: {
     flexDirection: 'row',
@@ -255,6 +290,15 @@ const styles = StyleSheet.create({
   sectionOpen: {
     zIndex: 9999,
     elevation: 24,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    minHeight: 32,
+  },
+  rowLabel: {
+    flex: 1,
   },
   themeRow: {
     flexDirection: 'row',

@@ -12,10 +12,10 @@ import {
   View,
 } from 'react-native';
 
-import { SelectField } from '@/components/select-field';
+import { WheelSelect } from '@/components/wheel-select';
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
-import { Spacing } from '@/constants/theme';
+import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
 import {
@@ -41,7 +41,6 @@ import {
 } from '../pro-details';
 import { DayStepper } from './day-stepper';
 
-type ProSelectKey = 'sleepPlace' | 'feedingMode' | 'breastSide' | 'bottleContent';
 
 interface EntryEditorProps {
   entry: ActivitySession | null;
@@ -73,8 +72,6 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
   const [breastSide, setBreastSide] = useState<(typeof BREAST_SIDES)[number]>('left');
   const [bottleContent, setBottleContent] =
     useState<(typeof BOTTLE_CONTENTS)[number]>('formula');
-  const [volume, setVolume] = useState('');
-  const [openProSelect, setOpenProSelect] = useState<ProSelectKey | null>(null);
 
   const timeAsDate = (input: string) => {
     const parsed = parseTime(input) ?? { hours: 0, minutes: 0 };
@@ -89,7 +86,6 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
     setEndInput(fmtTime(entry.end));
     setStartDayMs(startOfDayMs(entry.start));
     setEndDayMs(startOfDayMs(entry.end));
-    setMilkInput(entry.milkMl ? String(entry.milkMl) : '');
     setError('');
     const details = entry.proDetails;
     setSettlingMethods(details?.type === 'settling' ? details.methods : []);
@@ -99,12 +95,11 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
     setBottleContent(
       details?.type === 'feeding' && details.mode === 'bottle' ? details.content : 'formula',
     );
-    setVolume(
-      details?.type === 'feeding' && details.mode === 'bottle' && details.volumeMl
-        ? String(details.volumeMl)
-        : '',
-    );
-    setOpenProSelect(null);
+    // One amount per entry: older records may carry it in either field.
+    const bottleVolume =
+      details?.type === 'feeding' && details.mode === 'bottle' ? details.volumeMl : undefined;
+    const amount = entry.milkMl ?? bottleVolume;
+    setMilkInput(amount ? String(amount) : '');
   }, [entry]);
 
   const buildProDetails = (): ProDetails | undefined => {
@@ -113,7 +108,8 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
     if (entry.kind === 'sleep') return { type: 'sleep', place: sleepPlace };
     if (entry.kind === 'feeding') {
       if (feedingMode === 'breast') return { type: 'feeding', mode: 'breast', side: breastSide };
-      const parsedVolume = Number.parseInt(volume, 10);
+      // Mirrors the milk amount so the PRO parameters line stays in step.
+      const parsedVolume = Number.parseInt(milkInput, 10);
       return {
         type: 'feeding',
         mode: 'bottle',
@@ -232,11 +228,6 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
               <MaterialCommunityIcons name="trash-can-outline" size={24} color={theme.danger} />
             </Pressable>
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {editingEvent
-              ? t('editor.editStart', { n: EVENT_DURATION_MS / 60000 })
-              : t('editor.editTimes')}
-          </ThemedText>
           {editableProKind &&
             (proActive ? (
               <View style={styles.proSection}>
@@ -275,87 +266,51 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
                 )}
 
                 {editableProKind === 'sleep' && (
-                  <View style={[styles.field, openProSelect === 'sleepPlace' && styles.fieldOpen]}>
-                    <SelectField
-                      value={t(`pro.${sleepPlace}`)}
+                  <View style={styles.field}>
+                    <WheelSelect
+                      value={sleepPlace}
                       options={SLEEP_PLACES.map((item) => ({ value: item, label: t(`pro.${item}`) }))}
-                      selectedValue={sleepPlace}
                       onSelect={(value) => setSleepPlace(value as (typeof SLEEP_PLACES)[number])}
-                      open={openProSelect === 'sleepPlace'}
-                      onOpenChange={(open) => setOpenProSelect(open ? 'sleepPlace' : null)}
                     />
                   </View>
                 )}
 
                 {editableProKind === 'feeding' && (
                   <>
-                    <View
-                      style={[styles.field, openProSelect === 'feedingMode' && styles.fieldOpen]}>
-                      <SelectField
-                        value={t(`pro.${feedingMode}`)}
+                    <View style={styles.field}>
+                      <WheelSelect
+                        value={feedingMode}
                         options={(['breast', 'bottle'] as const).map((item) => ({
                           value: item,
                           label: t(`pro.${item}`),
                         }))}
-                        selectedValue={feedingMode}
                         onSelect={(value) => setFeedingMode(value as 'breast' | 'bottle')}
-                        open={openProSelect === 'feedingMode'}
-                        onOpenChange={(open) => setOpenProSelect(open ? 'feedingMode' : null)}
                       />
                     </View>
                     {feedingMode === 'breast' ? (
-                      <View
-                        style={[
-                          styles.field,
-                          openProSelect === 'breastSide' && styles.fieldOpen,
-                        ]}>
-                        <SelectField
-                          value={t(`pro.${breastSide}`)}
+                      <View style={styles.field}>
+                        <WheelSelect
+                          value={breastSide}
                           options={BREAST_SIDES.map((item) => ({
                             value: item,
                             label: t(`pro.${item}`),
                           }))}
-                          selectedValue={breastSide}
                           onSelect={(value) => setBreastSide(value as (typeof BREAST_SIDES)[number])}
-                          open={openProSelect === 'breastSide'}
-                          onOpenChange={(open) => setOpenProSelect(open ? 'breastSide' : null)}
-                          openUpward
                         />
                       </View>
                     ) : (
                       <>
-                        <View
-                          style={[
-                            styles.field,
-                            openProSelect === 'bottleContent' && styles.fieldOpen,
-                          ]}>
-                          <SelectField
-                            value={t(`pro.${bottleContent}`)}
+                        <View style={styles.field}>
+                          <WheelSelect
+                            value={bottleContent}
                             options={BOTTLE_CONTENTS.map((item) => ({
                               value: item,
                               label: t(`pro.${item}`),
                             }))}
-                            selectedValue={bottleContent}
                             onSelect={(value) =>
                               setBottleContent(value as (typeof BOTTLE_CONTENTS)[number])
                             }
-                            open={openProSelect === 'bottleContent'}
-                            onOpenChange={(open) =>
-                              setOpenProSelect(open ? 'bottleContent' : null)
-                            }
-                            openUpward
                           />
-                        </View>
-                        <View style={[styles.inputRow, { backgroundColor: theme.backgroundElement }]}>
-                          <TextInput
-                            value={volume}
-                            onChangeText={(value) => setVolume(value.replace(/\D/g, '').slice(0, 4))}
-                            keyboardType="number-pad"
-                            placeholder="0"
-                            placeholderTextColor={theme.textSecondary}
-                            style={[styles.milkInput, { color: theme.text }]}
-                          />
-                          <ThemedText type="smallBold">{t('unit.ml')}</ThemedText>
                         </View>
                       </>
                     )}
@@ -492,10 +447,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     zIndex: 1,
   },
-  fieldOpen: {
-    zIndex: 9999,
-    elevation: 24,
-  },
   multiOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -523,6 +474,9 @@ const styles = StyleSheet.create({
   },
   timeInputText: {
     fontSize: 22,
+    // ThemedText's type sets lineHeight 20 — without this the taller glyphs
+    // are clipped.
+    lineHeight: 28,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -537,6 +491,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     paddingVertical: Spacing.three,
+    fontFamily: NunitoSans.bold,
   },
   saveButton: {
     alignItems: 'center',

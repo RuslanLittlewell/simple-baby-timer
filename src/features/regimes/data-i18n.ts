@@ -3,13 +3,14 @@
 // translations here — anything missing falls back to the Russian source.
 import { type LanguageCode } from '@/i18n';
 
-type Lang = Exclude<LanguageCode, 'ru' | 'uk'>;
+type Lang = Exclude<LanguageCode, 'ru'>;
 
 // Maps each Russian source string to its translations; missing entries
 // fall back to the Russian source at runtime.
 export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   "0–6 недель": {
     "en": "0–6 weeks",
+    "ua": "0–6 тижнів",
     "pl": "0–6 tygodni",
     "es": "0–6 semanas",
     "fr": "0–6 semaines",
@@ -19,6 +20,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Часто 14–17 ч; индивидуальный разброс большой": {
     "en": "Often 14–17 h; wide individual variation",
+    "ua": "Часто 14–17 год; індивідуальний розкид великий",
     "pl": "Zwykle 14–17 godz.; duże różnice indywidualne",
     "es": "A menudo 14–17 h; gran variación individual",
     "fr": "Souvent 14–17 h ; grande variation individuelle",
@@ -28,6 +30,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "5–8 и более": {
     "en": "5–8 or more",
+    "ua": "5–8 і більше",
     "pl": "5–8 i więcej",
     "es": "5–8 o más",
     "fr": "5–8 ou plus",
@@ -37,6 +40,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "30–60 мин": {
     "en": "30–60 min",
+    "ua": "30–60 хв",
     "pl": "30–60 min",
     "es": "30–60 min",
     "fr": "30–60 min",
@@ -46,6 +50,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Не фиксируется": {
     "en": "Not fixed",
+    "ua": "Не фіксується",
     "pl": "Nie ustalone",
     "es": "No fijo",
     "fr": "Non fixé",
@@ -55,6 +60,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Кормление → короткое бодрствование → сон; день и ночь постепенно различают светом и активностью.": {
     "en": "Feeding → short awake time → sleep; day and night are gradually distinguished with light and activity.",
+    "ua": "Годування → коротке неспання → сон; день і ніч поступово розрізняють світлом та активністю.",
     "pl": "Karmienie → krótkie czuwanie → sen; dzień i noc stopniowo rozróżniane światłem i aktywnością.",
     "es": "Toma → vigilia corta → sueño; el día y la noche se distinguen poco a poco con luz y actividad.",
     "fr": "Repas → court éveil → sommeil ; jour et nuit se distinguent peu à peu par la lumière et l'activité.",
@@ -64,6 +70,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Цикл, а не строгий график": {
     "en": "A cycle, not a strict schedule",
+    "ua": "Цикл, а не суворий графік",
     "pl": "Cykl, a nie sztywny harmonogram",
     "es": "Un ciclo, no un horario estricto",
     "fr": "Un cycle, pas un horaire strict",
@@ -71,8 +78,19 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
     "pt": "Um ciclo, não um horário rígido",
     "it": "Un ciclo, non un orario rigido"
   },
+  "После пробуждения": {
+    "en": "After waking up",
+    "ua": "Після пробудження",
+    "pl": "Po przebudzeniu",
+    "es": "Al despertar",
+    "fr": "Au réveil",
+    "de": "Nach dem Aufwachen",
+    "pt": "Ao acordar",
+    "it": "Al risveglio"
+  },
   "Кормление": {
     "en": "Feeding",
+    "ua": "Годування",
     "pl": "Karmienie",
     "es": "Toma",
     "fr": "Repas",
@@ -82,6 +100,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Грудное молоко или смесь по потребности и рекомендациям врача.": {
     "en": "Breast milk or formula on demand and per your doctor's advice.",
+    "ua": "Грудне молоко або суміш за потребою та рекомендаціями лікаря.",
     "pl": "Mleko mamy lub mieszanka na żądanie i zgodnie z zaleceniami lekarza.",
     "es": "Leche materna o fórmula a demanda y según las indicaciones del médico.",
     "fr": "Lait maternel ou infantile à la demande et selon l'avis du médecin.",
@@ -89,8 +108,19 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
     "pt": "Leite materno ou fórmula a pedido e segundo as recomendações do médico.",
     "it": "Latte materno o artificiale a richiesta e secondo le indicazioni del pediatra."
   },
+  "Следующие 5–20 мин": {
+    "en": "Next 5–20 min",
+    "ua": "Наступні 5–20 хв",
+    "pl": "Kolejne 5–20 min",
+    "es": "Los siguientes 5–20 min",
+    "fr": "Les 5–20 min suivantes",
+    "de": "Die nächsten 5–20 Min.",
+    "pt": "Os 5–20 min seguintes",
+    "it": "I 5–20 min successivi"
+  },
   "Подгузник и спокойное общение": {
     "en": "Diaper and calm interaction",
+    "ua": "Підгузок і спокійне спілкування",
     "pl": "Pielucha i spokojny kontakt",
     "es": "Pañal e interacción tranquila",
     "fr": "Couche et échange calme",
@@ -100,6 +130,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Короткий контакт, разговор, рассматривание лица.": {
     "en": "Brief contact, talking, looking at your face.",
+    "ua": "Короткий контакт, розмова, розглядання обличчя.",
     "pl": "Krótki kontakt, rozmowa, patrzenie na twarz.",
     "es": "Contacto breve, hablar, mirar la cara.",
     "fr": "Contact bref, parler, regarder le visage.",
@@ -107,8 +138,19 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
     "pt": "Contacto breve, conversa, observar o rosto.",
     "it": "Breve contatto, parlare, osservare il viso."
   },
+  "Несколько минут": {
+    "en": "A few minutes",
+    "ua": "Кілька хвилин",
+    "pl": "Kilka minut",
+    "es": "Unos minutos",
+    "fr": "Quelques minutes",
+    "de": "Ein paar Minuten",
+    "pt": "Alguns minutos",
+    "it": "Qualche minuto"
+  },
   "Время на животе": {
     "en": "Tummy time",
+    "ua": "Час на животі",
     "pl": "Leżenie na brzuchu",
     "es": "Tiempo boca abajo",
     "fr": "Temps sur le ventre",
@@ -118,6 +160,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Только в бодрствовании и под постоянным наблюдением.": {
     "en": "Only while awake and under constant supervision.",
+    "ua": "Лише під час неспання та під постійним наглядом.",
     "pl": "Tylko na czuwaniu i pod stałym nadzorem.",
     "es": "Solo despierto y bajo supervisión constante.",
     "fr": "Uniquement éveillé et sous surveillance constante.",
@@ -125,8 +168,19 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
     "pt": "Apenas enquanto acordado e sob supervisão constante.",
     "it": "Solo da svegli e sotto supervisione costante."
   },
+  "При первых признаках усталости": {
+    "en": "At the first signs of tiredness",
+    "ua": "За перших ознак утоми",
+    "pl": "Przy pierwszych oznakach zmęczenia",
+    "es": "A las primeras señales de cansancio",
+    "fr": "Aux premiers signes de fatigue",
+    "de": "Bei den ersten Anzeichen von Müdigkeit",
+    "pt": "Aos primeiros sinais de cansaço",
+    "it": "Ai primi segnali di stanchezza"
+  },
   "Сон": {
     "en": "Sleep",
+    "ua": "Сон",
     "pl": "Sen",
     "es": "Sueño",
     "fr": "Sommeil",
@@ -136,6 +190,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Не растягивать бодрствование ради более долгого ночного сна.": {
     "en": "Don't stretch awake time hoping for longer night sleep.",
+    "ua": "Не розтягувати неспання заради довшого нічного сну.",
     "pl": "Nie wydłużaj czuwania dla dłuższego snu nocnego.",
     "es": "No alargues la vigilia buscando un sueño nocturno más largo.",
     "fr": "N'allongez pas l'éveil pour un sommeil de nuit plus long.",
@@ -143,8 +198,19 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
     "pt": "Não prolongue a vigília na esperança de um sono noturno mais longo.",
     "it": "Non allungare la veglia sperando in un sonno notturno più lungo."
   },
+  "Круглосуточно": {
+    "en": "Around the clock",
+    "ua": "Цілодобово",
+    "pl": "Przez całą dobę",
+    "es": "Las 24 horas",
+    "fr": "24 h/24",
+    "de": "Rund um die Uhr",
+    "pt": "24 horas por dia",
+    "it": "24 ore su 24"
+  },
   "Повторение цикла": {
     "en": "Repeat the cycle",
+    "ua": "Повторення циклу",
     "pl": "Powtórzenie cyklu",
     "es": "Repetir el ciclo",
     "fr": "Répéter le cycle",
@@ -154,6 +220,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ночные кормления в этом возрасте обычны.": {
     "en": "Night feedings are normal at this age.",
+    "ua": "Нічні годування в цьому віці — звична річ.",
     "pl": "Karmienia nocne w tym wieku są normalne.",
     "es": "Las tomas nocturnas son normales a esta edad.",
     "fr": "Les repas de nuit sont normaux à cet âge.",
@@ -163,6 +230,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "6–12 недель": {
     "en": "6–12 weeks",
+    "ua": "6–12 тижнів",
     "pl": "6–12 tygodni",
     "es": "6–12 semanas",
     "fr": "6–12 semaines",
@@ -172,6 +240,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Обычно около 14–17 ч": {
     "en": "Usually about 14–17 h",
+    "ua": "Зазвичай близько 14–17 год",
     "pl": "Zwykle około 14–17 godz.",
     "es": "Normalmente unas 14–17 h",
     "fr": "Habituellement environ 14–17 h",
@@ -181,6 +250,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "4–6": {
     "en": "4–6",
+    "ua": "4–6",
     "pl": "4–6",
     "es": "4–6",
     "fr": "4–6",
@@ -190,6 +260,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "45–90 мин": {
     "en": "45–90 min",
+    "ua": "45–90 хв",
     "pl": "45–90 min",
     "es": "45–90 min",
     "fr": "45–90 min",
@@ -199,6 +270,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Около 07:00 ± 1 ч": {
     "en": "Around 07:00 ± 1 h",
+    "ua": "Близько 07:00 ± 1 год",
     "pl": "Około 07:00 ± 1 godz.",
     "es": "Alrededor de 07:00 ± 1 h",
     "fr": "Vers 07:00 ± 1 h",
@@ -208,6 +280,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "20:00–21:30": {
     "en": "20:00–21:30",
+    "ua": "20:00–21:30",
     "pl": "20:00–21:30",
     "es": "20:00–21:30",
     "fr": "20:00–21:30",
@@ -217,6 +290,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Время ещё может заметно сдвигаться; важнее повторяемая последовательность действий.": {
     "en": "Times can still shift noticeably; a repeatable sequence matters more.",
+    "ua": "Час ще може помітно зсуватися; важливіша повторювана послідовність дій.",
     "pl": "Godziny mogą się jeszcze wyraźnie przesuwać; ważniejsza jest powtarzalna kolejność.",
     "es": "Los horarios aún pueden variar bastante; importa más una secuencia repetible.",
     "fr": "Les horaires peuvent encore bouger nettement ; une séquence répétable compte plus.",
@@ -226,6 +300,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Пример дня": {
     "en": "Sample day",
+    "ua": "Приклад дня",
     "pl": "Przykładowy dzień",
     "es": "Día de ejemplo",
     "fr": "Journée type",
@@ -235,6 +310,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Пробуждение и кормление": {
     "en": "Wake-up and feeding",
+    "ua": "Пробудження і годування",
     "pl": "Pobudka i karmienie",
     "es": "Despertar y toma",
     "fr": "Réveil et repas",
@@ -244,6 +320,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Допустимо отклонение примерно на час.": {
     "en": "A deviation of about an hour is fine.",
+    "ua": "Припустиме відхилення приблизно на годину.",
     "pl": "Odchylenie około godziny jest dopuszczalne.",
     "es": "Se admite una variación de aproximadamente una hora.",
     "fr": "Un écart d'environ une heure est acceptable.",
@@ -253,6 +330,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Подгузник, общение, время на животе": {
     "en": "Diaper, interaction, tummy time",
+    "ua": "Підгузок, спілкування, час на животі",
     "pl": "Pielucha, kontakt, leżenie na brzuchu",
     "es": "Pañal, interacción, tiempo boca abajo",
     "fr": "Couche, échange, temps sur le ventre",
@@ -262,6 +340,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Спокойная активность.": {
     "en": "Calm activity.",
+    "ua": "Спокійна активність.",
     "pl": "Spokojna aktywność.",
     "es": "Actividad tranquila.",
     "fr": "Activité calme.",
@@ -271,6 +350,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Первый сон": {
     "en": "First nap",
+    "ua": "Перший сон",
     "pl": "Pierwsza drzemka",
     "es": "Primera siesta",
     "fr": "Première sieste",
@@ -280,6 +360,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Второй сон": {
     "en": "Second nap",
+    "ua": "Другий сон",
     "pl": "Druga drzemka",
     "es": "Segunda siesta",
     "fr": "Deuxième sieste",
@@ -289,6 +370,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Третий сон": {
     "en": "Third nap",
+    "ua": "Третій сон",
     "pl": "Trzecia drzemka",
     "es": "Tercera siesta",
     "fr": "Troisième sieste",
@@ -298,6 +380,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Четвёртый сон": {
     "en": "Fourth nap",
+    "ua": "Четвертий сон",
     "pl": "Czwarta drzemka",
     "es": "Cuarta siesta",
     "fr": "Quatrième sieste",
@@ -307,6 +390,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Короткий пятый сон": {
     "en": "Short fifth nap",
+    "ua": "Короткий п’ятий сон",
     "pl": "Krótka piąta drzemka",
     "es": "Quinta siesta corta",
     "fr": "Courte cinquième sieste",
@@ -316,6 +400,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Нужен не всем детям.": {
     "en": "Not all babies need it.",
+    "ua": "Потрібен не всім дітям.",
     "pl": "Nie każde dziecko go potrzebuje.",
     "es": "No todos los bebés la necesitan.",
     "fr": "Tous les bébés n'en ont pas besoin.",
@@ -325,6 +410,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Кормление и приглушённый свет": {
     "en": "Feeding and dim light",
+    "ua": "Годування і приглушене світло",
     "pl": "Karmienie i przyćmione światło",
     "es": "Toma y luz tenue",
     "fr": "Repas et lumière tamisée",
@@ -334,6 +420,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Начало ночного сна": {
     "en": "Start of night sleep",
+    "ua": "Початок нічного сну",
     "pl": "Początek snu nocnego",
     "es": "Inicio del sueño nocturno",
     "fr": "Début du sommeil de nuit",
@@ -343,6 +430,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ночные кормления сохраняются.": {
     "en": "Night feedings continue.",
+    "ua": "Нічні годування зберігаються.",
     "pl": "Karmienia nocne pozostają.",
     "es": "Las tomas nocturnas se mantienen.",
     "fr": "Les repas de nuit se poursuivent.",
@@ -352,6 +440,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3–4 месяца": {
     "en": "3–4 months",
+    "ua": "3–4 місяці",
     "pl": "3–4 miesiące",
     "es": "3–4 meses",
     "fr": "3–4 mois",
@@ -361,6 +450,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Обычно около 14–16 ч": {
     "en": "Usually about 14–16 h",
+    "ua": "Зазвичай близько 14–16 год",
     "pl": "Zwykle około 14–16 godz.",
     "es": "Normalmente unas 14–16 h",
     "fr": "Habituellement environ 14–16 h",
@@ -370,6 +460,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "4–5": {
     "en": "4–5",
+    "ua": "4–5",
     "pl": "4–5",
     "es": "4–5",
     "fr": "4–5",
@@ -379,6 +470,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "1 ч 15 мин – 2 ч": {
     "en": "1 h 15 min – 2 h",
+    "ua": "1 год 15 хв – 2 год",
     "pl": "1 godz. 15 min – 2 godz.",
     "es": "1 h 15 min – 2 h",
     "fr": "1 h 15 min – 2 h",
@@ -388,6 +480,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Около 07:00 ± 30 мин": {
     "en": "Around 07:00 ± 30 min",
+    "ua": "Близько 07:00 ± 30 хв",
     "pl": "Około 07:00 ± 30 min",
     "es": "Alrededor de 07:00 ± 30 min",
     "fr": "Vers 07:00 ± 30 min",
@@ -397,6 +490,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "19:30–20:30": {
     "en": "19:30–20:30",
+    "ua": "19:30–20:30",
     "pl": "19:30–20:30",
     "es": "19:30–20:30",
     "fr": "19:30–20:30",
@@ -406,6 +500,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Можно закреплять подъём и вечерний ритуал; короткие дневные сны остаются нормальными.": {
     "en": "You can start fixing wake-up and the bedtime routine; short naps are still normal.",
+    "ua": "Можна закріплювати підйом і вечірній ритуал; короткі денні сни залишаються нормою.",
     "pl": "Można utrwalać pobudkę i rytuał wieczorny; krótkie drzemki są nadal normalne.",
     "es": "Puedes fijar el despertar y la rutina de la noche; las siestas cortas siguen siendo normales.",
     "fr": "On peut fixer le réveil et le rituel du soir ; les siestes courtes restent normales.",
@@ -415,6 +510,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "4 дневных сна": {
     "en": "4 naps",
+    "ua": "4 денні сни",
     "pl": "4 drzemki",
     "es": "4 siestas",
     "fr": "4 siestes",
@@ -424,6 +520,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Подъём и молочное кормление": {
     "en": "Wake-up and milk feeding",
+    "ua": "Підйом і молочне годування",
     "pl": "Pobudka i karmienie mlekiem",
     "es": "Despertar y toma de leche",
     "fr": "Réveil et repas lacté",
@@ -433,6 +530,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Короткий четвёртый сон": {
     "en": "Short fourth nap",
+    "ua": "Короткий четвертий сон",
     "pl": "Krótka czwarta drzemka",
     "es": "Cuarta siesta corta",
     "fr": "Courte quatrième sieste",
@@ -442,6 +540,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Вечерний ритуал": {
     "en": "Bedtime routine",
+    "ua": "Вечірній ритуал",
     "pl": "Rytuał wieczorny",
     "es": "Rutina de la noche",
     "fr": "Rituel du soir",
@@ -451,6 +550,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Приглушённый свет, переодевание, песня или короткая книга.": {
     "en": "Dim light, changing, a song or a short book.",
+    "ua": "Приглушене світло, перевдягання, пісня або коротка книжка.",
     "pl": "Przyćmione światło, przebranie, piosenka lub krótka książeczka.",
     "es": "Luz tenue, cambio de ropa, una canción o un cuento corto.",
     "fr": "Lumière tamisée, change, une chanson ou un petit livre.",
@@ -460,6 +560,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Последнее кормление и ночной сон": {
     "en": "Last feeding and night sleep",
+    "ua": "Останнє годування і нічний сон",
     "pl": "Ostatnie karmienie i sen nocny",
     "es": "Última toma y sueño nocturno",
     "fr": "Dernier repas et sommeil de nuit",
@@ -469,6 +570,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "5–6 месяцев": {
     "en": "5–6 months",
+    "ua": "5–6 місяців",
     "pl": "5–6 miesięcy",
     "es": "5–6 meses",
     "fr": "5–6 mois",
@@ -478,6 +580,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "12–16 ч, включая дневной сон": {
     "en": "12–16 h, including daytime sleep",
+    "ua": "12–16 год, включно з денним сном",
     "pl": "12–16 godz., wliczając sen dzienny",
     "es": "12–16 h, incluido el sueño diurno",
     "fr": "12–16 h, sieste comprise",
@@ -487,6 +590,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3–4": {
     "en": "3–4",
+    "ua": "3–4",
     "pl": "3–4",
     "es": "3–4",
     "fr": "3–4",
@@ -496,6 +600,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "2–2,5 ч": {
     "en": "2–2.5 h",
+    "ua": "2–2,5 год",
     "pl": "2–2,5 godz.",
     "es": "2–2,5 h",
     "fr": "2–2,5 h",
@@ -505,6 +610,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Около 07:00": {
     "en": "Around 07:00",
+    "ua": "Близько 07:00",
     "pl": "Około 07:00",
     "es": "Alrededor de 07:00",
     "fr": "Vers 07:00",
@@ -514,6 +620,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "19:30–20:00": {
     "en": "19:30–20:00",
+    "ua": "19:30–20:00",
     "pl": "19:30–20:00",
     "es": "19:30–20:00",
     "fr": "19:30–20:00",
@@ -523,6 +630,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "При коротких снах может временно сохраняться четвёртый сон.": {
     "en": "With short naps, a fourth nap may remain for a while.",
+    "ua": "За коротких снів може тимчасово зберігатися четвертий сон.",
     "pl": "Przy krótkich drzemkach czwarta drzemka może chwilowo pozostać.",
     "es": "Con siestas cortas, puede mantenerse temporalmente una cuarta siesta.",
     "fr": "Avec des siestes courtes, une quatrième sieste peut subsister un temps.",
@@ -532,6 +640,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3 дневных сна": {
     "en": "3 naps",
+    "ua": "3 денні сни",
     "pl": "3 drzemki",
     "es": "3 siestas",
     "fr": "3 siestes",
@@ -541,6 +650,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Молочное кормление": {
     "en": "Milk feeding",
+    "ua": "Молочне годування",
     "pl": "Karmienie mlekiem",
     "es": "Toma de leche",
     "fr": "Repas lacté",
@@ -550,6 +660,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Прикорм при наличии готовности": {
     "en": "Solids if signs of readiness",
+    "ua": "Прикорм за наявності готовності",
     "pl": "Pokarmy stałe, jeśli są oznaki gotowości",
     "es": "Alimentos sólidos si hay señales de preparación",
     "fr": "Diversification si signes de préparation",
@@ -559,6 +670,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Небольшое количество; не заменяет молочное кормление.": {
     "en": "A small amount; does not replace milk feeding.",
+    "ua": "Невелика кількість; не замінює молочного годування.",
     "pl": "Niewielka ilość; nie zastępuje karmienia mlekiem.",
     "es": "Una pequeña cantidad; no sustituye la toma de leche.",
     "fr": "Une petite quantité ; ne remplace pas le repas lacté.",
@@ -568,6 +680,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Третий короткий сон": {
     "en": "Third short nap",
+    "ua": "Третій короткий сон",
     "pl": "Trzecia krótka drzemka",
     "es": "Tercera siesta corta",
     "fr": "Troisième sieste courte",
@@ -577,6 +690,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Спокойные игры и купание": {
     "en": "Calm play and bath",
+    "ua": "Спокійні ігри і купання",
     "pl": "Spokojna zabawa i kąpiel",
     "es": "Juego tranquilo y baño",
     "fr": "Jeu calme et bain",
@@ -586,6 +700,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ночной сон": {
     "en": "Night sleep",
+    "ua": "Нічний сон",
     "pl": "Sen nocny",
     "es": "Sueño nocturno",
     "fr": "Sommeil de nuit",
@@ -595,6 +710,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Если третий сон пропущен, укладывание часто делают раньше.": {
     "en": "If the third nap is skipped, bedtime is often earlier.",
+    "ua": "Якщо третій сон пропущено, укладання часто роблять раніше.",
     "pl": "Jeśli trzecia drzemka wypadnie, kładzenie spać jest często wcześniejsze.",
     "es": "Si se salta la tercera siesta, la hora de dormir suele adelantarse.",
     "fr": "Si la troisième sieste saute, le coucher est souvent avancé.",
@@ -604,6 +720,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "7–9 месяцев": {
     "en": "7–9 months",
+    "ua": "7–9 місяців",
     "pl": "7–9 miesięcy",
     "es": "7–9 meses",
     "fr": "7–9 mois",
@@ -613,6 +730,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "2–3": {
     "en": "2–3",
+    "ua": "2–3",
     "pl": "2–3",
     "es": "2–3",
     "fr": "2–3",
@@ -622,6 +740,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "2,5–3,5 ч": {
     "en": "2.5–3.5 h",
+    "ua": "2,5–3,5 год",
     "pl": "2,5–3,5 godz.",
     "es": "2,5–3,5 h",
     "fr": "2,5–3,5 h",
@@ -631,6 +750,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Третий короткий сон убирают, когда он регулярно мешает ночному укладыванию.": {
     "en": "Drop the third short nap when it regularly interferes with bedtime.",
+    "ua": "Третій короткий сон прибирають, коли він регулярно заважає нічному укладанню.",
     "pl": "Trzecią krótką drzemkę usuwa się, gdy regularnie zaburza wieczorne kładzenie.",
     "es": "Se elimina la tercera siesta corta cuando interfiere de forma habitual con la hora de dormir.",
     "fr": "On supprime la troisième sieste courte quand elle gêne régulièrement le coucher.",
@@ -640,6 +760,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "2 дневных сна": {
     "en": "2 naps",
+    "ua": "2 денні сни",
     "pl": "2 drzemki",
     "es": "2 siestas",
     "fr": "2 siestes",
@@ -649,6 +770,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Подъём и грудное молоко/смесь": {
     "en": "Wake-up and breast milk/formula",
+    "ua": "Підйом і грудне молоко/суміш",
     "pl": "Pobudka i mleko mamy/mieszanka",
     "es": "Despertar y leche materna/fórmula",
     "fr": "Réveil et lait maternel/infantile",
@@ -658,6 +780,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Завтрак": {
     "en": "Breakfast",
+    "ua": "Сніданок",
     "pl": "Śniadanie",
     "es": "Desayuno",
     "fr": "Petit-déjeuner",
@@ -667,6 +790,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Грудное молоко/смесь": {
     "en": "Breast milk/formula",
+    "ua": "Грудне молоко/суміш",
     "pl": "Mleko mamy/mieszanka",
     "es": "Leche materna/fórmula",
     "fr": "Lait maternel/infantile",
@@ -676,6 +800,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Обед": {
     "en": "Lunch",
+    "ua": "Обід",
     "pl": "Obiad",
     "es": "Almuerzo",
     "fr": "Déjeuner",
@@ -685,6 +810,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ужин или небольшое кормление": {
     "en": "Dinner or a small feeding",
+    "ua": "Вечеря або невелике годування",
     "pl": "Kolacja lub niewielkie karmienie",
     "es": "Cena o una toma pequeña",
     "fr": "Dîner ou petit repas",
@@ -694,6 +820,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Купание, спокойные игры, книга.": {
     "en": "Bath, calm play, a book.",
+    "ua": "Купання, спокійні ігри, книжка.",
     "pl": "Kąpiel, spokojna zabawa, książeczka.",
     "es": "Baño, juego tranquilo, un cuento.",
     "fr": "Bain, jeu calme, un livre.",
@@ -703,6 +830,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3 сна при коротких снах": {
     "en": "3 naps if naps are short",
+    "ua": "3 сни за коротких снів",
     "pl": "3 drzemki przy krótkich drzemkach",
     "es": "3 siestas si las siestas son cortas",
     "fr": "3 siestes si les siestes sont courtes",
@@ -712,6 +840,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Подъём": {
     "en": "Wake-up",
+    "ua": "Підйом",
     "pl": "Pobudka",
     "es": "Despertar",
     "fr": "Réveil",
@@ -721,6 +850,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Убирают, когда он регулярно мешает ночному засыпанию.": {
     "en": "Dropped when it regularly interferes with falling asleep at night.",
+    "ua": "Прибирають, коли він регулярно заважає нічному засинанню.",
     "pl": "Usuwa się, gdy regularnie zaburza zasypianie w nocy.",
     "es": "Se elimina cuando interfiere de forma habitual con conciliar el sueño por la noche.",
     "fr": "On la supprime quand elle gêne régulièrement l'endormissement du soir.",
@@ -730,6 +860,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "10–12 месяцев": {
     "en": "10–12 months",
+    "ua": "10–12 місяців",
     "pl": "10–12 miesięcy",
     "es": "10–12 meses",
     "fr": "10–12 mois",
@@ -739,6 +870,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Обычно 2": {
     "en": "Usually 2",
+    "ua": "Зазвичай 2",
     "pl": "Zwykle 2",
     "es": "Normalmente 2",
     "fr": "Habituellement 2",
@@ -748,6 +880,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3–4 ч": {
     "en": "3–4 h",
+    "ua": "3–4 год",
     "pl": "3–4 godz.",
     "es": "3–4 h",
     "fr": "3–4 h",
@@ -757,6 +890,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "06:30–07:00": {
     "en": "06:30–07:00",
+    "ua": "06:30–07:00",
     "pl": "06:30–07:00",
     "es": "06:30–07:00",
     "fr": "06:30–07:00",
@@ -766,6 +900,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Переход на один сон часто ещё преждевременен.": {
     "en": "Switching to one nap is often still premature.",
+    "ua": "Перехід на один сон часто ще передчасний.",
     "pl": "Przejście na jedną drzemkę często jest jeszcze przedwczesne.",
     "es": "Pasar a una sola siesta suele ser aún prematuro.",
     "fr": "Passer à une seule sieste est souvent encore prématuré.",
@@ -775,6 +910,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "2 стабильных сна": {
     "en": "2 steady naps",
+    "ua": "2 стабільні сни",
     "pl": "2 stabilne drzemki",
     "es": "2 siestas estables",
     "fr": "2 siestes stables",
@@ -784,6 +920,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Молочное кормление или перекус": {
     "en": "Milk feeding or a snack",
+    "ua": "Молочне годування або перекус",
     "pl": "Karmienie mlekiem lub przekąska",
     "es": "Toma de leche o un tentempié",
     "fr": "Repas lacté ou collation",
@@ -793,6 +930,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Зависит от индивидуального рациона.": {
     "en": "Depends on the individual diet.",
+    "ua": "Залежить від індивідуального раціону.",
     "pl": "Zależy od indywidualnej diety.",
     "es": "Depende de la dieta individual.",
     "fr": "Dépend du régime individuel.",
@@ -802,6 +940,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ужин": {
     "en": "Dinner",
+    "ua": "Вечеря",
     "pl": "Kolacja",
     "es": "Cena",
     "fr": "Dîner",
@@ -811,6 +950,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Тихий вечерний ритуал": {
     "en": "Quiet bedtime routine",
+    "ua": "Тихий вечірній ритуал",
     "pl": "Cichy rytuał wieczorny",
     "es": "Rutina de noche tranquila",
     "fr": "Rituel du soir calme",
@@ -820,6 +960,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "12–15 месяцев": {
     "en": "12–15 months",
+    "ua": "12–15 місяців",
     "pl": "12–15 miesięcy",
     "es": "12–15 meses",
     "fr": "12–15 mois",
@@ -829,6 +970,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "11–14 ч, включая дневной сон": {
     "en": "11–14 h, including daytime sleep",
+    "ua": "11–14 год, включно з денним сном",
     "pl": "11–14 godz., wliczając sen dzienny",
     "es": "11–14 h, incluido el sueño diurno",
     "fr": "11–14 h, sieste comprise",
@@ -838,6 +980,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "1–2": {
     "en": "1–2",
+    "ua": "1–2",
     "pl": "1–2",
     "es": "1–2",
     "fr": "1–2",
@@ -847,6 +990,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "3,5–5 ч": {
     "en": "3.5–5 h",
+    "ua": "3,5–5 год",
     "pl": "3,5–5 godz.",
     "es": "3,5–5 h",
     "fr": "3,5–5 h",
@@ -856,6 +1000,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Переход на один сон оценивают по устойчивым признакам минимум 1–2 недели.": {
     "en": "Judge the switch to one nap by steady signs over at least 1–2 weeks.",
+    "ua": "Перехід на один сон оцінюють за стійкими ознаками щонайменше 1–2 тижні.",
     "pl": "Przejście na jedną drzemkę ocenia się po stałych oznakach przez co najmniej 1–2 tygodnie.",
     "es": "Valora el paso a una siesta por señales estables durante al menos 1–2 semanas.",
     "fr": "Évaluez le passage à une sieste sur des signes stables pendant au moins 1–2 semaines.",
@@ -865,6 +1010,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Первый короткий сон": {
     "en": "First short nap",
+    "ua": "Перший короткий сон",
     "pl": "Pierwsza krótka drzemka",
     "es": "Primera siesta corta",
     "fr": "Première sieste courte",
@@ -874,6 +1020,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Короткий первый сон помогает сохранить второй.": {
     "en": "A short first nap helps keep the second one.",
+    "ua": "Короткий перший сон допомагає зберегти другий.",
     "pl": "Krótka pierwsza drzemka pomaga zachować drugą.",
     "es": "Una primera siesta corta ayuda a mantener la segunda.",
     "fr": "Une première sieste courte aide à garder la seconde.",
@@ -883,6 +1030,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Перекус": {
     "en": "Snack",
+    "ua": "Перекус",
     "pl": "Przekąska",
     "es": "Tentempié",
     "fr": "Collation",
@@ -892,6 +1040,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "1 дневной сон": {
     "en": "1 nap",
+    "ua": "1 денний сон",
     "pl": "1 drzemka",
     "es": "1 siesta",
     "fr": "1 sieste",
@@ -901,6 +1050,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Ранний обед": {
     "en": "Early lunch",
+    "ua": "Ранній обід",
     "pl": "Wczesny obiad",
     "es": "Almuerzo temprano",
     "fr": "Déjeuner tôt",
@@ -910,6 +1060,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Дневной сон": {
     "en": "Nap",
+    "ua": "Денний сон",
     "pl": "Drzemka",
     "es": "Siesta",
     "fr": "Sieste",
@@ -919,6 +1070,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Во время перехода укладывание часто временно делают раньше.": {
     "en": "During the transition, bedtime is often temporarily earlier.",
+    "ua": "Під час переходу укладання часто тимчасово роблять раніше.",
     "pl": "W czasie przejścia kładzenie spać jest często chwilowo wcześniejsze.",
     "es": "Durante la transición, la hora de dormir suele adelantarse temporalmente.",
     "fr": "Pendant la transition, le coucher est souvent avancé temporairement.",
@@ -928,6 +1080,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "15–18 месяцев": {
     "en": "15–18 months",
+    "ua": "15–18 місяців",
     "pl": "15–18 miesięcy",
     "es": "15–18 meses",
     "fr": "15–18 mois",
@@ -937,6 +1090,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Обычно 1": {
     "en": "Usually 1",
+    "ua": "Зазвичай 1",
     "pl": "Zwykle 1",
     "es": "Normalmente 1",
     "fr": "Habituellement 1",
@@ -946,6 +1100,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "4,5–5,5 ч": {
     "en": "4.5–5.5 h",
+    "ua": "4,5–5,5 год",
     "pl": "4,5–5,5 godz.",
     "es": "4,5–5,5 h",
     "fr": "4,5–5,5 h",
@@ -955,6 +1110,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "19:45–20:00": {
     "en": "19:45–20:00",
+    "ua": "19:45–20:00",
     "pl": "19:45–20:00",
     "es": "19:45–20:00",
     "fr": "19:45–20:00",
@@ -964,6 +1120,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Основные точки дня уже можно достаточно стабильно привязать ко времени.": {
     "en": "The main points of the day can now be tied to fairly stable times.",
+    "ua": "Основні точки дня вже можна досить стабільно прив’язати до часу.",
     "pl": "Główne punkty dnia można już dość stabilnie przypisać do godzin.",
     "es": "Los momentos clave del día ya pueden fijarse a horas bastante estables.",
     "fr": "Les moments clés de la journée peuvent désormais être fixés à des heures assez stables.",
@@ -973,6 +1130,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Прогулка и активные игры": {
     "en": "Walk and active play",
+    "ua": "Прогулянка й активні ігри",
     "pl": "Spacer i aktywna zabawa",
     "es": "Paseo y juego activo",
     "fr": "Promenade et jeu actif",
@@ -982,6 +1140,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Прогулка и игры": {
     "en": "Walk and play",
+    "ua": "Прогулянка та ігри",
     "pl": "Spacer i zabawa",
     "es": "Paseo y juego",
     "fr": "Promenade et jeu",
@@ -991,6 +1150,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Купание, чистка зубов, книга": {
     "en": "Bath, brushing teeth, a book",
+    "ua": "Купання, чищення зубів, книжка",
     "pl": "Kąpiel, mycie zębów, książeczka",
     "es": "Baño, cepillado de dientes, un cuento",
     "fr": "Bain, brossage des dents, un livre",
@@ -1000,6 +1160,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "18–24 месяца": {
     "en": "18–24 months",
+    "ua": "18–24 місяці",
     "pl": "18–24 miesiące",
     "es": "18–24 meses",
     "fr": "18–24 mois",
@@ -1009,6 +1170,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "1": {
     "en": "1",
+    "ua": "1",
     "pl": "1",
     "es": "1",
     "fr": "1",
@@ -1018,6 +1180,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "5–6 ч": {
     "en": "5–6 h",
+    "ua": "5–6 год",
     "pl": "5–6 godz.",
     "es": "5–6 h",
     "fr": "5–6 h",
@@ -1027,6 +1190,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Около 20:00": {
     "en": "Around 20:00",
+    "ua": "Близько 20:00",
     "pl": "Około 20:00",
     "es": "Alrededor de 20:00",
     "fr": "Vers 20:00",
@@ -1036,6 +1200,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Желательно сохранять близкий график в будни и выходные.": {
     "en": "It's best to keep a similar schedule on weekdays and weekends.",
+    "ua": "Бажано зберігати близький графік у будні та вихідні.",
     "pl": "Warto zachować zbliżony harmonogram w dni robocze i weekendy.",
     "es": "Conviene mantener un horario similar entre semana y el fin de semana.",
     "fr": "Mieux vaut garder un horaire proche en semaine et le week-end.",
@@ -1045,6 +1210,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Прогулка, игры, бытовые занятия": {
     "en": "Walk, play, everyday activities",
+    "ua": "Прогулянка, ігри, побутові заняття",
     "pl": "Spacer, zabawa, zajęcia domowe",
     "es": "Paseo, juego, tareas cotidianas",
     "fr": "Promenade, jeux, activités du quotidien",
@@ -1054,6 +1220,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Только спокойная активность": {
     "en": "Calm activity only",
+    "ua": "Лише спокійна активність",
     "pl": "Tylko spokojna aktywność",
     "es": "Solo actividad tranquila",
     "fr": "Activité calme uniquement",
@@ -1063,6 +1230,7 @@ export const REGIME_STRINGS: Record<string, Partial<Record<Lang, string>>> = {
   },
   "Умывание или ванна, зубы, книга": {
     "en": "Washing up or a bath, teeth, a book",
+    "ua": "Умивання або ванна, зуби, книжка",
     "pl": "Mycie lub kąpiel, zęby, książeczka",
     "es": "Aseo o baño, dientes, un cuento",
     "fr": "Toilette ou bain, dents, un livre",

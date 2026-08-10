@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { sendEmailCode, signInWithApple, signInWithGoogle, verifyEmailCode } from '@/lib/supabase';
 import { useT } from '@/state/app-state';
@@ -236,6 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     fontSize: 16,
+    fontFamily: NunitoSans.regular,
   },
   codeInput: {
     textAlign: 'center',
@@ -243,6 +244,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 4,
     fontVariant: ['tabular-nums'],
+    fontFamily: NunitoSans.bold,
   },
   primaryButton: {
     alignItems: 'center',

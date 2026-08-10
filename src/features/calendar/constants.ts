@@ -21,6 +21,11 @@ export const ZOOM_BADGE_HOLD = 700;
 
 export const SCROLL_BOTTOM_PAD = Spacing.six;
 
+// Vertical magnification of the stats charts — the slider and the pinch
+// gesture drive the same range.
+export const CHART_ZOOM_MIN = 1;
+export const CHART_ZOOM_MAX = 4;
+
 export const LANES: Record<SessionKind, number> = {
   settling: 0,
   sleep: 0,
@@ -29,7 +34,6 @@ export const LANES: Record<SessionKind, number> = {
   poop: 2,
   diaper: 3,
 };
-export const LANE_INSET = 40;
 
 export const MIN_EVENT_HEIGHT = 10;
 

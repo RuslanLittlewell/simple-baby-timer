@@ -2,7 +2,7 @@
 
 import '@/global.css';
 
-import { Platform } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -53,6 +53,25 @@ export const BackgroundGradient: Record<
     locations: [0, 1],
   },
 };
+
+// Nunito Sans ships one file per weight and each registers as its own family,
+// so a weight has to be turned into a family name — fontWeight alone would be
+// ignored on Android and synthesised on iOS.
+export const NunitoSans = {
+  regular: 'NunitoSans_400Regular',
+  medium: 'NunitoSans_500Medium',
+  semiBold: 'NunitoSans_600SemiBold',
+  bold: 'NunitoSans_700Bold',
+} as const;
+
+export function fontFamilyForWeight(weight?: TextStyle['fontWeight']): string {
+  if (weight === 'bold') return NunitoSans.bold;
+  const numeric = typeof weight === 'number' ? weight : Number.parseInt(weight ?? '', 10);
+  if (numeric >= 700) return NunitoSans.bold;
+  if (numeric >= 600) return NunitoSans.semiBold;
+  if (numeric >= 500) return NunitoSans.medium;
+  return NunitoSans.regular;
+}
 
 export const Fonts = Platform.select({
   ios: {

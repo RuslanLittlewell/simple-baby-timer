@@ -17,6 +17,7 @@ interface WeekViewProps {
   today: Date;
   onShiftWeek: (delta: number) => void;
   onOpenMonth: () => void;
+  onOpenStats: () => void;
   onClose: () => void;
   onPickDay: (date: Date) => void;
 }
@@ -27,6 +28,7 @@ export function WeekView({
   today,
   onShiftWeek,
   onOpenMonth,
+  onOpenStats,
   onClose,
   onPickDay,
 }: WeekViewProps) {
@@ -49,8 +51,10 @@ export function WeekView({
       navLabel={rangeLabel}
       onBack={onOpenMonth}
       onClose={onClose}
+      onStats={onOpenStats}
       onPrev={() => onShiftWeek(-1)}
-      onNext={() => onShiftWeek(1)}>
+      onNext={() => onShiftWeek(1)}
+      fill>
       <View style={styles.list}>
         {weekDays.map((d, i) => {
           const isTodayRow = isSameDay(d, today);
@@ -59,9 +63,9 @@ export function WeekView({
             <Pressable
               key={i}
               onPress={() => onPickDay(d)}
-              style={({ pressed }) => pressed && styles.pressed}>
+              style={({ pressed }) => [styles.dayItem, pressed && styles.pressed]}>
               <ThemedView
-                type={isSelected ? 'backgroundSelected' : undefined}
+                type={isSelected ? 'backgroundSelected' : 'backgroundElement'}
                 style={styles.dayRow}>
                 <ThemedText
                   type={isTodayRow ? 'smallBold' : 'small'}
@@ -90,10 +94,16 @@ export function WeekView({
 }
 
 const styles = StyleSheet.create({
+  // The seven days share out the whole card rather than stacking at its top.
   list: {
+    flex: 1,
     gap: Spacing.one,
   },
+  dayItem: {
+    flex: 1,
+  },
   dayRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,

@@ -1,6 +1,6 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { Platform, StyleSheet, Text, type TextProps, type TextStyle } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
+import { Fonts, ThemeColor, fontFamilyForWeight } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export interface ThemedTextProps extends TextProps {
@@ -11,19 +11,27 @@ export interface ThemedTextProps extends TextProps {
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 
+  const composed = [
+    { color: theme[themeColor ?? 'text'] },
+    type === 'default' && styles.default,
+    type === 'title' && styles.title,
+    type === 'small' && styles.small,
+    type === 'smallBold' && styles.smallBold,
+    type === 'subtitle' && styles.subtitle,
+    type === 'link' && styles.link,
+    type === 'linkPrimary' && styles.linkPrimary,
+    type === 'code' && styles.code,
+    style,
+  ];
+  // Each Nunito weight is a separate family, so the requested weight is turned
+  // into a family here — once, for every piece of text in the app.
+  const flattened: TextStyle = StyleSheet.flatten(composed);
+
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
-        type === 'default' && styles.default,
-        type === 'title' && styles.title,
-        type === 'small' && styles.small,
-        type === 'smallBold' && styles.smallBold,
-        type === 'subtitle' && styles.subtitle,
-        type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
-        type === 'code' && styles.code,
-        style,
+        composed,
+        type !== 'code' && { fontFamily: fontFamilyForWeight(flattened.fontWeight) },
       ]}
       {...rest}
     />

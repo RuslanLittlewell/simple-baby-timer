@@ -15,6 +15,9 @@ import {
   FEEDING_MAX,
   FEEDING_MIN,
   FEEDING_STEP,
+  SETTLING_MAX,
+  SETTLING_MIN,
+  SETTLING_STEP,
   TIMER_MAX,
   TIMER_MIN,
   TIMER_STEP,
@@ -105,6 +108,7 @@ function SettingSlider({
 export default function SettingsScreen() {
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
+  const settlingMinutes = useAppStore((state) => state.settlingMinutes);
   const feedingMinutes = useAppStore((state) => state.feedingMinutes);
   const sleepNotificationsEnabled = useAppStore(
     (state) => state.sleepNotificationsEnabled,
@@ -112,14 +116,24 @@ export default function SettingsScreen() {
   const awakeNotificationsEnabled = useAppStore(
     (state) => state.awakeNotificationsEnabled,
   );
+  const settlingNotificationsEnabled = useAppStore(
+    (state) => state.settlingNotificationsEnabled,
+  );
   const feedingNotificationsEnabled = useAppStore(
     (state) => state.feedingNotificationsEnabled,
   );
   const setSleepMinutes = useAppStore((state) => state.setSleepMinutes);
   const setAwakeMinutes = useAppStore((state) => state.setAwakeMinutes);
+  const setSettlingMinutes = useAppStore((state) => state.setSettlingMinutes);
   const setFeedingMinutes = useAppStore((state) => state.setFeedingMinutes);
   const setNotificationsEnabled = useAppStore((state) => state.setNotificationsEnabled);
   const language = useAppStore((state) => state.language);
+  const proActive = useAppStore((state) => state.proActive);
+  const children = useAppStore((state) => state.children);
+  const activeChildId = useAppStore((state) => state.activeChildId);
+  // Settling is a PRO activity, so its reminder is only configurable there.
+  const proAccess =
+    proActive || children.find((child) => child.id === activeChildId)?.proEnabled === true;
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
   const theme = useTheme();
@@ -162,6 +176,22 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </ThemedView>
+
+            {proAccess && (
+              <SettingSlider
+                label={t('settings.settlingTime')}
+                hint={t('settings.settlingHint')}
+                icon="sleep"
+                value={settlingMinutes}
+                enabled={settlingNotificationsEnabled}
+                onEnabledChange={(enabled) => setNotificationsEnabled('settling', enabled)}
+                onCommit={setSettlingMinutes}
+                min={SETTLING_MIN}
+                max={SETTLING_MAX}
+                step={SETTLING_STEP}
+                format={minutesFmt}
+              />
+            )}
 
             <SettingSlider
               label={t('settings.sleepTime')}
@@ -232,7 +262,7 @@ const styles = StyleSheet.create({
   inner: {
     width: '100%',
     maxWidth: MaxContentWidth,
-    gap: Spacing.four,
+    gap: Spacing.two,
   },
   card: {
     alignSelf: 'stretch',

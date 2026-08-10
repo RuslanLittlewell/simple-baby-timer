@@ -14,6 +14,7 @@ interface MonthViewProps {
   today: Date;
   onShiftMonth: (delta: number) => void;
   onBackToWeek: () => void;
+  onOpenStats: () => void;
   onClose: () => void;
   onPickDay: (day: number) => void;
 }
@@ -24,6 +25,7 @@ export function MonthView({
   today,
   onShiftMonth,
   onBackToWeek,
+  onOpenStats,
   onClose,
   onPickDay,
 }: MonthViewProps) {
@@ -45,6 +47,7 @@ export function MonthView({
       navLabel={`${MONTHS[month]} ${year}`}
       onBack={onBackToWeek}
       onClose={onClose}
+      onStats={onOpenStats}
       onPrev={() => onShiftMonth(-1)}
       onNext={() => onShiftMonth(1)}>
       <View style={styles.weekRow}>

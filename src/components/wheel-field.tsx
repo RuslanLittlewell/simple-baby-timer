@@ -29,6 +29,9 @@ interface WheelFieldProps {
   onChange: (date: Date) => void;
   minimumDate?: Date;
   maximumDate?: Date;
+  // Opens the picker as soon as the field appears, for steps whose only
+  // purpose is picking a time.
+  openOnMount?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 }
@@ -43,13 +46,14 @@ export function WheelField({
   onChange,
   minimumDate,
   maximumDate,
+  openOnMount = false,
   style,
   textStyle,
 }: WheelFieldProps) {
   const theme = useTheme();
   const themeMode = useAppStore((state) => state.themeMode);
   const t = useT();
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(openOnMount);
   const [draft, setDraft] = useState(value);
 
   const open = () => {

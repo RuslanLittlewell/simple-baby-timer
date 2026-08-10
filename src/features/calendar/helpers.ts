@@ -2,7 +2,9 @@ import { type TranslateParams } from '@/i18n';
 import { type ActivitySession, type SessionKind } from '@/lib/activity-store';
 import { type Session } from '@/state/app-state';
 
-import { GUTTER, LANE_INSET, LANES } from './constants';
+import { Spacing } from '@/constants/theme';
+
+import { GUTTER, LANES, SCREEN_WIDTH } from './constants';
 
 export type Translate = (key: string, params?: TranslateParams) => string;
 
@@ -56,7 +58,14 @@ export const parseTime = (value: string) => {
 
 export const isEvent = (kind: SessionKind) => kind === 'poop' || kind === 'diaper';
 
-export const laneLeft = (kind: SessionKind) => GUTTER + LANES[kind] * LANE_INSET;
+// Each kind keeps a fixed share of the track, measured from its right edge:
+// sleep / awake / settling take all of it, feeding a half, the point events a
+// fifth. LANES still decides what draws on top.
+const TRACK_WIDTH = SCREEN_WIDTH - GUTTER - Spacing.two;
+const trackLeft = (share: number) => GUTTER + TRACK_WIDTH * (1 - share);
+
+export const laneLeft = (kind: SessionKind) =>
+  isEvent(kind) ? trackLeft(0.2) : LANES[kind] === 0 ? GUTTER : trackLeft(0.5);
 
 export function buildMonthCells(year: number, month: number): (number | null)[] {
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -70,6 +79,7 @@ export function buildMonthCells(year: number, month: number): (number | null)[] 
 export interface DayStats {
   sleepMs: number;
   awakeMs: number;
+  settlingMs: number;
   milkMl: number;
   feedingCount: number;
   poopCount: number;
@@ -91,10 +101,14 @@ export function computeDayStats(
   const completedAwakeMs = sessions
     .filter((item) => item.kind === 'awake')
     .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
+  const completedSettlingMs = sessions
+    .filter((item) => item.kind === 'settling')
+    .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
   const liveMainMs = liveSession ? durationInDay(liveSession.startedAt, now) : 0;
   return {
     sleepMs: completedSleepMs + (liveSession?.kind === 'sleep' ? liveMainMs : 0),
     awakeMs: completedAwakeMs + (liveSession?.kind === 'awake' ? liveMainMs : 0),
+    settlingMs: completedSettlingMs + (liveSession?.kind === 'settling' ? liveMainMs : 0),
     milkMl: sessions
       .filter((item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs)
       .reduce((sum, item) => sum + (item.milkMl ?? 0), 0),

@@ -21,16 +21,24 @@ export const SETTLING_METHODS: SettlingMethod[] = [
   'walk',
   'independent',
 ];
-export const SLEEP_PLACES = ['crib', 'stroller', 'carSeat', 'coSleeping', 'carrier'] as const;
+export const SLEEP_PLACES = [
+  'crib',
+  'stroller',
+  'carSeat',
+  'coSleeping',
+  'carrier',
+  'inArms',
+] as const;
 export const BREAST_SIDES = ['left', 'right', 'both'] as const;
-export const BOTTLE_CONTENTS = ['formula', 'breastMilk', 'water'] as const;
+export const BOTTLE_CONTENTS = ['formula', 'breastMilk'] as const;
 
 const SLEEP_ICONS: Record<Extract<ProDetails, { type: 'sleep' }>['place'], IconName> = {
   crib: 'bed-single-outline',
   stroller: 'baby-carriage',
   carSeat: 'car-child-seat',
   coSleeping: 'bed-double-outline',
-  carrier: 'baby-face-outline',
+  carrier: 'kangaroo',
+  inArms: 'mother-heart',
 };
 
 export function proDetailsIcon(details?: ProDetails): IconName | null {

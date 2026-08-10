@@ -6,10 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { MobileMenu } from '@/components/mobile-menu';
-import { ProRequiredModal } from '@/components/pro-required';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { MAX_CHILDREN, type Child, type ChildGradientKey } from '@/lib/children';
 import { useAppStore, useT } from '@/state/app-state';
@@ -36,11 +36,11 @@ export default function ChildSelectScreen() {
   const selectChild = useAppStore((state) => state.selectChild);
   const addChild = useAppStore((state) => state.addChild);
   const proActive = useAppStore((state) => state.proActive);
+  const openPaywall = useProPaywall();
   const [adding, setAdding] = useState(false);
   const [enteringCode, setEnteringCode] = useState(false);
   const [sharingChildId, setSharingChildId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [proPromptVisible, setProPromptVisible] = useState(false);
 
   const sharingChild = children.find((child) => child.id === sharingChildId) ?? null;
 
@@ -49,6 +49,13 @@ export default function ChildSelectScreen() {
     else setEnteringCode(true);
   };
 
+  // Sharing is PRO: the paywall stands in for it, and unlocking there carries
+  // straight on into the share sheet.
+  const requestPro = (action: PendingAction) =>
+    openPaywall((unlocked) => {
+      if (unlocked) runAction(action);
+    });
+
   // Sharing needs an account — ask to sign in first, then continue.
   const requestAction = async (action: PendingAction) => {
     if (!(await getIsSignedIn())) {
@@ -56,7 +63,7 @@ export default function ChildSelectScreen() {
       return;
     }
     if (action.type === 'share' && !proActive) {
-      setProPromptVisible(true);
+      requestPro(action);
       return;
     }
     runAction(action);
@@ -164,10 +171,6 @@ export default function ChildSelectScreen() {
           }}
         />
         <ShareChildModal child={sharingChild} onClose={() => setSharingChildId(null)} />
-        <ProRequiredModal
-          visible={proPromptVisible}
-          onClose={() => setProPromptVisible(false)}
-        />
         <AuthModal
           visible={!!pendingAction}
           onClose={() => setPendingAction(null)}
@@ -180,7 +183,7 @@ export default function ChildSelectScreen() {
             if (action.type === 'enterCode' || useAppStore.getState().proActive) {
               runAction(action);
             } else {
-              setProPromptVisible(true);
+              requestPro(action);
             }
           }}
         />

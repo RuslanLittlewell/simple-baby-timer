@@ -1,11 +1,14 @@
+import { useIsFocused } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ProRequiredCard } from '@/components/pro-required';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useProPaywall } from '@/hooks/use-pro-paywall';
+import { previousTabRoute } from '@/hooks/use-tab-history';
 import { useTheme } from '@/hooks/use-theme';
 import { regimeIndexForBirthday } from '@/lib/children';
 import { useAppStore } from '@/state/app-state';
@@ -27,6 +30,18 @@ export default function RegimesScreen() {
   const activeChildId = useAppStore((state) => state.activeChildId);
   const proActive = useAppStore((state) => state.proActive);
   const regimes = useMemo(() => localizeRegimes(language), [language]);
+  const focused = useIsFocused();
+  const openPaywall = useProPaywall();
+  const router = useRouter();
+
+  // Opening the tab without PRO shows the paywall and nothing else; closing it
+  // without unlocking returns to the tab the user came from.
+  useEffect(() => {
+    if (!focused || proActive) return;
+    openPaywall((unlocked) => {
+      if (!unlocked) router.navigate(previousTabRoute() ?? '/activity');
+    });
+  }, [focused, proActive, openPaywall, router]);
 
   const birthday = children.find((c) => c.id === activeChildId)?.birthday;
   const defaultAgeIndex = birthday !== undefined
@@ -51,15 +66,9 @@ export default function RegimesScreen() {
     setVariantIndex(0);
   };
 
-  if (!proActive) {
-    return (
-      <ThemedView gradient style={styles.container}>
-        <SafeAreaView style={[styles.safe, styles.locked]} edges={['top', 'left', 'right']}>
-          <ProRequiredCard />
-        </SafeAreaView>
-      </ThemedView>
-    );
-  }
+  // Nothing but the app background sits under the paywall — the regimes are
+  // PRO content, and the effect above is already sending the user back.
+  if (!proActive) return <ThemedView gradient style={styles.container} />;
 
   return (
     <ThemedView gradient style={styles.container}>
@@ -121,12 +130,6 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     alignSelf: 'stretch',
-  },
-  locked: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.four,
-    paddingBottom: BottomTabInset + Spacing.four,
   },
   scroll: {
     flex: 1,

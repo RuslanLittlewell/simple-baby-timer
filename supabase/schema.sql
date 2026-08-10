@@ -9,10 +9,13 @@
 
 -- ── Tables ──────────────────────────────────────────────────────────────
 
+-- trial_ends_at stays null until the user starts the trial from the paywall
+-- (start_trial() below). A non-null value therefore means "trial used", no
+-- matter whether it is still running or already over.
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   pro_active boolean not null default false,
-  trial_ends_at timestamptz default now() + interval '14 days',
+  trial_ends_at timestamptz,
   pro_renews_at timestamptz,
   updated_at timestamptz not null default now()
 );
@@ -20,13 +23,13 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists pro_active boolean not null default false;
 alter table public.profiles add column if not exists trial_ends_at timestamptz;
 alter table public.profiles add column if not exists pro_renews_at timestamptz;
-alter table public.profiles
-  alter column trial_ends_at set default now() + interval '14 days';
+-- Stops the automatic trial in projects created while sign-up still granted one.
+alter table public.profiles alter column trial_ends_at drop default;
 
--- Existing accounts do not receive a new trial during this migration. The
--- trigger below gives the default 14-day period only to newly created users.
-insert into public.profiles (id, trial_ends_at)
-select id, now() from auth.users
+-- Accounts that predate the profiles table get a row without a trial; they can
+-- still start one from the paywall.
+insert into public.profiles (id)
+select id from auth.users
 on conflict (id) do nothing;
 
 create or replace function public.create_account_profile()
@@ -244,6 +247,28 @@ begin
         pro_renews_at = renewal,
         updated_at = now();
   return renewal;
+end $$;
+
+-- Starts the one-off 14-day trial. trial_ends_at is written exactly once per
+-- account, so a second call fails whether the trial is running or long over.
+create or replace function public.start_trial()
+returns timestamptz
+language plpgsql security definer set search_path = public as $$
+declare
+  ends_at timestamptz := now() + interval '14 days';
+  updated timestamptz;
+begin
+  insert into profiles (id, trial_ends_at)
+  values (auth.uid(), ends_at)
+  on conflict (id) do update
+    set trial_ends_at = ends_at,
+        updated_at = now()
+    where profiles.trial_ends_at is null
+  returning profiles.trial_ends_at into updated;
+  if updated is null then
+    raise exception 'trial already used';
+  end if;
+  return updated;
 end $$;
 
 -- Generates a short invite code for a child (member only).

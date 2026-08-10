@@ -89,10 +89,18 @@ export function ActivityRow({
               event.stopPropagation();
               onStop();
             }}>
-            <TimerToggleIcon active accent={accent} />
+            <TimerToggleIcon
+              active
+              accent={accent}
+              darkBackgroundColor={gradKey === 'feed' ? fg : undefined}
+            />
           </Pressable>
         ) : (
-          <TimerToggleIcon active={isActive} accent={accent} />
+          <TimerToggleIcon
+            active={isActive}
+            accent={accent}
+            darkBackgroundColor={gradKey === 'feed' ? fg : undefined}
+          />
         )}
       </LinearGradient>
     </Pressable>
