@@ -10,7 +10,9 @@ from collections import OrderedDict
 SHEET_URL = ("https://docs.google.com/spreadsheets/d/e/"
              "2PACX-1vSBsSO77IdSBVLUzc0N-n1xZ-mey-P4TOeDlnZRwhbNlYGibqUwigPblrDVD5"
              "ngAGQHDFUgS7mNO89f/pub?output=xlsx")
-OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'features', 'regimes', 'data.ts')
+ROOT = os.path.join(os.path.dirname(__file__), '..', 'src', 'features', 'regimes')
+OUT = os.path.join(ROOT, 'data.ts')
+I18N_OUT = os.path.join(ROOT, 'data-i18n.ts')
 NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
 
 
@@ -66,6 +68,41 @@ def classify(a):
     return 'other'
 
 
+def load_translations():
+    try:
+        source = open(I18N_OUT).read()
+        match = re.search(r'=\s*({.*})\s*;\s*$', source, re.S)
+        return json.loads(match.group(1)) if match else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def extract_strings(result, previous):
+    languages = ('ru', 'en', 'ua', 'pl', 'es', 'fr', 'de', 'pt', 'it')
+    strings = {lang: {} for lang in languages}
+
+    def replace(container, field, key):
+        value = container[field]
+        for lang in languages:
+            strings[lang][key] = value if lang == 'ru' else previous.get(lang, {}).get(key, value)
+        container[field] = key
+
+    for age_index, age in enumerate(result):
+        prefix = f'regime.{age_index}'
+        replace(age, 'age', f'{prefix}.age')
+        if age['summary']:
+            for field in ('sleep24', 'naps', 'wakeWindow', 'wakeUp', 'nightSleep', 'features'):
+                replace(age['summary'], field, f'{prefix}.summary.{field}')
+        for variant_index, variant in enumerate(age['variants']):
+            variant_prefix = f'{prefix}.variant.{variant_index}'
+            replace(variant, 'name', f'{variant_prefix}.name')
+            for step_index, step in enumerate(variant['steps']):
+                step_prefix = f'{variant_prefix}.step.{step_index}'
+                for field in ('time', 'action', 'note'):
+                    replace(step, field, f'{step_prefix}.{field}')
+    return strings
+
+
 def main():
     raw = urllib.request.urlopen(SHEET_URL).read()
     with zipfile.ZipFile(io.BytesIO(raw)) as z:
@@ -102,6 +139,7 @@ def main():
         result.append({'age': age, 'timed': timed, 'summary': summ.get(age),
                        'source': ages[age].get('_src', ''), 'variants': variants})
 
+    strings = extract_strings(result, load_translations())
     ts = ("// AUTO-GENERATED from the published Google Sheet by scripts/regimes-import.py.\n"
           "// Do not edit by hand.\n"
           "import { type RegimeAge } from './types';\n\n"
@@ -109,6 +147,13 @@ def main():
           + json.dumps(result, ensure_ascii=False, indent=2) + ";\n")
     with open(OUT, 'w') as f:
         f.write(ts)
+    i18n_ts = ("// Regime copy keyed by stable paths from data.ts. Russian is translated through\n"
+               "// the same lookup as every other supported language.\n"
+               "import { type LanguageCode } from '@/i18n';\n\n"
+               "export const REGIME_STRINGS: Record<LanguageCode, Record<string, string>> = "
+               + json.dumps(strings, ensure_ascii=False, indent=2) + ";\n")
+    with open(I18N_OUT, 'w') as f:
+        f.write(i18n_ts)
     print(f"Wrote {os.path.relpath(OUT)} — {len(result)} age groups.")
 
 

@@ -4,59 +4,59 @@ import { type RegimeAge } from './types';
 
 export const REGIMES: RegimeAge[] = [
   {
-    "age": "0–6 недель",
+    "age": "regime.0.age",
     "timed": false,
     "summary": {
-      "sleep24": "Часто 14–17 ч; индивидуальный разброс большой",
-      "naps": "5–8 и более",
-      "wakeWindow": "30–60 мин",
-      "wakeUp": "Не фиксируется",
-      "nightSleep": "Не фиксируется",
-      "features": "Кормление → короткое бодрствование → сон; день и ночь постепенно различают светом и активностью."
+      "sleep24": "regime.0.summary.sleep24",
+      "naps": "regime.0.summary.naps",
+      "wakeWindow": "regime.0.summary.wakeWindow",
+      "wakeUp": "regime.0.summary.wakeUp",
+      "nightSleep": "regime.0.summary.nightSleep",
+      "features": "regime.0.summary.features"
     },
     "source": "https://www.nhs.uk/best-start-in-life/baby/baby-basics/newborn-and-baby-sleeping-advice-for-parents/your-babys-sleep-patterns/",
     "variants": [
       {
-        "name": "Цикл, а не строгий график",
+        "name": "regime.0.variant.0.name",
         "steps": [
           {
-            "time": "После пробуждения",
+            "time": "regime.0.variant.0.step.0.time",
             "startMin": null,
             "endMin": null,
-            "action": "Кормление",
-            "note": "Грудное молоко или смесь по потребности и рекомендациям врача.",
+            "action": "regime.0.variant.0.step.0.action",
+            "note": "regime.0.variant.0.step.0.note",
             "kind": "meal"
           },
           {
-            "time": "Следующие 5–20 мин",
+            "time": "regime.0.variant.0.step.1.time",
             "startMin": null,
             "endMin": null,
-            "action": "Подгузник и спокойное общение",
-            "note": "Короткий контакт, разговор, рассматривание лица.",
+            "action": "regime.0.variant.0.step.1.action",
+            "note": "regime.0.variant.0.step.1.note",
             "kind": "other"
           },
           {
-            "time": "Несколько минут",
+            "time": "regime.0.variant.0.step.2.time",
             "startMin": null,
             "endMin": null,
-            "action": "Время на животе",
-            "note": "Только в бодрствовании и под постоянным наблюдением.",
+            "action": "regime.0.variant.0.step.2.action",
+            "note": "regime.0.variant.0.step.2.note",
             "kind": "play"
           },
           {
-            "time": "При первых признаках усталости",
+            "time": "regime.0.variant.0.step.3.time",
             "startMin": null,
             "endMin": null,
-            "action": "Сон",
-            "note": "Не растягивать бодрствование ради более долгого ночного сна.",
+            "action": "regime.0.variant.0.step.3.action",
+            "note": "regime.0.variant.0.step.3.note",
             "kind": "sleep"
           },
           {
-            "time": "Круглосуточно",
+            "time": "regime.0.variant.0.step.4.time",
             "startMin": null,
             "endMin": null,
-            "action": "Повторение цикла",
-            "note": "Ночные кормления в этом возрасте обычны.",
+            "action": "regime.0.variant.0.step.4.action",
+            "note": "regime.0.variant.0.step.4.note",
             "kind": "other"
           }
         ]
@@ -64,123 +64,123 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "6–12 недель",
+    "age": "regime.1.age",
     "timed": true,
     "summary": {
-      "sleep24": "Обычно около 14–17 ч",
-      "naps": "4–6",
-      "wakeWindow": "45–90 мин",
-      "wakeUp": "Около 07:00 ± 1 ч",
-      "nightSleep": "20:00–21:30",
-      "features": "Время ещё может заметно сдвигаться; важнее повторяемая последовательность действий."
+      "sleep24": "regime.1.summary.sleep24",
+      "naps": "regime.1.summary.naps",
+      "wakeWindow": "regime.1.summary.wakeWindow",
+      "wakeUp": "regime.1.summary.wakeUp",
+      "nightSleep": "regime.1.summary.nightSleep",
+      "features": "regime.1.summary.features"
     },
     "source": "https://www.nhs.uk/best-start-in-life/baby/baby-basics/newborn-and-baby-sleeping-advice-for-parents/your-babys-sleep-patterns/",
     "variants": [
       {
-        "name": "Пример дня",
+        "name": "regime.1.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.1.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Пробуждение и кормление",
-            "note": "Допустимо отклонение примерно на час.",
+            "action": "regime.1.variant.0.step.0.action",
+            "note": "regime.1.variant.0.step.0.note",
             "kind": "meal"
           },
           {
-            "time": "07:20–08:00",
+            "time": "regime.1.variant.0.step.1.time",
             "startMin": 440,
             "endMin": 480,
-            "action": "Подгузник, общение, время на животе",
-            "note": "Спокойная активность.",
+            "action": "regime.1.variant.0.step.1.action",
+            "note": "regime.1.variant.0.step.1.note",
             "kind": "play"
           },
           {
-            "time": "08:00–09:15",
+            "time": "regime.1.variant.0.step.2.time",
             "startMin": 480,
             "endMin": 555,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.1.variant.0.step.2.action",
+            "note": "regime.1.variant.0.step.2.note",
             "kind": "sleep"
           },
           {
-            "time": "09:15",
+            "time": "regime.1.variant.0.step.3.time",
             "startMin": 555,
             "endMin": null,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.1.variant.0.step.3.action",
+            "note": "regime.1.variant.0.step.3.note",
             "kind": "meal"
           },
           {
-            "time": "10:15–11:30",
+            "time": "regime.1.variant.0.step.4.time",
             "startMin": 615,
             "endMin": 690,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.1.variant.0.step.4.action",
+            "note": "regime.1.variant.0.step.4.note",
             "kind": "sleep"
           },
           {
-            "time": "11:30–12:00",
+            "time": "regime.1.variant.0.step.5.time",
             "startMin": 690,
             "endMin": 720,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.1.variant.0.step.5.action",
+            "note": "regime.1.variant.0.step.5.note",
             "kind": "meal"
           },
           {
-            "time": "12:45–14:00",
+            "time": "regime.1.variant.0.step.6.time",
             "startMin": 765,
             "endMin": 840,
-            "action": "Третий сон",
-            "note": "",
+            "action": "regime.1.variant.0.step.6.action",
+            "note": "regime.1.variant.0.step.6.note",
             "kind": "sleep"
           },
           {
-            "time": "14:00–14:30",
+            "time": "regime.1.variant.0.step.7.time",
             "startMin": 840,
             "endMin": 870,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.1.variant.0.step.7.action",
+            "note": "regime.1.variant.0.step.7.note",
             "kind": "meal"
           },
           {
-            "time": "15:15–16:15",
+            "time": "regime.1.variant.0.step.8.time",
             "startMin": 915,
             "endMin": 975,
-            "action": "Четвёртый сон",
-            "note": "",
+            "action": "regime.1.variant.0.step.8.action",
+            "note": "regime.1.variant.0.step.8.note",
             "kind": "sleep"
           },
           {
-            "time": "16:30–17:00",
+            "time": "regime.1.variant.0.step.9.time",
             "startMin": 990,
             "endMin": 1020,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.1.variant.0.step.9.action",
+            "note": "regime.1.variant.0.step.9.note",
             "kind": "meal"
           },
           {
-            "time": "17:45–18:30",
+            "time": "regime.1.variant.0.step.10.time",
             "startMin": 1065,
             "endMin": 1110,
-            "action": "Короткий пятый сон",
-            "note": "Нужен не всем детям.",
+            "action": "regime.1.variant.0.step.10.action",
+            "note": "regime.1.variant.0.step.10.note",
             "kind": "sleep"
           },
           {
-            "time": "19:00",
+            "time": "regime.1.variant.0.step.11.time",
             "startMin": 1140,
             "endMin": null,
-            "action": "Кормление и приглушённый свет",
-            "note": "",
+            "action": "regime.1.variant.0.step.11.action",
+            "note": "regime.1.variant.0.step.11.note",
             "kind": "meal"
           },
           {
-            "time": "20:00–21:30",
+            "time": "regime.1.variant.0.step.12.time",
             "startMin": 1200,
             "endMin": 1290,
-            "action": "Начало ночного сна",
-            "note": "Ночные кормления сохраняются.",
+            "action": "regime.1.variant.0.step.12.action",
+            "note": "regime.1.variant.0.step.12.note",
             "kind": "sleep"
           }
         ]
@@ -188,107 +188,107 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "3–4 месяца",
+    "age": "regime.2.age",
     "timed": true,
     "summary": {
-      "sleep24": "Обычно около 14–16 ч",
-      "naps": "4–5",
-      "wakeWindow": "1 ч 15 мин – 2 ч",
-      "wakeUp": "Около 07:00 ± 30 мин",
-      "nightSleep": "19:30–20:30",
-      "features": "Можно закреплять подъём и вечерний ритуал; короткие дневные сны остаются нормальными."
+      "sleep24": "regime.2.summary.sleep24",
+      "naps": "regime.2.summary.naps",
+      "wakeWindow": "regime.2.summary.wakeWindow",
+      "wakeUp": "regime.2.summary.wakeUp",
+      "nightSleep": "regime.2.summary.nightSleep",
+      "features": "regime.2.summary.features"
     },
     "source": "https://www.cdc.gov/act-early/milestones/1-year.html",
     "variants": [
       {
-        "name": "4 дневных сна",
+        "name": "regime.2.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.2.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём и молочное кормление",
-            "note": "",
+            "action": "regime.2.variant.0.step.0.action",
+            "note": "regime.2.variant.0.step.0.note",
             "kind": "milk"
           },
           {
-            "time": "08:20–09:30",
+            "time": "regime.2.variant.0.step.1.time",
             "startMin": 500,
             "endMin": 570,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.2.variant.0.step.1.action",
+            "note": "regime.2.variant.0.step.1.note",
             "kind": "sleep"
           },
           {
-            "time": "09:30–10:00",
+            "time": "regime.2.variant.0.step.2.time",
             "startMin": 570,
             "endMin": 600,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.2.variant.0.step.2.action",
+            "note": "regime.2.variant.0.step.2.note",
             "kind": "meal"
           },
           {
-            "time": "11:10–12:20",
+            "time": "regime.2.variant.0.step.3.time",
             "startMin": 670,
             "endMin": 740,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.2.variant.0.step.3.action",
+            "note": "regime.2.variant.0.step.3.note",
             "kind": "sleep"
           },
           {
-            "time": "12:30",
+            "time": "regime.2.variant.0.step.4.time",
             "startMin": 750,
             "endMin": null,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.2.variant.0.step.4.action",
+            "note": "regime.2.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "14:00–15:15",
+            "time": "regime.2.variant.0.step.5.time",
             "startMin": 840,
             "endMin": 915,
-            "action": "Третий сон",
-            "note": "",
+            "action": "regime.2.variant.0.step.5.action",
+            "note": "regime.2.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "15:15–15:45",
+            "time": "regime.2.variant.0.step.6.time",
             "startMin": 915,
             "endMin": 945,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.2.variant.0.step.6.action",
+            "note": "regime.2.variant.0.step.6.note",
             "kind": "meal"
           },
           {
-            "time": "17:00–17:40",
+            "time": "regime.2.variant.0.step.7.time",
             "startMin": 1020,
             "endMin": 1060,
-            "action": "Короткий четвёртый сон",
-            "note": "",
+            "action": "regime.2.variant.0.step.7.action",
+            "note": "regime.2.variant.0.step.7.note",
             "kind": "sleep"
           },
           {
-            "time": "18:00",
+            "time": "regime.2.variant.0.step.8.time",
             "startMin": 1080,
             "endMin": null,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.2.variant.0.step.8.action",
+            "note": "regime.2.variant.0.step.8.note",
             "kind": "meal"
           },
           {
-            "time": "19:00",
+            "time": "regime.2.variant.0.step.9.time",
             "startMin": 1140,
             "endMin": null,
-            "action": "Вечерний ритуал",
-            "note": "Приглушённый свет, переодевание, песня или короткая книга.",
+            "action": "regime.2.variant.0.step.9.action",
+            "note": "regime.2.variant.0.step.9.note",
             "kind": "ritual"
           },
           {
-            "time": "19:30–20:00",
+            "time": "regime.2.variant.0.step.10.time",
             "startMin": 1170,
             "endMin": 1200,
-            "action": "Последнее кормление и ночной сон",
-            "note": "",
+            "action": "regime.2.variant.0.step.10.action",
+            "note": "regime.2.variant.0.step.10.note",
             "kind": "sleep"
           }
         ]
@@ -296,107 +296,107 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "5–6 месяцев",
+    "age": "regime.3.age",
     "timed": true,
     "summary": {
-      "sleep24": "12–16 ч, включая дневной сон",
-      "naps": "3–4",
-      "wakeWindow": "2–2,5 ч",
-      "wakeUp": "Около 07:00",
-      "nightSleep": "19:30–20:00",
-      "features": "При коротких снах может временно сохраняться четвёртый сон."
+      "sleep24": "regime.3.summary.sleep24",
+      "naps": "regime.3.summary.naps",
+      "wakeWindow": "regime.3.summary.wakeWindow",
+      "wakeUp": "regime.3.summary.wakeUp",
+      "nightSleep": "regime.3.summary.nightSleep",
+      "features": "regime.3.summary.features"
     },
     "source": "https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/when-what-and-how-to-introduce-solid-foods.html",
     "variants": [
       {
-        "name": "3 дневных сна",
+        "name": "regime.3.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.3.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём и молочное кормление",
-            "note": "",
+            "action": "regime.3.variant.0.step.0.action",
+            "note": "regime.3.variant.0.step.0.note",
             "kind": "milk"
           },
           {
-            "time": "09:00–10:15",
+            "time": "regime.3.variant.0.step.1.time",
             "startMin": 540,
             "endMin": 615,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.3.variant.0.step.1.action",
+            "note": "regime.3.variant.0.step.1.note",
             "kind": "sleep"
           },
           {
-            "time": "10:15",
+            "time": "regime.3.variant.0.step.2.time",
             "startMin": 615,
             "endMin": null,
-            "action": "Молочное кормление",
-            "note": "",
+            "action": "regime.3.variant.0.step.2.action",
+            "note": "regime.3.variant.0.step.2.note",
             "kind": "milk"
           },
           {
-            "time": "11:00",
+            "time": "regime.3.variant.0.step.3.time",
             "startMin": 660,
             "endMin": null,
-            "action": "Прикорм при наличии готовности",
-            "note": "Небольшое количество; не заменяет молочное кормление.",
+            "action": "regime.3.variant.0.step.3.action",
+            "note": "regime.3.variant.0.step.3.note",
             "kind": "meal"
           },
           {
-            "time": "12:30–14:00",
+            "time": "regime.3.variant.0.step.4.time",
             "startMin": 750,
             "endMin": 840,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.3.variant.0.step.4.action",
+            "note": "regime.3.variant.0.step.4.note",
             "kind": "sleep"
           },
           {
-            "time": "14:00",
+            "time": "regime.3.variant.0.step.5.time",
             "startMin": 840,
             "endMin": null,
-            "action": "Молочное кормление",
-            "note": "",
+            "action": "regime.3.variant.0.step.5.action",
+            "note": "regime.3.variant.0.step.5.note",
             "kind": "milk"
           },
           {
-            "time": "16:30–17:00",
+            "time": "regime.3.variant.0.step.6.time",
             "startMin": 990,
             "endMin": 1020,
-            "action": "Третий короткий сон",
-            "note": "",
+            "action": "regime.3.variant.0.step.6.action",
+            "note": "regime.3.variant.0.step.6.note",
             "kind": "sleep"
           },
           {
-            "time": "17:00–17:30",
+            "time": "regime.3.variant.0.step.7.time",
             "startMin": 1020,
             "endMin": 1050,
-            "action": "Кормление",
-            "note": "",
+            "action": "regime.3.variant.0.step.7.action",
+            "note": "regime.3.variant.0.step.7.note",
             "kind": "meal"
           },
           {
-            "time": "18:30",
+            "time": "regime.3.variant.0.step.8.time",
             "startMin": 1110,
             "endMin": null,
-            "action": "Спокойные игры и купание",
-            "note": "",
+            "action": "regime.3.variant.0.step.8.action",
+            "note": "regime.3.variant.0.step.8.note",
             "kind": "ritual"
           },
           {
-            "time": "19:15",
+            "time": "regime.3.variant.0.step.9.time",
             "startMin": 1155,
             "endMin": null,
-            "action": "Молочное кормление",
-            "note": "",
+            "action": "regime.3.variant.0.step.9.action",
+            "note": "regime.3.variant.0.step.9.note",
             "kind": "milk"
           },
           {
-            "time": "19:30–20:00",
+            "time": "regime.3.variant.0.step.10.time",
             "startMin": 1170,
             "endMin": 1200,
-            "action": "Ночной сон",
-            "note": "Если третий сон пропущен, укладывание часто делают раньше.",
+            "action": "regime.3.variant.0.step.10.action",
+            "note": "regime.3.variant.0.step.10.note",
             "kind": "sleep"
           }
         ]
@@ -404,152 +404,152 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "7–9 месяцев",
+    "age": "regime.4.age",
     "timed": true,
     "summary": {
-      "sleep24": "12–16 ч, включая дневной сон",
-      "naps": "2–3",
-      "wakeWindow": "2,5–3,5 ч",
-      "wakeUp": "Около 07:00",
-      "nightSleep": "19:30–20:00",
-      "features": "Третий короткий сон убирают, когда он регулярно мешает ночному укладыванию."
+      "sleep24": "regime.4.summary.sleep24",
+      "naps": "regime.4.summary.naps",
+      "wakeWindow": "regime.4.summary.wakeWindow",
+      "wakeUp": "regime.4.summary.wakeUp",
+      "nightSleep": "regime.4.summary.nightSleep",
+      "features": "regime.4.summary.features"
     },
     "source": "https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/how-much-and-how-often-to-feed.html",
     "variants": [
       {
-        "name": "2 дневных сна",
+        "name": "regime.4.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.4.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём и грудное молоко/смесь",
-            "note": "",
+            "action": "regime.4.variant.0.step.0.action",
+            "note": "regime.4.variant.0.step.0.note",
             "kind": "milk"
           },
           {
-            "time": "08:00",
+            "time": "regime.4.variant.0.step.1.time",
             "startMin": 480,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.4.variant.0.step.1.action",
+            "note": "regime.4.variant.0.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "09:30–10:45",
+            "time": "regime.4.variant.0.step.2.time",
             "startMin": 570,
             "endMin": 645,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.4.variant.0.step.2.action",
+            "note": "regime.4.variant.0.step.2.note",
             "kind": "sleep"
           },
           {
-            "time": "11:00",
+            "time": "regime.4.variant.0.step.3.time",
             "startMin": 660,
             "endMin": null,
-            "action": "Грудное молоко/смесь",
-            "note": "",
+            "action": "regime.4.variant.0.step.3.action",
+            "note": "regime.4.variant.0.step.3.note",
             "kind": "milk"
           },
           {
-            "time": "12:30",
+            "time": "regime.4.variant.0.step.4.time",
             "startMin": 750,
             "endMin": null,
-            "action": "Обед",
-            "note": "",
+            "action": "regime.4.variant.0.step.4.action",
+            "note": "regime.4.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "14:00–15:30",
+            "time": "regime.4.variant.0.step.5.time",
             "startMin": 840,
             "endMin": 930,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.4.variant.0.step.5.action",
+            "note": "regime.4.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "15:30–16:00",
+            "time": "regime.4.variant.0.step.6.time",
             "startMin": 930,
             "endMin": 960,
-            "action": "Грудное молоко/смесь",
-            "note": "",
+            "action": "regime.4.variant.0.step.6.action",
+            "note": "regime.4.variant.0.step.6.note",
             "kind": "milk"
           },
           {
-            "time": "17:30–18:00",
+            "time": "regime.4.variant.0.step.7.time",
             "startMin": 1050,
             "endMin": 1080,
-            "action": "Ужин или небольшое кормление",
-            "note": "",
+            "action": "regime.4.variant.0.step.7.action",
+            "note": "regime.4.variant.0.step.7.note",
             "kind": "meal"
           },
           {
-            "time": "18:45",
+            "time": "regime.4.variant.0.step.8.time",
             "startMin": 1125,
             "endMin": null,
-            "action": "Вечерний ритуал",
-            "note": "Купание, спокойные игры, книга.",
+            "action": "regime.4.variant.0.step.8.action",
+            "note": "regime.4.variant.0.step.8.note",
             "kind": "ritual"
           },
           {
-            "time": "19:15",
+            "time": "regime.4.variant.0.step.9.time",
             "startMin": 1155,
             "endMin": null,
-            "action": "Грудное молоко/смесь",
-            "note": "",
+            "action": "regime.4.variant.0.step.9.action",
+            "note": "regime.4.variant.0.step.9.note",
             "kind": "milk"
           },
           {
-            "time": "19:30–20:00",
+            "time": "regime.4.variant.0.step.10.time",
             "startMin": 1170,
             "endMin": 1200,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.4.variant.0.step.10.action",
+            "note": "regime.4.variant.0.step.10.note",
             "kind": "sleep"
           }
         ]
       },
       {
-        "name": "3 сна при коротких снах",
+        "name": "regime.4.variant.1.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.4.variant.1.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём",
-            "note": "",
+            "action": "regime.4.variant.1.step.0.action",
+            "note": "regime.4.variant.1.step.0.note",
             "kind": "wake"
           },
           {
-            "time": "09:00–09:45",
+            "time": "regime.4.variant.1.step.1.time",
             "startMin": 540,
             "endMin": 585,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.4.variant.1.step.1.action",
+            "note": "regime.4.variant.1.step.1.note",
             "kind": "sleep"
           },
           {
-            "time": "12:15–13:15",
+            "time": "regime.4.variant.1.step.2.time",
             "startMin": 735,
             "endMin": 795,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.4.variant.1.step.2.action",
+            "note": "regime.4.variant.1.step.2.note",
             "kind": "sleep"
           },
           {
-            "time": "16:00–16:30",
+            "time": "regime.4.variant.1.step.3.time",
             "startMin": 960,
             "endMin": 990,
-            "action": "Третий короткий сон",
-            "note": "Убирают, когда он регулярно мешает ночному засыпанию.",
+            "action": "regime.4.variant.1.step.3.action",
+            "note": "regime.4.variant.1.step.3.note",
             "kind": "sleep"
           },
           {
-            "time": "19:30–20:00",
+            "time": "regime.4.variant.1.step.4.time",
             "startMin": 1170,
             "endMin": 1200,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.4.variant.1.step.4.action",
+            "note": "regime.4.variant.1.step.4.note",
             "kind": "sleep"
           }
         ]
@@ -557,107 +557,107 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "10–12 месяцев",
+    "age": "regime.5.age",
     "timed": true,
     "summary": {
-      "sleep24": "12–16 ч, включая дневной сон",
-      "naps": "Обычно 2",
-      "wakeWindow": "3–4 ч",
-      "wakeUp": "06:30–07:00",
-      "nightSleep": "19:30–20:00",
-      "features": "Переход на один сон часто ещё преждевременен."
+      "sleep24": "regime.5.summary.sleep24",
+      "naps": "regime.5.summary.naps",
+      "wakeWindow": "regime.5.summary.wakeWindow",
+      "wakeUp": "regime.5.summary.wakeUp",
+      "nightSleep": "regime.5.summary.nightSleep",
+      "features": "regime.5.summary.features"
     },
     "source": "https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/how-much-and-how-often-to-feed.html",
     "variants": [
       {
-        "name": "2 стабильных сна",
+        "name": "regime.5.variant.0.name",
         "steps": [
           {
-            "time": "06:30–07:00",
+            "time": "regime.5.variant.0.step.0.time",
             "startMin": 390,
             "endMin": 420,
-            "action": "Подъём и грудное молоко/смесь",
-            "note": "",
+            "action": "regime.5.variant.0.step.0.action",
+            "note": "regime.5.variant.0.step.0.note",
             "kind": "milk"
           },
           {
-            "time": "08:00",
+            "time": "regime.5.variant.0.step.1.time",
             "startMin": 480,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.5.variant.0.step.1.action",
+            "note": "regime.5.variant.0.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "09:30–10:45",
+            "time": "regime.5.variant.0.step.2.time",
             "startMin": 570,
             "endMin": 645,
-            "action": "Первый сон",
-            "note": "",
+            "action": "regime.5.variant.0.step.2.action",
+            "note": "regime.5.variant.0.step.2.note",
             "kind": "sleep"
           },
           {
-            "time": "11:00",
+            "time": "regime.5.variant.0.step.3.time",
             "startMin": 660,
             "endMin": null,
-            "action": "Молочное кормление",
-            "note": "",
+            "action": "regime.5.variant.0.step.3.action",
+            "note": "regime.5.variant.0.step.3.note",
             "kind": "milk"
           },
           {
-            "time": "12:30",
+            "time": "regime.5.variant.0.step.4.time",
             "startMin": 750,
             "endMin": null,
-            "action": "Обед",
-            "note": "",
+            "action": "regime.5.variant.0.step.4.action",
+            "note": "regime.5.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "14:15–15:30",
+            "time": "regime.5.variant.0.step.5.time",
             "startMin": 855,
             "endMin": 930,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.5.variant.0.step.5.action",
+            "note": "regime.5.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "15:30",
+            "time": "regime.5.variant.0.step.6.time",
             "startMin": 930,
             "endMin": null,
-            "action": "Молочное кормление или перекус",
-            "note": "Зависит от индивидуального рациона.",
+            "action": "regime.5.variant.0.step.6.action",
+            "note": "regime.5.variant.0.step.6.note",
             "kind": "milk"
           },
           {
-            "time": "18:00",
+            "time": "regime.5.variant.0.step.7.time",
             "startMin": 1080,
             "endMin": null,
-            "action": "Ужин",
-            "note": "",
+            "action": "regime.5.variant.0.step.7.action",
+            "note": "regime.5.variant.0.step.7.note",
             "kind": "meal"
           },
           {
-            "time": "19:00",
+            "time": "regime.5.variant.0.step.8.time",
             "startMin": 1140,
             "endMin": null,
-            "action": "Тихий вечерний ритуал",
-            "note": "",
+            "action": "regime.5.variant.0.step.8.action",
+            "note": "regime.5.variant.0.step.8.note",
             "kind": "ritual"
           },
           {
-            "time": "19:30",
+            "time": "regime.5.variant.0.step.9.time",
             "startMin": 1170,
             "endMin": null,
-            "action": "Грудное молоко/смесь",
-            "note": "",
+            "action": "regime.5.variant.0.step.9.action",
+            "note": "regime.5.variant.0.step.9.note",
             "kind": "milk"
           },
           {
-            "time": "19:45–20:00",
+            "time": "regime.5.variant.0.step.10.time",
             "startMin": 1185,
             "endMin": 1200,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.5.variant.0.step.10.action",
+            "note": "regime.5.variant.0.step.10.note",
             "kind": "sleep"
           }
         ]
@@ -665,176 +665,176 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "12–15 месяцев",
+    "age": "regime.6.age",
     "timed": true,
     "summary": {
-      "sleep24": "11–14 ч, включая дневной сон",
-      "naps": "1–2",
-      "wakeWindow": "3,5–5 ч",
-      "wakeUp": "Около 07:00",
-      "nightSleep": "19:30–20:00",
-      "features": "Переход на один сон оценивают по устойчивым признакам минимум 1–2 недели."
+      "sleep24": "regime.6.summary.sleep24",
+      "naps": "regime.6.summary.naps",
+      "wakeWindow": "regime.6.summary.wakeWindow",
+      "wakeUp": "regime.6.summary.wakeUp",
+      "nightSleep": "regime.6.summary.nightSleep",
+      "features": "regime.6.summary.features"
     },
     "source": "https://www.cdc.gov/child-development/positive-parenting-tips/toddlers-1-2-years.html",
     "variants": [
       {
-        "name": "2 дневных сна",
+        "name": "regime.6.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.6.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём",
-            "note": "",
+            "action": "regime.6.variant.0.step.0.action",
+            "note": "regime.6.variant.0.step.0.note",
             "kind": "wake"
           },
           {
-            "time": "07:30",
+            "time": "regime.6.variant.0.step.1.time",
             "startMin": 450,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.6.variant.0.step.1.action",
+            "note": "regime.6.variant.0.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "09:45–10:30",
+            "time": "regime.6.variant.0.step.2.time",
             "startMin": 585,
             "endMin": 630,
-            "action": "Первый короткий сон",
-            "note": "Короткий первый сон помогает сохранить второй.",
+            "action": "regime.6.variant.0.step.2.action",
+            "note": "regime.6.variant.0.step.2.note",
             "kind": "sleep"
           },
           {
-            "time": "11:00",
+            "time": "regime.6.variant.0.step.3.time",
             "startMin": 660,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.6.variant.0.step.3.action",
+            "note": "regime.6.variant.0.step.3.note",
             "kind": "meal"
           },
           {
-            "time": "12:30",
+            "time": "regime.6.variant.0.step.4.time",
             "startMin": 750,
             "endMin": null,
-            "action": "Обед",
-            "note": "",
+            "action": "regime.6.variant.0.step.4.action",
+            "note": "regime.6.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "14:30–15:30",
+            "time": "regime.6.variant.0.step.5.time",
             "startMin": 870,
             "endMin": 930,
-            "action": "Второй сон",
-            "note": "",
+            "action": "regime.6.variant.0.step.5.action",
+            "note": "regime.6.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "16:00",
+            "time": "regime.6.variant.0.step.6.time",
             "startMin": 960,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.6.variant.0.step.6.action",
+            "note": "regime.6.variant.0.step.6.note",
             "kind": "meal"
           },
           {
-            "time": "18:30",
+            "time": "regime.6.variant.0.step.7.time",
             "startMin": 1110,
             "endMin": null,
-            "action": "Ужин",
-            "note": "",
+            "action": "regime.6.variant.0.step.7.action",
+            "note": "regime.6.variant.0.step.7.note",
             "kind": "meal"
           },
           {
-            "time": "19:30",
+            "time": "regime.6.variant.0.step.8.time",
             "startMin": 1170,
             "endMin": null,
-            "action": "Вечерний ритуал",
-            "note": "",
+            "action": "regime.6.variant.0.step.8.action",
+            "note": "regime.6.variant.0.step.8.note",
             "kind": "ritual"
           },
           {
-            "time": "20:00",
+            "time": "regime.6.variant.0.step.9.time",
             "startMin": 1200,
             "endMin": null,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.6.variant.0.step.9.action",
+            "note": "regime.6.variant.0.step.9.note",
             "kind": "sleep"
           }
         ]
       },
       {
-        "name": "1 дневной сон",
+        "name": "regime.6.variant.1.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.6.variant.1.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём",
-            "note": "",
+            "action": "regime.6.variant.1.step.0.action",
+            "note": "regime.6.variant.1.step.0.note",
             "kind": "wake"
           },
           {
-            "time": "07:30",
+            "time": "regime.6.variant.1.step.1.time",
             "startMin": 450,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.6.variant.1.step.1.action",
+            "note": "regime.6.variant.1.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "09:30",
+            "time": "regime.6.variant.1.step.2.time",
             "startMin": 570,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.6.variant.1.step.2.action",
+            "note": "regime.6.variant.1.step.2.note",
             "kind": "meal"
           },
           {
-            "time": "11:30",
+            "time": "regime.6.variant.1.step.3.time",
             "startMin": 690,
             "endMin": null,
-            "action": "Ранний обед",
-            "note": "",
+            "action": "regime.6.variant.1.step.3.action",
+            "note": "regime.6.variant.1.step.3.note",
             "kind": "meal"
           },
           {
-            "time": "12:00–14:00",
+            "time": "regime.6.variant.1.step.4.time",
             "startMin": 720,
             "endMin": 840,
-            "action": "Дневной сон",
-            "note": "",
+            "action": "regime.6.variant.1.step.4.action",
+            "note": "regime.6.variant.1.step.4.note",
             "kind": "sleep"
           },
           {
-            "time": "14:30",
+            "time": "regime.6.variant.1.step.5.time",
             "startMin": 870,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.6.variant.1.step.5.action",
+            "note": "regime.6.variant.1.step.5.note",
             "kind": "meal"
           },
           {
-            "time": "18:00",
+            "time": "regime.6.variant.1.step.6.time",
             "startMin": 1080,
             "endMin": null,
-            "action": "Ужин",
-            "note": "",
+            "action": "regime.6.variant.1.step.6.action",
+            "note": "regime.6.variant.1.step.6.note",
             "kind": "meal"
           },
           {
-            "time": "19:00",
+            "time": "regime.6.variant.1.step.7.time",
             "startMin": 1140,
             "endMin": null,
-            "action": "Вечерний ритуал",
-            "note": "",
+            "action": "regime.6.variant.1.step.7.action",
+            "note": "regime.6.variant.1.step.7.note",
             "kind": "ritual"
           },
           {
-            "time": "19:30",
+            "time": "regime.6.variant.1.step.8.time",
             "startMin": 1170,
             "endMin": null,
-            "action": "Ночной сон",
-            "note": "Во время перехода укладывание часто временно делают раньше.",
+            "action": "regime.6.variant.1.step.8.action",
+            "note": "regime.6.variant.1.step.8.note",
             "kind": "sleep"
           }
         ]
@@ -842,107 +842,107 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "15–18 месяцев",
+    "age": "regime.7.age",
     "timed": true,
     "summary": {
-      "sleep24": "11–14 ч, включая дневной сон",
-      "naps": "Обычно 1",
-      "wakeWindow": "4,5–5,5 ч",
-      "wakeUp": "Около 07:00",
-      "nightSleep": "19:45–20:00",
-      "features": "Основные точки дня уже можно достаточно стабильно привязать ко времени."
+      "sleep24": "regime.7.summary.sleep24",
+      "naps": "regime.7.summary.naps",
+      "wakeWindow": "regime.7.summary.wakeWindow",
+      "wakeUp": "regime.7.summary.wakeUp",
+      "nightSleep": "regime.7.summary.nightSleep",
+      "features": "regime.7.summary.features"
     },
     "source": "https://www.cdc.gov/child-development/positive-parenting-tips/toddlers-1-2-years.html",
     "variants": [
       {
-        "name": "1 дневной сон",
+        "name": "regime.7.variant.0.name",
         "steps": [
           {
-            "time": "07:00",
+            "time": "regime.7.variant.0.step.0.time",
             "startMin": 420,
             "endMin": null,
-            "action": "Подъём",
-            "note": "",
+            "action": "regime.7.variant.0.step.0.action",
+            "note": "regime.7.variant.0.step.0.note",
             "kind": "wake"
           },
           {
-            "time": "07:30",
+            "time": "regime.7.variant.0.step.1.time",
             "startMin": 450,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.7.variant.0.step.1.action",
+            "note": "regime.7.variant.0.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "09:30–10:00",
+            "time": "regime.7.variant.0.step.2.time",
             "startMin": 570,
             "endMin": 600,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.7.variant.0.step.2.action",
+            "note": "regime.7.variant.0.step.2.note",
             "kind": "meal"
           },
           {
-            "time": "10:00–11:30",
+            "time": "regime.7.variant.0.step.3.time",
             "startMin": 600,
             "endMin": 690,
-            "action": "Прогулка и активные игры",
-            "note": "",
+            "action": "regime.7.variant.0.step.3.action",
+            "note": "regime.7.variant.0.step.3.note",
             "kind": "play"
           },
           {
-            "time": "11:45–12:00",
+            "time": "regime.7.variant.0.step.4.time",
             "startMin": 705,
             "endMin": 720,
-            "action": "Обед",
-            "note": "",
+            "action": "regime.7.variant.0.step.4.action",
+            "note": "regime.7.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "12:30–14:30",
+            "time": "regime.7.variant.0.step.5.time",
             "startMin": 750,
             "endMin": 870,
-            "action": "Дневной сон",
-            "note": "",
+            "action": "regime.7.variant.0.step.5.action",
+            "note": "regime.7.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "15:00",
+            "time": "regime.7.variant.0.step.6.time",
             "startMin": 900,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.7.variant.0.step.6.action",
+            "note": "regime.7.variant.0.step.6.note",
             "kind": "meal"
           },
           {
-            "time": "15:30–18:00",
+            "time": "regime.7.variant.0.step.7.time",
             "startMin": 930,
             "endMin": 1080,
-            "action": "Прогулка и игры",
-            "note": "",
+            "action": "regime.7.variant.0.step.7.action",
+            "note": "regime.7.variant.0.step.7.note",
             "kind": "play"
           },
           {
-            "time": "18:00–18:30",
+            "time": "regime.7.variant.0.step.8.time",
             "startMin": 1080,
             "endMin": 1110,
-            "action": "Ужин",
-            "note": "",
+            "action": "regime.7.variant.0.step.8.action",
+            "note": "regime.7.variant.0.step.8.note",
             "kind": "meal"
           },
           {
-            "time": "19:15",
+            "time": "regime.7.variant.0.step.9.time",
             "startMin": 1155,
             "endMin": null,
-            "action": "Купание, чистка зубов, книга",
-            "note": "",
+            "action": "regime.7.variant.0.step.9.action",
+            "note": "regime.7.variant.0.step.9.note",
             "kind": "ritual"
           },
           {
-            "time": "19:45–20:00",
+            "time": "regime.7.variant.0.step.10.time",
             "startMin": 1185,
             "endMin": 1200,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.7.variant.0.step.10.action",
+            "note": "regime.7.variant.0.step.10.note",
             "kind": "sleep"
           }
         ]
@@ -950,115 +950,115 @@ export const REGIMES: RegimeAge[] = [
     ]
   },
   {
-    "age": "18–24 месяца",
+    "age": "regime.8.age",
     "timed": true,
     "summary": {
-      "sleep24": "11–14 ч, включая дневной сон",
-      "naps": "1",
-      "wakeWindow": "5–6 ч",
-      "wakeUp": "06:30–07:00",
-      "nightSleep": "Около 20:00",
-      "features": "Желательно сохранять близкий график в будни и выходные."
+      "sleep24": "regime.8.summary.sleep24",
+      "naps": "regime.8.summary.naps",
+      "wakeWindow": "regime.8.summary.wakeWindow",
+      "wakeUp": "regime.8.summary.wakeUp",
+      "nightSleep": "regime.8.summary.nightSleep",
+      "features": "regime.8.summary.features"
     },
     "source": "https://www.cdc.gov/child-development/positive-parenting-tips/toddlers-1-2-years.html",
     "variants": [
       {
-        "name": "1 дневной сон",
+        "name": "regime.8.variant.0.name",
         "steps": [
           {
-            "time": "06:30–07:00",
+            "time": "regime.8.variant.0.step.0.time",
             "startMin": 390,
             "endMin": 420,
-            "action": "Подъём",
-            "note": "",
+            "action": "regime.8.variant.0.step.0.action",
+            "note": "regime.8.variant.0.step.0.note",
             "kind": "wake"
           },
           {
-            "time": "07:30",
+            "time": "regime.8.variant.0.step.1.time",
             "startMin": 450,
             "endMin": null,
-            "action": "Завтрак",
-            "note": "",
+            "action": "regime.8.variant.0.step.1.action",
+            "note": "regime.8.variant.0.step.1.note",
             "kind": "meal"
           },
           {
-            "time": "10:00",
+            "time": "regime.8.variant.0.step.2.time",
             "startMin": 600,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.8.variant.0.step.2.action",
+            "note": "regime.8.variant.0.step.2.note",
             "kind": "meal"
           },
           {
-            "time": "10:30–12:00",
+            "time": "regime.8.variant.0.step.3.time",
             "startMin": 630,
             "endMin": 720,
-            "action": "Прогулка и активные игры",
-            "note": "",
+            "action": "regime.8.variant.0.step.3.action",
+            "note": "regime.8.variant.0.step.3.note",
             "kind": "play"
           },
           {
-            "time": "12:00",
+            "time": "regime.8.variant.0.step.4.time",
             "startMin": 720,
             "endMin": null,
-            "action": "Обед",
-            "note": "",
+            "action": "regime.8.variant.0.step.4.action",
+            "note": "regime.8.variant.0.step.4.note",
             "kind": "meal"
           },
           {
-            "time": "12:30–14:30",
+            "time": "regime.8.variant.0.step.5.time",
             "startMin": 750,
             "endMin": 870,
-            "action": "Дневной сон",
-            "note": "",
+            "action": "regime.8.variant.0.step.5.action",
+            "note": "regime.8.variant.0.step.5.note",
             "kind": "sleep"
           },
           {
-            "time": "15:00",
+            "time": "regime.8.variant.0.step.6.time",
             "startMin": 900,
             "endMin": null,
-            "action": "Перекус",
-            "note": "",
+            "action": "regime.8.variant.0.step.6.action",
+            "note": "regime.8.variant.0.step.6.note",
             "kind": "meal"
           },
           {
-            "time": "15:30–18:00",
+            "time": "regime.8.variant.0.step.7.time",
             "startMin": 930,
             "endMin": 1080,
-            "action": "Прогулка, игры, бытовые занятия",
-            "note": "",
+            "action": "regime.8.variant.0.step.7.action",
+            "note": "regime.8.variant.0.step.7.note",
             "kind": "play"
           },
           {
-            "time": "18:00–18:30",
+            "time": "regime.8.variant.0.step.8.time",
             "startMin": 1080,
             "endMin": 1110,
-            "action": "Ужин",
-            "note": "",
+            "action": "regime.8.variant.0.step.8.action",
+            "note": "regime.8.variant.0.step.8.note",
             "kind": "meal"
           },
           {
-            "time": "19:00",
+            "time": "regime.8.variant.0.step.9.time",
             "startMin": 1140,
             "endMin": null,
-            "action": "Только спокойная активность",
-            "note": "",
+            "action": "regime.8.variant.0.step.9.action",
+            "note": "regime.8.variant.0.step.9.note",
             "kind": "play"
           },
           {
-            "time": "19:30",
+            "time": "regime.8.variant.0.step.10.time",
             "startMin": 1170,
             "endMin": null,
-            "action": "Умывание или ванна, зубы, книга",
-            "note": "",
+            "action": "regime.8.variant.0.step.10.action",
+            "note": "regime.8.variant.0.step.10.note",
             "kind": "ritual"
           },
           {
-            "time": "20:00",
+            "time": "regime.8.variant.0.step.11.time",
             "startMin": 1200,
             "endMin": null,
-            "action": "Ночной сон",
-            "note": "",
+            "action": "regime.8.variant.0.step.11.action",
+            "note": "regime.8.variant.0.step.11.note",
             "kind": "sleep"
           }
         ]
