@@ -33,7 +33,7 @@ export function AuthModal({ visible, onClose, onSignedIn }: AuthModalProps) {
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.card, { backgroundColor: theme.background }]}>
           <ThemedText style={styles.title}>{t('auth.title')}</ThemedText>
-          <AuthForm onSignedIn={onSignedIn} resetKey={visible} />
+          <AuthForm onSignedIn={onSignedIn} />
         </View>
       </KeyboardAvoidingView>
     </Modal>

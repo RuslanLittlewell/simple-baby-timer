@@ -69,19 +69,11 @@ export async function signOutLocal(): Promise<void> {
   await supabase.auth.signOut({ scope: 'local' });
 }
 
-// Email OTP: Supabase emails a one-time code the user types into the app —
-// no deep link needed. The "Magic Link" email template must contain {{ .Token }}.
-export async function sendEmailCode(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true },
-  });
-  if (error) throw error;
-}
-
-export async function verifyEmailCode(email: string, token: string): Promise<void> {
-  const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
-  if (error) throw error;
+// User-initiated sign-out: revoke the refresh token server-side when possible,
+// but never leave the device signed in because the network was down.
+export async function signOut(): Promise<void> {
+  const { error } = await supabase.auth.signOut();
+  if (error) await signOutLocal();
 }
 
 // Shared browser-based OAuth flow through Supabase; the redirect returns to

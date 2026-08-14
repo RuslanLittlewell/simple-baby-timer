@@ -1,10 +1,12 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import { useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { PRIVACY_POLICY_URL } from '@/constants/links';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppStore, useT } from '@/state/app-state';
@@ -167,6 +169,13 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
               {t('paywall.freeTrialNote')}
             </ThemedText>
           )}
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.legalLink}
+            onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}>
+            {t('common.privacyPolicy')}
+          </ThemedText>
         </ThemedView>
       </View>
     </Modal>
@@ -269,6 +278,14 @@ const styles = StyleSheet.create({
   },
   note: {
     textAlign: 'center',
+  },
+  // Guideline 3.1.2 wants the policy reachable from the purchase screen itself,
+  // not only from the store listing.
+  legalLink: {
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 17,
+    textDecorationLine: 'underline',
   },
   disabled: {
     opacity: 0.6,

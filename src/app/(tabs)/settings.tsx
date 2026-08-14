@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Slider from '@react-native-community/slider';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -11,6 +11,8 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatHm } from '@/i18n';
+import { signOut } from '@/lib/supabase';
+import { deleteAccount } from '@/lib/sync';
 import {
   FEEDING_MAX,
   FEEDING_MIN,
@@ -136,10 +138,38 @@ export default function SettingsScreen() {
     proActive || children.find((child) => child.id === activeChildId)?.proEnabled === true;
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const clearAccountData = useAppStore((state) => state.clearAccountData);
   const theme = useTheme();
   const t = useT();
+  const [deleting, setDeleting] = useState(false);
   const timerFmt = (v: number) => formatHm(v, language);
   const minutesFmt = (v: number) => `${v} ${t('unit.minutes')}`;
+
+  const confirmDeleteAccount = () =>
+    Alert.alert(t('settings.deleteAccount'), t('settings.deleteAccountConfirm'), [
+      { text: t('editor.cancel'), style: 'cancel' },
+      {
+        text: t('editor.delete'),
+        style: 'destructive',
+        onPress: () => {
+          if (deleting) return;
+          setDeleting(true);
+          void (async () => {
+            try {
+              await deleteAccount();
+            } catch {
+              Alert.alert(t('settings.deleteAccountError'));
+              setDeleting(false);
+              return;
+            }
+            // The device is only wiped once the server confirmed the deletion;
+            // signing out then hands the user to the sign-in gate.
+            await clearAccountData();
+            await signOut();
+          })();
+        },
+      },
+    ]);
 
   return (
     <TabFade>
@@ -234,6 +264,23 @@ export default function SettingsScreen() {
               step={FEEDING_STEP}
               format={minutesFmt}
             />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={deleting}
+              onPress={confirmDeleteAccount}
+              style={({ pressed }) => [
+                styles.card,
+                styles.labelRow,
+                styles.deleteAccount,
+                { backgroundColor: theme.backgroundElement },
+                (pressed || deleting) && styles.pressed,
+              ]}>
+              <MaterialCommunityIcons name="trash-can-outline" size={22} color={theme.danger} />
+              <ThemedText type="smallBold" themeColor="danger">
+                {t('settings.deleteAccount')}
+              </ThemedText>
+            </Pressable>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -295,5 +342,13 @@ const styles = StyleSheet.create({
   scaleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  // The only card without a control on the right, so its row is centred
+  // instead of starting at the left edge like the settings above.
+  deleteAccount: {
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });
