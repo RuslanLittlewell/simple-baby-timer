@@ -1,13 +1,12 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Dimensions, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Dimensions, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +16,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { LANGUAGES } from '@/i18n';
+import { signOut } from '@/lib/supabase';
 import { useAppStore, useT } from '@/state/app-state';
 
 const DRAWER_WIDTH = Dimensions.get('window').width * 0.5;
@@ -40,8 +40,6 @@ export function MobileMenu() {
   const language = useAppStore((state) => state.language);
   const themeMode = useAppStore((state) => state.themeMode);
   const proActive = useAppStore((state) => state.proActive);
-  const proExpiresAt = useAppStore((state) => state.proExpiresAt);
-  const proRenewsAt = useAppStore((state) => state.proRenewsAt);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
   // The paywall lives in the root layout, so the menu just asks for it — and
@@ -51,47 +49,15 @@ export function MobileMenu() {
   const [langOpen, setLangOpen] = useState(false);
   const currentLanguage = LANGUAGES.find((item) => item.code === language) ?? LANGUAGES[0];
   const drawerX = useSharedValue(DRAWER_WIDTH);
-  const sheenX = useSharedValue(-100);
-  const dateLocale = {
-    en: 'en-US',
-    ru: 'ru-RU',
-    ua: 'uk-UA',
-    pl: 'pl-PL',
-    es: 'es-ES',
-    fr: 'fr-FR',
-    de: 'de-DE',
-    pt: 'pt-PT',
-    it: 'it-IT',
-  }[language];
-  const formatDate = (timestamp: number) =>
-    new Date(timestamp).toLocaleDateString(dateLocale, {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  const proStatus = proRenewsAt
-    ? t('menu.proRenewsOn', { date: formatDate(proRenewsAt) })
-    : proExpiresAt
-      ? t('menu.proActiveUntil', { date: formatDate(proExpiresAt) })
-      : t('menu.proActive');
 
   useEffect(() => {
     if (!visible) return;
     drawerX.value = DRAWER_WIDTH;
     drawerX.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) });
-    sheenX.value = -100;
-    sheenX.value = withRepeat(
-      withTiming(DRAWER_WIDTH + 100, { duration: 2800, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      false,
-    );
-  }, [drawerX, sheenX, visible]);
+  }, [drawerX, visible]);
 
   const drawerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: drawerX.value }],
-  }));
-  const sheenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: sheenX.value }, { skewX: '-16deg' }],
   }));
 
   const close = (after?: () => void) => {
@@ -108,6 +74,16 @@ export function MobileMenu() {
       },
     );
   };
+
+  // The drawer closes first and the Alert follows: asking over a half-dismissed
+  // drawer looks like the app got stuck mid-animation.
+  const confirmLogout = () =>
+    close(() =>
+      Alert.alert(t('menu.logoutConfirm'), undefined, [
+        { text: t('editor.cancel'), style: 'cancel' },
+        { text: t('menu.logout'), style: 'destructive', onPress: () => void signOut() },
+      ]),
+    );
 
   return (
     <>
@@ -195,37 +171,15 @@ export function MobileMenu() {
               </View>
 
               <View style={styles.footer}>
-                {proActive ? (
-                  <LinearGradient
-                    colors={['#4C1D95', '#7C3AED', '#C026D3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.activePro}>
-                    <ThemedText style={styles.activeProLabel}>PRO</ThemedText>
-                    <ThemedText style={styles.activeProStatus}>{proStatus}</ThemedText>
-                  </LinearGradient>
-                ) : (
-                  <Pressable
-                    onPress={() => close(() => setPendingPaywall(true))}
-                    style={({ pressed }) => [
-                      styles.buyButton,
-                      pressed && styles.pressed,
-                    ]}>
-                    <Animated.View pointerEvents="none" style={[styles.sheen, sheenStyle]}>
-                      <LinearGradient
-                        colors={[
-                          'rgba(255,255,255,0)',
-                          'rgba(255,255,255,0.55)',
-                          'rgba(255,255,255,0)',
-                        ]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    </Animated.View>
-                    <ThemedText style={styles.buyText}>{t('menu.buyPro')}</ThemedText>
-                  </Pressable>
-                )}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={confirmLogout}
+                  style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+                  <MaterialCommunityIcons name="logout" size={18} color={theme.text} />
+                  <ThemedText type="smallBold" style={styles.rowLabel}>
+                    {t('menu.logout')}
+                  </ThemedText>
+                </Pressable>
               </View>
             </View>
           </Animated.View>
@@ -313,51 +267,8 @@ const styles = StyleSheet.create({
   footer: {
     flex: 1,
     justifyContent: 'flex-end',
-  },
-  buyButton: {
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#8B5CF6',
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(124,58,237,0.08)',
-  },
-  buyText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  activePro: {
-    minHeight: 104,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.one,
-    borderRadius: 14,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.three,
-  },
-  activeProLabel: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '900',
-    letterSpacing: 3,
-  },
-  activeProStatus: {
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: 'center',
-  },
-  sheen: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 86,
+    gap: Spacing.four,
+    paddingBottom: Spacing.two,
   },
   pressed: {
     opacity: 0.7,

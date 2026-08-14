@@ -132,6 +132,15 @@ export async function fetchAccountProStatus(): Promise<AccountProStatus> {
   };
 }
 
+// Erases the account server-side: memberships, children left without members,
+// their sessions and the auth user itself. The local session is dead after
+// this, so the caller must sign out and wipe on-device data too.
+export async function deleteAccount(): Promise<void> {
+  await requireSession();
+  const { error } = await supabase.rpc('delete_account');
+  if (error) throw error;
+}
+
 // Starts the one-off trial for the signed-in account; the server refuses a
 // second call. Returns when the trial ends.
 export async function startTrial(): Promise<number> {

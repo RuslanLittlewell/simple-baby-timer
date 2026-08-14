@@ -1,11 +1,11 @@
 -- BabyTimer sharing schema. Run in Supabase SQL editor.
--- Auth setup:
---   • Email provider (enabled by default). For the 6-digit code flow, edit the
---     "Magic Link" email template so it contains {{ .Token }}.
+-- Auth setup — the app signs in with Google and Apple only, no email flow:
 --   • Google provider: Authentication → Providers → Google (needs OAuth client
---     ID/secret from Google Cloud Console). Add the app redirect URL
---     (babytimer://auth-callback) to Authentication → URL Configuration →
---     Redirect URLs.
+--     ID/secret from Google Cloud Console).
+--   • Apple provider: Authentication → Providers → Apple (needs a Services ID,
+--     Team ID, Key ID and the .p8 key from Apple Developer).
+--   • Add the app redirect URL (babytimer://auth-callback) to Authentication →
+--     URL Configuration → Redirect URLs.
 
 -- ── Tables ──────────────────────────────────────────────────────────────
 
@@ -305,6 +305,32 @@ begin
   if not exists (select 1 from child_members where child_id = cid) then
     delete from children where id = cid;
   end if;
+end $$;
+
+-- Erases the caller's account: every membership goes, children nobody is left
+-- in go with it (their sessions cascade), and finally the auth user itself —
+-- which cascades the profile row. Required by App Store guideline 5.1.1(v).
+create or replace function public.delete_account()
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  cid uuid;
+begin
+  if uid is null then
+    raise exception 'not signed in';
+  end if;
+  for cid in select child_id from child_members where user_id = uid loop
+    delete from child_members where child_id = cid and user_id = uid;
+    if not exists (select 1 from child_members where child_id = cid) then
+      delete from children where id = cid;
+    end if;
+  end loop;
+  -- Safety net for children created without a membership row.
+  delete from children c
+  where c.created_by = uid
+    and not exists (select 1 from child_members m where m.child_id = c.id);
+  delete from auth.users where id = uid;
 end $$;
 
 -- Joins the caller to the invite's child and returns the child profile.

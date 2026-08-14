@@ -15,6 +15,7 @@ import {
 import {
   EVENT_DURATION_MS,
   claimUnownedSessions,
+  deleteAllSessions,
   saveSession,
   type ActivitySession,
   type EventKind,
@@ -214,6 +215,9 @@ type AppStore = PersistedState & {
     renewsAt?: number,
     trialUsed?: boolean,
   ) => void;
+  // Everything the account owns on this device: children, history, running
+  // timers and PRO state. Used after the account is deleted server-side.
+  clearAccountData: () => Promise<void>;
   activateTestPro: () => Promise<void>;
   startTrial: () => Promise<void>;
   addManualActivity: (
@@ -587,6 +591,33 @@ export const useAppStore = create<AppStore>()(
         })),
 
       bumpDataVersion: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
+      clearAccountData: async () => {
+        // Stop anything running first: a reminder or Live Activity would
+        // otherwise outlive the data it refers to.
+        for (const track of ['session', 'feeding'] as const) {
+          const current = get()[track];
+          if (!current) continue;
+          if (track === 'feeding') clearAutoStop();
+          stopLiveActivity(track);
+          cancelReminder(current.reminderId);
+        }
+        set({
+          children: [],
+          activeChildId: null,
+          removedRemoteIds: [],
+          session: null,
+          feeding: null,
+          remoteLive: [],
+          reminderChain: null,
+          proActive: false,
+          proExpiresAt: undefined,
+          proRenewsAt: undefined,
+          trialUsed: false,
+          dataVersion: get().dataVersion + 1,
+        });
+        await deleteAllSessions();
+      },
+
       setProStatus: (active, expiresAt, renewsAt, trialUsed = false) =>
         set({
           proActive: active,

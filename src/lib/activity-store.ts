@@ -146,6 +146,13 @@ export async function claimUnownedSessions(childId: string): Promise<void> {
 
 // Removes every stored session of the given child (used when the child is
 // deleted from this device).
+// Drops every stored day bucket. Used when the account (and with it all of
+// its history) is deleted.
+export async function deleteAllSessions(): Promise<void> {
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+  if (keys.length) await AsyncStorage.multiRemove(keys);
+}
+
 export async function deleteSessionsForChild(childId: string): Promise<void> {
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
   if (!keys.length) return;
