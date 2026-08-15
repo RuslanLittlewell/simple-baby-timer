@@ -76,6 +76,32 @@ export async function signOut(): Promise<void> {
   if (error) await signOutLocal();
 }
 
+// How long to keep waiting for the deep link after the auth session closed.
+// The system hands it over within a frame or two; anything longer is a real
+// cancel.
+const REDIRECT_GRACE_MS = 1500;
+
+// The redirect home can arrive two ways: as the result of the auth session, or
+// through Linking when the system routes the deep link to the app first. Only
+// watching the first one makes a completed sign-in look like nothing happened.
+async function awaitRedirect(authUrl: string, redirectTo: string): Promise<string | null> {
+  let deliver: (url: string | null) => void = () => {};
+  const viaLinking = new Promise<string | null>((resolve) => {
+    deliver = resolve;
+  });
+  const subscription = Linking.addEventListener('url', ({ url }) => deliver(url));
+  try {
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectTo);
+    if (result.type === 'success') return result.url;
+    return await Promise.race([
+      viaLinking,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), REDIRECT_GRACE_MS)),
+    ]);
+  } finally {
+    subscription.remove();
+  }
+}
+
 // Shared browser-based OAuth flow through Supabase; the redirect returns to
 // the app via the babytimer:// scheme. Returns false when the user cancels.
 async function signInWithOAuthProvider(provider: 'google' | 'apple'): Promise<boolean> {
@@ -86,10 +112,11 @@ async function signInWithOAuthProvider(provider: 'google' | 'apple'): Promise<bo
   });
   if (error || !data.url) throw error ?? new Error('no auth url');
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== 'success') return false;
+  const url = await awaitRedirect(data.url, redirectTo);
+  // No redirect at all: the user closed the sheet.
+  if (!url) return false;
 
-  const returned = new URL(result.url);
+  const returned = new URL(url);
   const code = returned.searchParams.get('code');
   if (code) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
@@ -101,13 +128,23 @@ async function signInWithOAuthProvider(provider: 'google' | 'apple'): Promise<bo
   const params = new URLSearchParams(returned.hash.replace(/^#/, ''));
   const accessToken = params.get('access_token');
   const refreshToken = params.get('refresh_token');
-  if (!accessToken || !refreshToken) return false;
-  const { error: setError } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (setError) throw setError;
-  return true;
+  if (accessToken && refreshToken) {
+    const { error: setError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (setError) throw setError;
+    return true;
+  }
+
+  // Supabase reports provider-side failures on the redirect itself; surfacing
+  // them beats returning to the form with no explanation.
+  const providerError =
+    returned.searchParams.get('error_description') ??
+    returned.searchParams.get('error') ??
+    params.get('error_description') ??
+    params.get('error');
+  throw new Error(providerError ?? `sign-in returned no credentials: ${returned.search}`);
 }
 
 export const signInWithGoogle = () => signInWithOAuthProvider('google');

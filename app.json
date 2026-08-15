@@ -11,6 +11,7 @@
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.littlewell.babylifetracker",
       "buildNumber": "1",
+      "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true
       },
@@ -43,6 +44,7 @@
         }
       ],
       "expo-live-activity",
+      "expo-apple-authentication",
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

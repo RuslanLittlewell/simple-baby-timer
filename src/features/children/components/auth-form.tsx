@@ -18,17 +18,22 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  // The provider's own words, when it gave any. Shown under the generic line
+  // so a failed sign-in is reportable instead of just silent.
+  const [detail, setDetail] = useState('');
 
   const withProvider = async (signIn: () => Promise<boolean>) => {
     if (busy) return;
     setBusy(true);
     setError(false);
+    setDetail('');
     try {
       const ok = await signIn();
       if (ok) onSignedIn();
       else setBusy(false);
-    } catch {
+    } catch (caught) {
       setError(true);
+      setDetail(caught instanceof Error ? caught.message : '');
       setBusy(false);
     }
   };
@@ -54,9 +59,16 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
       {busy && <ActivityIndicator />}
 
       {error && (
-        <ThemedText themeColor="danger" style={styles.errorText}>
-          {t('auth.error')}
-        </ThemedText>
+        <View style={styles.errorBlock}>
+          <ThemedText themeColor="danger" style={styles.errorText}>
+            {t('auth.error')}
+          </ThemedText>
+          {detail !== '' && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.errorDetail}>
+              {detail}
+            </ThemedText>
+          )}
+        </View>
       )}
 
       {/* Signing in is what creates the account, so consent is collected here
@@ -106,9 +118,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  errorBlock: {
+    gap: Spacing.one,
+  },
   errorText: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  errorDetail: {
+    fontSize: 11,
+    lineHeight: 15,
   },
   consent: {
     textAlign: 'center',
