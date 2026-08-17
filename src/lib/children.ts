@@ -14,7 +14,7 @@ export interface Child {
   birthday?: number;
   // PRO capabilities inherited from a cloud-shared child profile.
   proEnabled?: boolean;
-  // Supabase children.id (uuid) once the child is shared / joined.
+  // Supabase children.id (uuid) once the owner backup or shared access is linked.
   remoteId?: string;
 }
 

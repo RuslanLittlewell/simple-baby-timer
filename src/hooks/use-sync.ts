@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import {
   checkAccount,
   getIsSignedIn,
+  getUserId,
   isSupabaseConfigured,
   signOutLocal,
   supabase,
@@ -16,8 +17,15 @@ import {
   flushQueue,
   leaveChild,
   pullChildSessions,
+  syncChildToCloud,
   syncChildProfile,
 } from '@/lib/sync';
+import {
+  fetchEntitlement,
+  forgetPurchaser,
+  identifyPurchaser,
+  type ProEntitlement,
+} from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 
 // Full sync pass: verify the account and its PRO status, upload the pending
@@ -40,12 +48,47 @@ export async function syncNow(): Promise<void> {
       return;
     }
     useAppStore.getState().setAuthRequired(false);
+
+    // A different account on the same device: its owner must not inherit the
+    // previous one's children. Their own are restored from the server further
+    // down; anything that lived only on this device belonged to the account
+    // that left and goes with it.
+    const userId = await getUserId();
+    const known = useAppStore.getState().accountId;
+    if (userId && known !== userId) {
+      if (known) {
+        await useAppStore.getState().clearAccountData({ keepOnboarding: true });
+      }
+      // Notification consent is account-specific. A newly attached account
+      // starts with every reminder (and its matching Live Activity) disabled,
+      // even when another account enabled them on this device before.
+      for (const kind of ['sleep', 'awake', 'settling'] as const) {
+        useAppStore.getState().setNotificationsEnabled(kind, false);
+      }
+    }
+    // Only ever record a real id: overwriting it with null would make the next
+    // account look like the same one and let its children through.
+    if (userId) useAppStore.getState().setAccountId(userId);
+    // Purchases belong to the account, not the device.
+    if (userId) await identifyPurchaser(userId);
+
     await flushQueue();
 
     // Subscription and trial are re-evaluated here, so a plan that ran out
-    // while the app was closed locks PRO again on the way in.
+    // while the app was closed locks PRO again on the way in. Two sources:
+    // the profile row, which the RevenueCat webhook keeps current and which
+    // the server's RLS trusts, and the receipt on the device, which is right
+    // the instant a purchase completes — before any webhook has landed.
     const pro = await fetchAccountProStatus();
-    useAppStore.getState().setProStatus(pro.active, pro.expiresAt, pro.renewsAt, pro.trialUsed);
+    const receipt = await fetchEntitlement().catch(() => ({ active: false }) as ProEntitlement);
+    useAppStore
+      .getState()
+      .setProStatus(
+        pro.active || receipt.active,
+        pro.expiresAt ?? receipt.expiresAt,
+        pro.renewsAt ?? receipt.renewsAt,
+        pro.trialUsed,
+      );
 
     const { removedRemoteIds, clearRemovedRemoteId } = useAppStore.getState();
     for (const remoteId of removedRemoteIds) {
@@ -54,7 +97,12 @@ export async function syncNow(): Promise<void> {
     }
 
     for (const child of useAppStore.getState().children) {
-      await syncChildProfile(child);
+      if (child.remoteId) {
+        await syncChildProfile(child);
+        continue;
+      }
+      const remoteId = await syncChildToCloud(child);
+      useAppStore.getState().setChildRemoteId(child.id, remoteId);
     }
 
     const remote = await fetchRemoteChildren();
@@ -149,6 +197,9 @@ export function useSync() {
       }
       useAppStore.getState().setProStatus(false);
       useAppStore.getState().setAuthRequired(true);
+      // Purchases go back to an anonymous id, so the next person to sign in on
+      // this device does not inherit the subscription.
+      void forgetPurchaser();
     });
     return () => data.subscription.unsubscribe();
   }, []);

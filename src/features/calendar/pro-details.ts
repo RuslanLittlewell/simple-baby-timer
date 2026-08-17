@@ -56,7 +56,7 @@ export function proDetailsLabels(details: ProDetails, t: Translate): string[] {
   if (details.mode === 'breast') return [t('pro.breast'), t(`pro.${details.side}`)];
   return [
     t('pro.bottle'),
-    t(`pro.${details.content}`),
+    ...(details.content ? [t(`pro.${details.content}`)] : []),
     ...(details.volumeMl ? [`${details.volumeMl} ${t('unit.ml')}`] : []),
   ];
 }

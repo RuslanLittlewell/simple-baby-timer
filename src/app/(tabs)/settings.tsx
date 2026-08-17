@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Slider from '@react-native-community/slider';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,9 +15,6 @@ import { formatHm } from '@/i18n';
 import { signOut } from '@/lib/supabase';
 import { deleteAccount } from '@/lib/sync';
 import {
-  FEEDING_MAX,
-  FEEDING_MIN,
-  FEEDING_STEP,
   SETTLING_MAX,
   SETTLING_MIN,
   SETTLING_STEP,
@@ -111,7 +109,6 @@ export default function SettingsScreen() {
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const settlingMinutes = useAppStore((state) => state.settlingMinutes);
-  const feedingMinutes = useAppStore((state) => state.feedingMinutes);
   const sleepNotificationsEnabled = useAppStore(
     (state) => state.sleepNotificationsEnabled,
   );
@@ -121,13 +118,9 @@ export default function SettingsScreen() {
   const settlingNotificationsEnabled = useAppStore(
     (state) => state.settlingNotificationsEnabled,
   );
-  const feedingNotificationsEnabled = useAppStore(
-    (state) => state.feedingNotificationsEnabled,
-  );
   const setSleepMinutes = useAppStore((state) => state.setSleepMinutes);
   const setAwakeMinutes = useAppStore((state) => state.setAwakeMinutes);
   const setSettlingMinutes = useAppStore((state) => state.setSettlingMinutes);
-  const setFeedingMinutes = useAppStore((state) => state.setFeedingMinutes);
   const setNotificationsEnabled = useAppStore((state) => state.setNotificationsEnabled);
   const language = useAppStore((state) => state.language);
   const proActive = useAppStore((state) => state.proActive);
@@ -139,6 +132,7 @@ export default function SettingsScreen() {
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
   const clearAccountData = useAppStore((state) => state.clearAccountData);
+  const router = useRouter();
   const theme = useTheme();
   const t = useT();
   const [deleting, setDeleting] = useState(false);
@@ -162,10 +156,13 @@ export default function SettingsScreen() {
               setDeleting(false);
               return;
             }
-            // The device is only wiped once the server confirmed the deletion;
-            // signing out then hands the user to the sign-in gate.
+            // The device is only wiped once the server confirmed the deletion.
             await clearAccountData();
             await signOut();
+            // Clearing resets onboarding, but this screen is a tab route and
+            // would happily stay mounted — send the user to the root, which
+            // now renders the onboarding flow from its first step.
+            router.replace('/');
           })();
         },
       },
@@ -249,20 +246,6 @@ export default function SettingsScreen() {
               max={TIMER_MAX}
               step={TIMER_STEP}
               format={timerFmt}
-            />
-
-            <SettingSlider
-              label={t('settings.feedingTime')}
-              hint={t('settings.feedingHint')}
-              icon="baby-bottle-outline"
-              value={feedingMinutes}
-              enabled={feedingNotificationsEnabled}
-              onEnabledChange={(enabled) => setNotificationsEnabled('feeding', enabled)}
-              onCommit={setFeedingMinutes}
-              min={FEEDING_MIN}
-              max={FEEDING_MAX}
-              step={FEEDING_STEP}
-              format={minutesFmt}
             />
 
             <Pressable

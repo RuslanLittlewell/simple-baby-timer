@@ -29,16 +29,20 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
     transform: [{ scale: scale.value }],
   }));
 
+  const handlePressIn = () => {
+    scale.value = withTiming(0.9, { duration: 90 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 8, stiffness: 260, mass: 0.45 });
+  };
+
   return (
     <AnimatedPressable
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
-      onPressIn={() => {
-        scale.value = withTiming(0.9, { duration: 90 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, { damping: 8, stiffness: 260, mass: 0.45 });
-      }}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       style={[styles.wrap, animatedStyle]}>
       <LinearGradient
         colors={gradients[gradKey]}

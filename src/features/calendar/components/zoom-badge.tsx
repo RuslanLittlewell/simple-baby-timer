@@ -63,6 +63,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.18)',
   },
   text: {
+    // The pill is dark in both themes, so its label cannot follow theme.text —
+    // in the light theme that ink is dark and disappeared into the badge.
+    color: '#FFFFFF',
     fontSize: 17,
     lineHeight: 22,
     fontWeight: '700',

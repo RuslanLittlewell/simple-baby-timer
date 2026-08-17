@@ -39,7 +39,7 @@ export type ProDetails =
       mode: 'bottle';
       // Records written before water was dropped may still carry 'water' at
       // runtime; the label for it is kept in the dictionary so they read right.
-      content: 'formula' | 'breastMilk';
+      content?: 'formula' | 'breastMilk';
       volumeMl?: number;
     };
 

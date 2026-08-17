@@ -1,11 +1,11 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { formatDuration, type DayStats } from '@/features/calendar/helpers';
-import { useActivityColors } from '@/hooks/use-activity-colors';
-import { useT } from '@/state/app-state';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Spacing } from "@/constants/theme";
+import { formatDuration, type DayStats } from "@/features/calendar/helpers";
+import { useActivityColors } from "@/hooks/use-activity-colors";
+import { useT } from "@/state/app-state";
 
 interface DayStatsRowProps {
   stats: DayStats;
@@ -17,22 +17,28 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
 
   const items = [
     {
-      key: 'sleep',
+      key: "sleep",
       color: accent.sleep,
-      value: formatDuration(stats.sleepMs, t('unit.hours'), t('unit.minutes')),
-      label: t('kind.sleep'),
+      value: formatDuration(stats.sleepMs, t("unit.hours"), t("unit.minutes")),
+      label: t("kind.sleep"),
     },
     {
-      key: 'feeding',
+      key: "feeding",
       color: accent.feed,
       value: String(stats.feedingCount),
-      label: t('kind.feeding'),
+      label: t("kind.feeding"),
     },
     {
-      key: 'diaper',
+      key: "diaper",
       color: accent.diaper,
       value: String(stats.diaperCount),
-      label: t('kind.diaper'),
+      label: t("kind.diaper"),
+    },
+    {
+      key: "poop",
+      color: accent.poop,
+      value: String(stats.poopCount),
+      label: "💩",
     },
   ];
 
@@ -40,7 +46,11 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
     <View style={styles.row}>
       {items.map((item) => (
         <ThemedView key={item.key} type="backgroundElement" style={styles.card}>
-          <ThemedText type="smallBold" numberOfLines={1} style={{ color: item.color }}>
+          <ThemedText
+            type="smallBold"
+            numberOfLines={1}
+            style={{ color: item.color }}
+          >
             {item.value}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
@@ -54,13 +64,13 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignSelf: 'stretch',
+    flexDirection: "row",
+    alignSelf: "stretch",
     gap: Spacing.two,
   },
   card: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.half,
     borderRadius: Spacing.three,
     paddingVertical: Spacing.three,

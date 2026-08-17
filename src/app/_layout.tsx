@@ -6,7 +6,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/nunito-sans';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,14 +16,20 @@ import { MiniTimer } from '@/components/mini-timer';
 import { OnboardingAuthScreen } from '@/features/onboarding/auth-screen';
 import { PaywallModal } from '@/features/onboarding/components/paywall-modal';
 import { syncNow, useSync } from '@/hooks/use-sync';
+import { configurePurchases } from '@/lib/purchases';
 import { useTabHistory } from '@/hooks/use-tab-history';
 import { useAppStore } from '@/state/app-state';
 
 SplashScreen.preventAutoHideAsync();
 
+// Before any screen can ask for offerings. Safe to call on every start; the
+// SDK ignores repeats.
+configurePurchases();
+
 export default function RootLayout() {
   useSync();
   useTabHistory();
+  const router = useRouter();
   const pendingPaywall = useAppStore((state) => state.pendingPaywall);
   const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
   const authRequired = useAppStore((state) => state.authRequired);
@@ -61,6 +67,11 @@ export default function RootLayout() {
             <OnboardingAuthScreen
               onSignedIn={() => {
                 setAuthRequired(false);
+                // Whoever just signed in may be a different parent with a
+                // different set of children, and the screen underneath still
+                // belongs to the previous session. The list is the only safe
+                // landing spot — sync fills it in as the data arrives.
+                router.replace('/children');
                 syncNow();
               }}
             />

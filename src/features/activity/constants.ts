@@ -30,7 +30,10 @@ export const ACTIVITIES: ActivityMeta[] = [
   { id: 'awake', gradKey: 'awake', icon: 'white-balance-sunny' },
 ];
 
-export const MAIN_ACTIVITIES = ACTIVITIES.filter((a) => a.id === 'sleep' || a.id === 'awake');
+export const MAIN_ACTIVITIES = ACTIVITIES.filter(
+  (activity): activity is ActivityMeta & { id: 'sleep' | 'awake' } =>
+    activity.id === 'sleep' || activity.id === 'awake',
+);
 export const FEEDING = ACTIVITIES.find((a) => a.id === 'feeding')!;
 
 export const EVENTS: EventMeta[] = [

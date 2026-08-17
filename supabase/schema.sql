@@ -46,6 +46,7 @@ create trigger auth_user_create_profile
 
 create table if not exists public.children (
   id uuid primary key default gen_random_uuid(),
+  client_id text,
   name text not null,
   gradient_key text not null,
   birthday_ms bigint,
@@ -57,6 +58,13 @@ create table if not exists public.children (
 -- For projects created before birthday support.
 alter table public.children add column if not exists birthday_ms bigint;
 alter table public.children add column if not exists pro_enabled boolean not null default false;
+alter table public.children add column if not exists client_id text;
+
+-- The local id makes owner backup idempotent: retries after a lost response do
+-- not create a second copy of the same child.
+create unique index if not exists children_creator_client_id
+  on public.children (created_by, client_id)
+  where client_id is not null;
 
 create table if not exists public.child_members (
   child_id uuid not null references public.children (id) on delete cascade,
@@ -231,6 +239,46 @@ create policy invites_insert on public.invites
   for insert with check (public.is_child_member(child_id));
 
 -- ── RPC ─────────────────────────────────────────────────────────────────
+
+-- Saves a child for its owner independently of Premium sharing. The caller
+-- can only create rows owned by their own auth.uid(); invite creation remains
+-- gated by has_active_pro() below.
+create or replace function public.ensure_owned_child(
+  local_id text,
+  child_name text,
+  child_gradient_key text,
+  child_birthday_ms bigint
+)
+returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  cid uuid;
+begin
+  if uid is null then
+    raise exception 'not signed in';
+  end if;
+  if nullif(trim(local_id), '') is null or nullif(trim(child_name), '') is null then
+    raise exception 'invalid child';
+  end if;
+
+  insert into children (client_id, name, gradient_key, birthday_ms, created_by)
+  values (local_id, trim(child_name), child_gradient_key, child_birthday_ms, uid)
+  on conflict (created_by, client_id) where client_id is not null do update
+    set name = excluded.name,
+        gradient_key = excluded.gradient_key,
+        birthday_ms = excluded.birthday_ms
+  returning id into cid;
+
+  insert into child_members (child_id, user_id)
+  values (cid, uid)
+  on conflict do nothing;
+
+  return cid;
+end $$;
+
+revoke execute on function public.ensure_owned_child(text, text, text, bigint) from public, anon;
+grant execute on function public.ensure_owned_child(text, text, text, bigint) to authenticated;
 
 -- Temporary purchase hook. Replace this RPC with verified App Store purchase
 -- handling when StoreKit integration is added.

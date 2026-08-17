@@ -1,5 +1,7 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -13,6 +15,10 @@ import { useAppStore, useT } from '@/state/app-state';
 
 import { HelloTypewriter } from './components/hello-typewriter';
 
+// The launcher artwork, downscaled: the full 1024px icon would be decoded in
+// full just to draw an 84pt square.
+const APP_ICON = require('../../../assets/images/app-mark.png');
+
 interface WelcomeScreenProps {
   onContinue: () => void;
 }
@@ -22,6 +28,8 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   const t = useT();
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const themeMode = useAppStore((state) => state.themeMode);
+  const setThemeMode = useAppStore((state) => state.setThemeMode);
   const currentLanguage = LANGUAGES.find((item) => item.code === language) ?? LANGUAGES[0];
   const [langOpen, setLangOpen] = useState(false);
 
@@ -30,6 +38,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       <AuroraBackground />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.brand}>
+          <Image source={APP_ICON} style={styles.appIcon} contentFit="contain" />
           <ThemedText style={styles.brandText}>Simple Baby Tracker</ThemedText>
         </View>
 
@@ -48,6 +57,25 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
               open={langOpen}
               onOpenChange={setLangOpen}
             />
+
+            <View style={styles.themeRow}>
+              <View style={styles.themeLabel}>
+                <MaterialCommunityIcons
+                  name={themeMode === 'dark' ? 'weather-night' : 'white-balance-sunny'}
+                  size={18}
+                  color={theme.text}
+                />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('settings.theme')}
+                </ThemedText>
+              </View>
+              <Switch
+                accessibilityLabel={t('settings.theme')}
+                value={themeMode === 'light'}
+                onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
+                trackColor={{ false: theme.border, true: '#C4B5FD' }}
+              />
+            </View>
           </View>
         </View>
 
@@ -83,7 +111,24 @@ const styles = StyleSheet.create({
   brand: {
     alignSelf: 'stretch',
     alignItems: 'center',
+    gap: Spacing.three,
     paddingTop: Spacing.five,
+  },
+  appIcon: {
+    width: 84,
+    height: 84,
+    borderRadius: 20,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Spacing.two,
+  },
+  themeLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   brandText: {
     fontSize: 22,
