@@ -33,10 +33,17 @@ export type LiveSlot = 'session' | 'feeding';
 const activeIds: Record<LiveSlot, string | null> = { session: null, feeding: null };
 const activeLabels: Record<LiveSlot, Labels | null> = { session: null, feeding: null };
 
-const stateFor = (kind: ActivityKind, deadline: number, labels: Labels): LiveActivity.LiveActivityState => ({
+// Counts up from when the activity started, not down to the reminder: the
+// widget answers "how long has this been going", which is what the timer on
+// screen shows.
+const stateFor = (
+  kind: ActivityKind,
+  startedAt: number,
+  labels: Labels,
+): LiveActivity.LiveActivityState => ({
   title: labels.title,
   subtitle: labels.subtitle,
-  progressBar: { date: deadline },
+  progressBar: { elapsedTimer: { startDate: startedAt } },
   imageName: ICONS[kind],
   dynamicIslandImageName: ICONS[kind],
 });
@@ -44,7 +51,7 @@ const stateFor = (kind: ActivityKind, deadline: number, labels: Labels): LiveAct
 export function startLiveActivity(
   slot: LiveSlot,
   kind: ActivityKind,
-  deadline: number,
+  startedAt: number,
   labels: Labels,
 ) {
   if (!liveActivitySupported) return;
@@ -52,7 +59,7 @@ export function startLiveActivity(
   activeLabels[slot] = labels;
   try {
     activeIds[slot] =
-      LiveActivity.startActivity(stateFor(kind, deadline, labels), {
+      LiveActivity.startActivity(stateFor(kind, startedAt, labels), {
         timerType: 'digital',
         backgroundColor: '#000000',
         titleColor: '#FFFFFF',

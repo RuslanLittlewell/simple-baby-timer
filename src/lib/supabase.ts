@@ -43,6 +43,11 @@ export async function getIsSignedIn(): Promise<boolean> {
   return !!data.session;
 }
 
+export async function getUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
+}
+
 export type AccountCheck = 'ok' | 'signedOut' | 'missing' | 'unreachable';
 
 // A stored session keeps working on the device until something actually asks

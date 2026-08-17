@@ -83,6 +83,18 @@ async function enqueue(op: QueuedOp): Promise<void> {
   flushQueue().catch(() => {});
 }
 
+// Drops every trace of the previous account's syncing: pending uploads, which
+// would be retried under the next account, refused by RLS and abort each pass
+// on the same rows forever; and the per-child pull cursors, which would make
+// sync skip the history it has already seen — history the wipe just removed.
+export async function clearSyncState(): Promise<void> {
+  const keys = await AsyncStorage.getAllKeys();
+  await AsyncStorage.multiRemove([
+    QUEUE_KEY,
+    ...keys.filter((key) => key.startsWith('babytimer.sync.cursor.')),
+  ]);
+}
+
 export const enqueueSessionUpsert = (remoteChildId: string, session: ActivitySession) =>
   enqueue({ remoteChildId, session, deleted: false });
 
@@ -181,40 +193,19 @@ export async function flushQueue(): Promise<void> {
   }
 }
 
-// Creates the remote child, registers the caller as a member and uploads the
-// child's local history. Returns the remote uuid to store on the local child.
-export async function shareChild(child: Child): Promise<string> {
+// Idempotently creates/updates the owner's remote child, registers membership
+// server-side and uploads any local history recorded before the link existed.
+export async function syncChildToCloud(child: Child): Promise<string> {
   await requireSession();
-  let result = await supabase
-    .from('children')
-    .insert({
-      name: child.name,
-      gradient_key: child.gradientKey,
-      birthday_ms: child.birthday ?? null,
-      pro_enabled: true,
-    })
-    .select('id')
-    .single();
-
-  // Existing installations can briefly run against the previous schema while
-  // the birthday migration is being deployed. Sharing must still work there.
-  if (result.error && isMissingBirthdayColumn(result.error)) {
-    result = await supabase
-      .from('children')
-      .insert({ name: child.name, gradient_key: child.gradientKey })
-      .select('id')
-      .single();
-  }
-  if (result.error) throw result.error;
-  const remoteId = result.data.id as string;
-
-  const { data: auth } = await supabase.auth.getSession();
-  const userId = auth.session?.user.id;
-  if (!userId) throw new Error('no session');
-  const { error: memberError } = await supabase
-    .from('child_members')
-    .insert({ child_id: remoteId, user_id: userId });
-  if (memberError) throw memberError;
+  const { data, error } = await supabase.rpc('ensure_owned_child', {
+    local_id: child.id,
+    child_name: child.name,
+    child_gradient_key: child.gradientKey,
+    child_birthday_ms: child.birthday ?? null,
+  });
+  if (error) throw error;
+  const remoteId = data as string;
+  if (!remoteId) throw new Error('invalid remote child id');
 
   const sessions = await getAllSessionsForChild(child.id);
   for (let i = 0; i < sessions.length; i += UPSERT_CHUNK) {
@@ -223,6 +214,14 @@ export async function shareChild(child: Child): Promise<string> {
       chunk.map((session) => toRow({ remoteChildId: remoteId, session, deleted: false })),
     );
   }
+  return remoteId;
+}
+
+// Sharing only creates an invite now; owner backup itself is available to all
+// signed-in accounts and is reused here when the child is not linked yet.
+export async function shareChild(child: Child): Promise<string> {
+  if (child.remoteId) return child.remoteId;
+  const remoteId = await syncChildToCloud(child);
   return remoteId;
 }
 
@@ -322,6 +321,7 @@ export async function pushLiveSession(
   track: LiveTrack,
   kind: ActivityKind,
   startedAtMs: number,
+  proDetails?: ActivitySession['proDetails'],
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   await requireSession();
@@ -330,6 +330,7 @@ export async function pushLiveSession(
     track,
     kind,
     started_at_ms: startedAtMs,
+    pro_details: proDetails ?? null,
   });
   if (error) throw error;
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuroraBackground } from '@/components/aurora-background';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -68,10 +69,17 @@ export default function RegimesScreen() {
 
   // Nothing but the app background sits under the paywall — the regimes are
   // PRO content, and the effect above is already sending the user back.
-  if (!proActive) return <ThemedView gradient style={styles.container} />;
+  if (!proActive) {
+    return (
+      <ThemedView gradient style={styles.container}>
+        <AuroraBackground />
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView gradient style={styles.container}>
+      <AuroraBackground />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <AgePicker
           labels={regimes.map((r) => r.age)}

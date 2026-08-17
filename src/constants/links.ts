@@ -4,3 +4,7 @@
 // release.
 export const PRIVACY_POLICY_URL =
   'https://ruslanlittlewell.github.io/simple-baby-timer/privacy.html';
+
+// Apple's standard licence agreement, which applies unless you publish your
+// own. Guideline 3.1.2 wants it linked from the purchase screen.
+export const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';

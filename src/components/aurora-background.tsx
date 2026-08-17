@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { useEffect, useState } from 'react';
+import { AppState, Dimensions, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -78,18 +80,25 @@ const BLOBS: BlobSpec[] = [
 
 interface AuroraBlobProps {
   spec: BlobSpec;
+  running: boolean;
 }
 
-function AuroraBlob({ spec }: AuroraBlobProps) {
+function AuroraBlob({ spec, running }: AuroraBlobProps) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
+    if (!running) {
+      // Freeze in place rather than reset: resuming should not snap the blob
+      // back to where it started.
+      cancelAnimation(progress);
+      return;
+    }
     progress.value = withRepeat(
       withTiming(1, { duration: spec.duration, easing: Easing.inOut(Easing.sin) }),
       -1,
       true,
     );
-  }, [progress, spec.duration]);
+  }, [progress, running, spec.duration]);
 
   const drift = useAnimatedStyle(() => ({
     transform: [
@@ -122,10 +131,26 @@ function AuroraBlob({ spec }: AuroraBlobProps) {
 }
 
 export function AuroraBackground() {
+  // Five large translucent layers redrawn 60 times a second are not free. Tab
+  // screens stay mounted behind each other, so without this the backgrounds of
+  // every visited tab keep animating out of sight — and keep the GPU busy while
+  // the phone is in a pocket.
+  const focused = useIsFocused();
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) =>
+      setForeground(state === 'active'),
+    );
+    return () => subscription.remove();
+  }, []);
+
+  const running = focused && foreground;
+
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {BLOBS.map((spec) => (
-        <AuroraBlob key={spec.id} spec={spec} />
+        <AuroraBlob key={spec.id} spec={spec} running={running} />
       ))}
     </View>
   );

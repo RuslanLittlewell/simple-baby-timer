@@ -11,7 +11,10 @@ export default function Index() {
   const activeChildId = useAppStore((state) => state.activeChildId);
   const selectChild = useAppStore((state) => state.selectChild);
 
-  const goStraightToActivity = onboardingComplete && children.length <= 1;
+  // Exactly one child means there is nothing to choose — go straight in. With
+  // none at all the activity screen has nothing to show, so the list (which can
+  // add one) is the honest destination.
+  const goStraightToActivity = onboardingComplete && children.length === 1;
 
   useEffect(() => {
     if (!goStraightToActivity) return;

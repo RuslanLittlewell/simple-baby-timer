@@ -3,10 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   Pressable,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import Animated, {
@@ -19,7 +19,7 @@ import Animated, {
 
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useActivityColors } from '@/hooks/use-activity-colors';
 import { type EventKind, type ProDetails } from '@/lib/activity-store';
 import { useT } from '@/state/app-state';
@@ -30,7 +30,6 @@ import { EventTile } from './event-tile';
 
 type FeedingMode = 'breast' | 'bottle';
 type BreastSide = 'left' | 'right' | 'both';
-type BottleContent = Extract<ProDetails, { mode: 'bottle' }>['content'];
 type ProKind = 'settling' | 'sleep' | 'feeding';
 type SleepPlace = Extract<ProDetails, { type: 'sleep' }>['place'];
 type SettlingMethod = Extract<ProDetails, { type: 'settling' }>['methods'][number];
@@ -62,12 +61,16 @@ interface ProActivityPanelProps {
   settlingActive: boolean;
   sleepActive: boolean;
   awakeActive: boolean;
-  // startedAt back-dates a freshly started feeding to the picked time.
-  onToggleFeeding: (startedAt?: number) => void | Promise<void>;
+  onToggleFeeding: () => void | Promise<void>;
   onToggleSettling: () => void | Promise<void>;
   onToggleSleep: () => void | Promise<void>;
   onToggleAwake: () => void | Promise<void>;
   onLogEvent: (kind: EventKind) => void | Promise<void>;
+  onLogBottleFeeding: (startedAt: number) => void | Promise<void>;
+  onSaveMainActivity: (
+    kind: 'settling' | 'sleep',
+    details: ProDetails,
+  ) => Promise<void>;
   onDetailsChange: (details: ProDetails) => void;
   dismissSignal: number;
   onExpandedChange: (expanded: boolean) => void;
@@ -83,6 +86,8 @@ export function ProActivityPanel({
   onToggleSleep,
   onToggleAwake,
   onLogEvent,
+  onLogBottleFeeding,
+  onSaveMainActivity,
   onDetailsChange,
   dismissSignal,
   onExpandedChange,
@@ -93,11 +98,10 @@ export function ProActivityPanel({
   // Feeding opens on the mode step with nothing picked yet.
   const [mode, setMode] = useState<FeedingMode | null>(null);
   const [side, setSide] = useState<BreastSide | null>(null);
-  const [content, setContent] = useState<BottleContent>('formula');
-  const [volume, setVolume] = useState('');
   const [bottleStart, setBottleStart] = useState(() => new Date());
   const [sleepPlace, setSleepPlace] = useState<SleepPlace>('crib');
   const [settlingMethods, setSettlingMethods] = useState<SettlingMethod[]>([]);
+  const [saving, setSaving] = useState(false);
   const [panelSize, setPanelSize] = useState({ width: 1, height: 1 });
   const [rects, setRects] = useState<Partial<Record<ProKind, Rect>>>({});
   const [eventRowTop, setEventRowTop] = useState(0);
@@ -105,6 +109,7 @@ export function ProActivityPanel({
   // How far the card is pushed up so the keyboard cannot bury the save button.
   const lift = useSharedValue(0);
   const cardRef = useRef<View>(null);
+  const savingRef = useRef(false);
   const expanded = expandedKind !== null;
   const isSleep = expandedKind === 'sleep';
   const isSettling = expandedKind === 'settling';
@@ -113,7 +118,7 @@ export function ProActivityPanel({
   const timerRunning = isSettling ? settlingActive : isSleep ? sleepActive : feedingActive;
   const isFeeding = expandedKind === 'feeding';
   // A breast feeding needs a side before it can be started.
-  const saveDisabled = isFeeding && mode === 'breast' && !side;
+  const formSaveDisabled = isFeeding && mode === 'breast' && !side;
   // Opening the card of a running timer turns the primary button into a stop.
   // The bottle step is the exception: it is where the volume is typed, so it
   // keeps saving — that attaches the parameters to the feeding under way.
@@ -142,8 +147,6 @@ export function ProActivityPanel({
     if (kind === 'feeding') {
       setMode(null);
       setSide(null);
-      setContent('formula');
-      setVolume('');
     }
     setExpandedKind(kind);
     onExpandedChange(true);
@@ -169,6 +172,7 @@ export function ProActivityPanel({
   };
 
   const close = (stopTimer: boolean) => {
+    if (savingRef.current) return;
     if (stopTimer && expandedKind === 'settling' && settlingActive) void onToggleSettling();
     if (stopTimer && expandedKind === 'sleep' && sleepActive) void onToggleSleep();
     if (stopTimer && expandedKind === 'feeding' && feedingActive) void onToggleFeeding();
@@ -204,32 +208,76 @@ export function ProActivityPanel({
     };
   }, [expanded, lift]);
 
-  const parsedVolume = Number.parseInt(volume, 10);
-  const volumeMl = Number.isFinite(parsedVolume) && parsedVolume > 0 ? parsedVolume : undefined;
-
   const buildDetails = (kind: ProKind): ProDetails | null => {
     if (kind === 'settling') return { type: 'settling', methods: settlingMethods };
     if (kind === 'sleep') return { type: 'sleep', place: sleepPlace };
     if (mode === 'breast') return side ? { type: 'feeding', mode: 'breast', side } : null;
-    if (mode === 'bottle') return { type: 'feeding', mode: 'bottle', content, volumeMl };
+    if (mode === 'bottle') return { type: 'feeding', mode: 'bottle' };
     return null;
   };
 
-  // Starts the timer (unless it already runs) and attaches the chosen options
-  // to it. Details only stick to a running session, so the toggle goes first.
-  // A bottle feeding starts from the time picked on the wheel, which defaults
-  // to right now.
+  // Breast feeding keeps the timer flow. Bottle feeding is written immediately
+  // as a fixed-duration event by the parent screen.
   const save = async (kind: ProKind | null) => {
     if (!kind) return;
     const details = buildDetails(kind);
     if (!details) return;
-    if (kind === 'settling' && !settlingActive) await onToggleSettling();
-    if (kind === 'sleep' && !sleepActive) await onToggleSleep();
+    if (kind === 'feeding' && mode === 'bottle') {
+      await onLogBottleFeeding(bottleStart.getTime());
+      return;
+    }
+    if (kind === 'settling' || kind === 'sleep') {
+      await onSaveMainActivity(kind, details);
+      return;
+    }
     if (kind === 'feeding' && !feedingActive) {
-      await onToggleFeeding(mode === 'bottle' ? bottleStart.getTime() : undefined);
+      await onToggleFeeding();
     }
     onDetailsChange(details);
+  };
+
+  const stopExpandedTimer = async (kind: ProKind | null) => {
+    if (kind === 'settling' && settlingActive) await onToggleSettling();
+    if (kind === 'sleep' && sleepActive) await onToggleSleep();
+    if (kind === 'feeding' && feedingActive) await onToggleFeeding();
+  };
+
+  const handlePanelLayout = (event: LayoutChangeEvent) => {
+    setPanelSize({
+      width: event.nativeEvent.layout.width,
+      height: event.nativeEvent.layout.height,
+    });
+  };
+
+  const handleClosePress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
     close(false);
+  };
+
+  const toggleSettlingMethod = (method: SettlingMethod) => {
+    setSettlingMethods((current) =>
+      current.includes(method)
+        ? current.filter((item) => item !== method)
+        : [...current, method],
+    );
+  };
+
+  const handlePrimaryPress = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    let succeeded = false;
+    try {
+      if (stopping) await stopExpandedTimer(expandedKind);
+      else await save(expandedKind);
+      succeeded = true;
+    } catch {
+      // Keep the panel open so the user can retry the rejected operation.
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    if (succeeded) close(false);
   };
 
   const measuredRect = expandedKind ? rects[expandedKind] : undefined;
@@ -267,12 +315,7 @@ export function ProActivityPanel({
   return (
     <View
       style={styles.panel}
-      onLayout={(event) =>
-        setPanelSize({
-          width: event.nativeEvent.layout.width,
-          height: event.nativeEvent.layout.height,
-        })
-      }>
+      onLayout={handlePanelLayout}>
       <View onLayout={captureRect('settling')}>
         <ActivityRow
           icon="sleep"
@@ -298,9 +341,7 @@ export function ProActivityPanel({
         gradKey={MAIN_ACTIVITIES[1].gradKey}
         label={t('kind.awake')}
         isActive={awakeActive}
-        onPress={() => {
-          void onToggleAwake();
-        }}
+        onPress={() => void onToggleAwake()}
       />
       <View
         style={styles.eventRow}
@@ -363,10 +404,7 @@ export function ProActivityPanel({
                 accessibilityRole="button"
                 accessibilityLabel={t('editor.cancel')}
                 hitSlop={10}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  close(false);
-                }}>
+                onPress={handleClosePress}>
                 <MaterialCommunityIcons name="close" size={26} color={fg} />
               </Pressable>
             </Pressable>
@@ -386,13 +424,7 @@ export function ProActivityPanel({
                             label={t(`pro.${method}`)}
                             selected={selected}
                             multiline
-                            onPress={() =>
-                              setSettlingMethods((current) =>
-                                selected
-                                  ? current.filter((item) => item !== method)
-                                  : [...current, method],
-                              )
-                            }
+                            onPress={() => toggleSettlingMethod(method)}
                           />
                         );
                       })}
@@ -482,38 +514,16 @@ export function ProActivityPanel({
                   />
                 </View>
               ) : (
-                <View style={styles.bottle}>
-                  <View style={[styles.step, styles.stepFill]}>
-                    <WheelField
-                      mode="time"
-                      value={bottleStart}
-                      maximumDate={new Date()}
-                      openOnMount
-                      displayText={`${t('editor.start')} · ${fmtClock(bottleStart)}`}
-                      onChange={setBottleStart}
-                      style={styles.wheel}
-                      textStyle={[styles.wheelText, { color: fg }]}
-                    />
-                  </View>
-                  <View style={[styles.step, styles.stepFill]}>
-                    <Choice
-                      label={t('pro.formula')}
-                      selected={content === 'formula'}
-                      onPress={() => setContent('formula')}
-                    />
-                    <Choice
-                      label={t('pro.breastMilk')}
-                      selected={content === 'breastMilk'}
-                      onPress={() => setContent('breastMilk')}
-                    />
-                  </View>
-                  <TextInput
-                    value={volume}
-                    onChangeText={(value) => setVolume(value.replace(/\D/g, '').slice(0, 4))}
-                    keyboardType="number-pad"
-                    placeholder={t('pro.volume')}
-                    placeholderTextColor="rgba(62,45,25,0.58)"
-                    style={[styles.volume, { color: fg }]}
+                <View style={[styles.step, styles.stepFill]}>
+                  <WheelField
+                    mode="time"
+                    value={bottleStart}
+                    maximumDate={new Date()}
+                    openOnMount
+                    displayText={`${t('editor.start')} · ${fmtClock(bottleStart)}`}
+                    onChange={setBottleStart}
+                    style={styles.wheel}
+                    textStyle={[styles.wheelText, { color: fg }]}
                   />
                 </View>
               )}
@@ -533,14 +543,15 @@ export function ProActivityPanel({
                 )}
                 <Pressable
                   accessibilityRole="button"
-                  disabled={!stopping && saveDisabled}
-                  onPress={() => {
-                    if (stopping) close(true);
-                    else void save(expandedKind);
+                  accessibilityState={{
+                    busy: saving,
+                    disabled: saving || (!stopping && formSaveDisabled),
                   }}
+                  disabled={saving || (!stopping && formSaveDisabled)}
+                  onPress={() => void handlePrimaryPress()}
                   style={({ pressed }) => [
                     styles.save,
-                    !stopping && saveDisabled && styles.saveDisabled,
+                    (saving || (!stopping && formSaveDisabled)) && styles.saveDisabled,
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText style={styles.saveText}>
@@ -565,16 +576,33 @@ interface ChoiceProps {
   onPress: () => void;
 }
 
+const withAlpha = (hex: string, alpha: number) => {
+  const value = hex.replace('#', '');
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
 function Choice({ tone = 'feed', icon, label, selected, multiline, onPress }: ChoiceProps) {
+  const { fg } = useActivityColors();
   const sleep = tone === 'sleep';
-  const contentColor = sleep && !selected ? '#FFFFFF' : '#3E2D19';
+  // Sleep chips sit on the sleep gradient, which is deep blue in the dark theme
+  // and nearly white in the light one — so their ink follows the palette
+  // instead of being hardcoded white, which vanished on the light card.
+  const ink = fg.sleep;
+  const contentColor = !sleep || selected ? '#3E2D19' : ink;
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.choice,
-        sleep && styles.choiceSleep,
-        selected && (sleep ? styles.choiceSleepSelected : styles.choiceSelected),
+        sleep && [
+          styles.choiceSleep,
+          { borderColor: withAlpha(ink, 0.62), backgroundColor: withAlpha(ink, 0.14) },
+        ],
+        selected &&
+          (sleep ? [styles.choiceSleepSelected, { borderColor: ink }] : styles.choiceSelected),
         pressed && styles.pressed,
       ]}>
       {icon && <MaterialCommunityIcons name={icon} size={20} color={contentColor} />}
@@ -680,10 +708,6 @@ const styles = StyleSheet.create({
   stepFill: {
     flex: 1,
   },
-  bottle: {
-    flex: 1,
-    gap: Spacing.two,
-  },
   wheel: {
     flex: 1,
     minHeight: 48,
@@ -731,20 +755,6 @@ const styles = StyleSheet.create({
     color: '#3E2D19',
     fontSize: 15,
     fontWeight: '700',
-  },
-  volume: {
-    flex: 1,
-    minHeight: 42,
-    borderWidth: 1.5,
-    borderColor: '#7A4E2D',
-    borderRadius: 12,
-    paddingHorizontal: Spacing.three,
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    fontFamily: NunitoSans.semiBold,
   },
   pressed: {
     opacity: 0.7,

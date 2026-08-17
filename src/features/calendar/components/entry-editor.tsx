@@ -93,7 +93,9 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
     setFeedingMode(details?.type === 'feeding' ? details.mode : 'breast');
     setBreastSide(details?.type === 'feeding' && details.mode === 'breast' ? details.side : 'left');
     setBottleContent(
-      details?.type === 'feeding' && details.mode === 'bottle' ? details.content : 'formula',
+      details?.type === 'feeding' && details.mode === 'bottle'
+        ? (details.content ?? 'formula')
+        : 'formula',
     );
     // One amount per entry: older records may carry it in either field.
     const bottleVolume =

@@ -20,7 +20,7 @@ import { LiveBlocks, TimelineBlocks, type LiveBlock } from './components/timelin
 import { TimelineGrid } from './components/timeline-grid';
 import { WeekView } from './components/week-view';
 import { ZoomBadge } from './components/zoom-badge';
-import { GUTTER, NOW_COLOR, SCROLL_BOTTOM_PAD } from './constants';
+import { GUTTER, NOW_COLOR, SCROLL_BOTTOM_PAD, TIMELINE_Z_INDEX } from './constants';
 import { isSameDay, pad2, startOfWeek } from './helpers';
 import { usePinchZoom } from './use-pinch-zoom';
 
@@ -312,6 +312,8 @@ export default function CalendarScreen() {
                   minorLineColor={theme.backgroundElement}
                 />
 
+                <LiveBlocks blocks={liveBlocks} t={t} />
+
                 <TimelineBlocks
                   sessions={sessions}
                   hourHeight={hourHeight}
@@ -319,8 +321,6 @@ export default function CalendarScreen() {
                   onEdit={openEntryEditor}
                   t={t}
                 />
-
-                <LiveBlocks blocks={liveBlocks} t={t} />
 
                 {isToday && (
                   <View style={[styles.nowLine, { top: px(nowMinutes) }]} pointerEvents="none">
@@ -423,6 +423,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: TIMELINE_Z_INDEX.now,
   },
   nowDot: {
     width: 8,

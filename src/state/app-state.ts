@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback } from 'react';
-import { AppState as RNAppState } from 'react-native';
 import { create } from 'zustand';
 import { persist, type PersistStorage } from 'zustand/middleware';
 
@@ -31,9 +30,11 @@ import { startLiveActivity, stopLiveActivity } from '@/lib/live-activity';
 import {
   activateTestPro as activateTestProPurchase,
   clearLiveSession,
+  clearSyncState,
   enqueueSessionUpsert,
   pushLiveSession,
   startTrial as startTrialOnAccount,
+  syncChildToCloud,
   updateLiveSessionDetails,
   type LiveTrack,
   type RemoteChild,
@@ -55,19 +56,13 @@ export const SETTLING_MIN = 5;
 export const SETTLING_MAX = 120;
 export const SETTLING_STEP = 5;
 
-export const FEEDING_MIN = 5;
-export const FEEDING_MAX = 60;
-export const FEEDING_STEP = 5;
-
 type Settings = {
   sleepMinutes: number;
   awakeMinutes: number;
   settlingMinutes: number;
-  feedingMinutes: number;
   sleepNotificationsEnabled: boolean;
   awakeNotificationsEnabled: boolean;
   settlingNotificationsEnabled: boolean;
-  feedingNotificationsEnabled: boolean;
   language: LanguageCode;
   themeMode: ThemeMode;
 };
@@ -80,17 +75,21 @@ type PersistedState = Settings & {
   removedRemoteIds: string[];
   // Gates the first-launch welcome/auth/child-setup flow.
   onboardingComplete: boolean;
+  // Which account the data on this device belongs to. Sync compares it with
+  // whoever just signed in: a different id means the device changed hands and
+  // the previous account's children must not stay on screen.
+  accountId: string | null;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   sleepMinutes: 120,
   awakeMinutes: 120,
   settlingMinutes: 30,
-  feedingMinutes: 20,
-  sleepNotificationsEnabled: true,
-  awakeNotificationsEnabled: true,
-  settlingNotificationsEnabled: true,
-  feedingNotificationsEnabled: true,
+  // Reminders stay off until the parent asks for them: an app that starts
+  // buzzing on its own, around a sleeping baby, is the wrong first impression.
+  sleepNotificationsEnabled: false,
+  awakeNotificationsEnabled: false,
+  settlingNotificationsEnabled: false,
   language: DEFAULT_LANGUAGE,
   themeMode: 'dark',
 };
@@ -121,9 +120,6 @@ const clampTimer = (value: number) =>
   Math.min(TIMER_MAX, Math.max(TIMER_MIN, Math.round(value / TIMER_STEP) * TIMER_STEP));
 const clampSettling = (value: number) =>
   Math.min(SETTLING_MAX, Math.max(SETTLING_MIN, Math.round(value / SETTLING_STEP) * SETTLING_STEP));
-const clampFeeding = (value: number) =>
-  Math.min(FEEDING_MAX, Math.max(FEEDING_MIN, Math.round(value / FEEDING_STEP) * FEEDING_STEP));
-
 const pickNumber = (value: unknown, clamp: (n: number) => number, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? clamp(value) : fallback;
 
@@ -138,6 +134,9 @@ export type Session = {
   // True once the timer was announced in live_sessions — only such timers may
   // be cancelled locally when the partner stops them remotely.
   livePushed?: boolean;
+  // A refresh requested before this publication completed cannot prove that
+  // the newly published timer was removed remotely.
+  livePublishedAt?: number;
   proDetails?: ProDetails;
 } | null;
 
@@ -153,6 +152,9 @@ export interface RemoteLive {
 const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
 
+type ReminderKind = Exclude<ActivityKind, 'feeding'>;
+export type MainActivityKind = Exclude<ActivityKind, 'feeding'>;
+
 // Stopping an activity and starting the same one again continues one reminder
 // instead of restarting it: two hours of sleep split into 1h + 1h still warns
 // at the two-hour mark. A different activity in between, or a long pause, ends
@@ -160,12 +162,12 @@ const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
 const CHAIN_GAP_MS = 15 * 60_000;
 
 interface ReminderChain {
-  kind: ActivityKind;
+  kind: ReminderKind;
   elapsedMs: number;
   endedAt: number;
 }
 
-const carriedFor = (chain: ReminderChain | null, kind: ActivityKind, now: number) =>
+const carriedFor = (chain: ReminderChain | null, kind: ReminderKind, now: number) =>
   chain && chain.kind === kind && now - chain.endedAt <= CHAIN_GAP_MS ? chain.elapsedMs : 0;
 
 type AppStore = PersistedState & {
@@ -190,13 +192,25 @@ type AppStore = PersistedState & {
   session: Session;
   feeding: Session;
   remoteLive: RemoteLive[];
-  reconcileRemoteLive: (list: RemoteLive[]) => void;
+  // Transient: activity controls stay locked until the current foreground
+  // pass has reconciled children, history and live timers.
+  activitySyncStatus: 'syncing' | 'ready';
+  activitySyncGeneration: number;
+  beginActivitySync: (generation: number) => void;
+  finishActivitySync: (generation: number) => void;
+  mainTransitionPending: boolean;
+  reconcileRemoteLive: (list: RemoteLive[], requestedAt?: number) => void;
+  retryPendingLive: () => Promise<void>;
   stopRemoteActivity: (track: LiveTrack) => Promise<void>;
+  transitionMainActivity: (
+    kind: MainActivityKind,
+    proDetails?: ProDetails,
+    handoverAt?: number,
+  ) => Promise<void>;
   setSleepMinutes: (value: number) => void;
   setAwakeMinutes: (value: number) => void;
   setSettlingMinutes: (value: number) => void;
-  setFeedingMinutes: (value: number) => void;
-  setNotificationsEnabled: (kind: ActivityKind, enabled: boolean) => void;
+  setNotificationsEnabled: (kind: ReminderKind, enabled: boolean) => void;
   setActiveProDetails: (details: ProDetails) => void;
   setLanguage: (code: LanguageCode) => void;
   setThemeMode: (mode: ThemeMode) => void;
@@ -215,9 +229,11 @@ type AppStore = PersistedState & {
     renewsAt?: number,
     trialUsed?: boolean,
   ) => void;
+  setAccountId: (id: string | null) => void;
   // Everything the account owns on this device: children, history, running
-  // timers and PRO state. Used after the account is deleted server-side.
-  clearAccountData: () => Promise<void>;
+  // timers and PRO state. Deleting the account also sends the app back through
+  // onboarding; swapping accounts keeps it, since setup is already done.
+  clearAccountData: (options?: { keepOnboarding?: boolean }) => Promise<void>;
   activateTestPro: () => Promise<void>;
   startTrial: () => Promise<void>;
   addManualActivity: (
@@ -228,7 +244,11 @@ type AppStore = PersistedState & {
     milkMl?: number,
   ) => Promise<void>;
   // startedAt back-dates the timer; it defaults to now and never runs ahead.
-  startActivity: (kind: ActivityKind, startedAt?: number) => Promise<void>;
+  startActivity: (
+    kind: ActivityKind,
+    startedAt?: number,
+    proDetails?: ProDetails,
+  ) => Promise<void>;
   stopActivity: (kind: ActivityKind) => Promise<void>;
   logEvent: (kind: EventKind) => Promise<void>;
 };
@@ -251,27 +271,8 @@ const storage: PersistStorage<PersistedState> = {
 
 type LegacySettings = Partial<Settings> & { sleepHours?: number; awakeHours?: number };
 
-let autoStopTimer: ReturnType<typeof setTimeout> | null = null;
-const clearAutoStop = () => {
-  if (autoStopTimer) {
-    clearTimeout(autoStopTimer);
-    autoStopTimer = null;
-  }
-};
-
-// Shortest feeding worth keeping: anything briefer is stored as this instead
-// of being refused, so a quick bottle still lands in the history.
-const MIN_FEEDING_MS = FEEDING_MIN * 60_000;
-
 // Shortest awake stretch worth recording — see finalizeSession.
 const MIN_AWAKE_MS = 60_000;
-
-// The feeding limit only applies while its reminder is switched on. With the
-// toggle off the timer runs until it is stopped by hand.
-const feedingLimitOf = (state: {
-  feedingMinutes: number;
-  feedingNotificationsEnabled: boolean;
-}) => (state.feedingNotificationsEnabled ? state.feedingMinutes : null);
 
 // The volume lives in the pro details; the top-level field is what the day
 // stats and the timeline read, so keep the two in step.
@@ -280,26 +281,13 @@ const milkOf = (proDetails?: ProDetails) =>
     ? proDetails.volumeMl
     : undefined;
 
-function feedingEnd(startedAt: number, end: number, limitMinutes: number | null) {
-  let result = end;
-  if (limitMinutes !== null) {
-    const limitEnd = startedAt + limitMinutes * 60_000;
-    if (result > limitEnd) result = limitEnd;
-  }
-  if (result - startedAt < MIN_FEEDING_MS) result = startedAt + MIN_FEEDING_MS;
-  return result;
-}
-
 // Returns the moment the session was closed, so a follow-up activity can start
 // exactly there instead of a few milliseconds later.
 async function finalizeSession(
   current: NonNullable<Session>,
-  feedingLimitMinutes: number | null,
+  endedAt = Date.now(),
 ): Promise<number> {
-  let end = Date.now();
-  if (current.kind === 'feeding') {
-    end = feedingEnd(current.startedAt, end, feedingLimitMinutes);
-  }
+  let end = endedAt;
   // Awake is started automatically when sleep or settling stops, so a few
   // seconds of it is the seam between two activities rather than a record.
   // Dropping it leaves the reminder chain untouched: as far as the timers are
@@ -321,11 +309,14 @@ async function finalizeSession(
   pushSessionIfShared(session);
   useAppStore.setState((state) => ({
     dataVersion: state.dataVersion + 1,
-    reminderChain: {
-      kind: current.kind,
-      elapsedMs: (current.carriedMs ?? 0) + (end - current.startedAt),
-      endedAt: end,
-    },
+    reminderChain:
+      current.kind === 'feeding'
+        ? null
+        : {
+            kind: current.kind,
+            elapsedMs: (current.carriedMs ?? 0) + (end - current.startedAt),
+            endedAt: end,
+          },
   }));
   return end;
 }
@@ -341,10 +332,16 @@ function pushSessionIfShared(session: ActivitySession) {
   if (remoteId) enqueueSessionUpsert(remoteId, session);
 }
 
-// Fire-and-forget removal of the live-timer row for a stopped session.
-function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
+// A true stop waits for its delete so a subsequent start cannot be removed by
+// a late request against the same (child_id, track) row.
+async function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
   const remoteId = remoteIdOfChild(current.childId);
-  if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
+  if (!remoteId) return;
+  try {
+    await clearLiveSession(remoteId, track);
+  } catch {
+    // Local timers remain authoritative while offline.
+  }
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -366,6 +363,7 @@ export const useAppStore = create<AppStore>()(
       activeChildId: null,
       removedRemoteIds: [],
       onboardingComplete: false,
+      accountId: null,
       pendingPaywall: false,
       authRequired: false,
       dataVersion: 0,
@@ -376,22 +374,36 @@ export const useAppStore = create<AppStore>()(
       session: null,
       feeding: null,
       remoteLive: [],
+      activitySyncStatus: 'syncing',
+      activitySyncGeneration: 0,
+      mainTransitionPending: false,
       reminderChain: null,
+
+      beginActivitySync: (generation) => {
+        if (generation < get().activitySyncGeneration) return;
+        set({ activitySyncStatus: 'syncing', activitySyncGeneration: generation });
+      },
+
+      finishActivitySync: (generation) => {
+        if (generation !== get().activitySyncGeneration) return;
+        set({ activitySyncStatus: 'ready' });
+      },
 
       // Applies the fresh live-timer list; also cancels local timers that the
       // partner already stopped (they saved the completed record themselves).
-      reconcileRemoteLive: (list) => {
+      reconcileRemoteLive: (list, requestedAt = Date.now()) => {
         for (const track of ['session', 'feeding'] as const) {
           const current = get()[track === 'feeding' ? 'feeding' : 'session'];
           if (!current?.livePushed || !current.childId) continue;
+          if (current.livePublishedAt && requestedAt < current.livePublishedAt) continue;
           const stillLive = list.some(
             (item) =>
               item.childId === current.childId &&
               item.track === track &&
+              item.kind === current.kind &&
               item.startedAt === current.startedAt,
           );
           if (stillLive) continue;
-          if (track === 'feeding') clearAutoStop();
           stopLiveActivity(track);
           cancelReminder(current.reminderId);
           set(track === 'feeding' ? { feeding: null } : { session: null });
@@ -399,9 +411,42 @@ export const useAppStore = create<AppStore>()(
         set({ remoteLive: list });
       },
 
-      // Stops a timer that runs on the partner's device: saves the completed
-      // record and removes the live row so both sides converge.
+      retryPendingLive: async () => {
+        for (const track of ['session', 'feeding'] as const) {
+          const key = track === 'feeding' ? 'feeding' : 'session';
+          const current = get()[key];
+          if (!current || current.livePushed) continue;
+          const remoteId = remoteIdOfChild(current.childId);
+          if (!remoteId) continue;
+          await pushLiveSession(
+            remoteId,
+            track,
+            current.kind,
+            current.startedAt,
+            current.proDetails,
+          );
+          const latest = get()[key];
+          if (
+            !latest ||
+            latest.childId !== current.childId ||
+            latest.kind !== current.kind ||
+            latest.startedAt !== current.startedAt
+          ) {
+            continue;
+          }
+          const updated = {
+            ...latest,
+            livePushed: true,
+            livePublishedAt: Date.now(),
+          };
+          set(track === 'feeding' ? { feeding: updated } : { session: updated });
+        }
+      },
+
+      // Stops a timer that runs on the partner's device. A true final stop
+      // removes the live row; sleep/settling hand over that same row to awake.
       stopRemoteActivity: async (track) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const state = get();
         const live = state.remoteLive.find(
           (item) => item.track === track && item.childId === state.activeChildId,
@@ -416,9 +461,6 @@ export const useAppStore = create<AppStore>()(
         }));
 
         let end = Date.now();
-        if (live.kind === 'feeding') {
-          end = feedingEnd(live.startedAt, end, feedingLimitOf(state));
-        }
         if (end <= live.startedAt) end = live.startedAt + 1;
         const session: ActivitySession = {
           id: `${live.startedAt}-${live.kind}`,
@@ -431,41 +473,108 @@ export const useAppStore = create<AppStore>()(
         };
         await saveSession(session);
         if (remoteId) enqueueSessionUpsert(remoteId, session);
-        if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
+        const continuesAsAwake = live.kind === 'sleep' || live.kind === 'settling';
+        if (remoteId && !continuesAsAwake) {
+          try {
+            await clearLiveSession(remoteId, track);
+          } catch {
+            // The stopped remote timer has already disappeared locally.
+          }
+        }
         set((current) => ({
           dataVersion: current.dataVersion + 1,
-          // A partner-run activity feeds the same chain, so picking it up here
-          // and continuing it locally does not restart the reminder.
-          reminderChain: {
-            kind: live.kind,
-            elapsedMs: end - live.startedAt,
-            endedAt: end,
-          },
+          // Stopping a partner-run timer is also an explicit end, so a future
+          // activity must receive its full reminder interval.
+          reminderChain: null,
         }));
 
         // Same hand-over as a local stop: whoever closes the sleep starts the
         // awake stretch, and only that device does it.
-        if (live.kind === 'sleep' || live.kind === 'settling') {
-          await get().startActivity('awake', end);
+        if (continuesAsAwake) {
+          await get().transitionMainActivity('awake', undefined, end);
+        }
+      },
+
+      transitionMainActivity: async (kind, proDetails, handoverAtInput) => {
+        // A timestamp is supplied only by an activity operation that already
+        // owns the handover (for example sleep -> awake). Let that operation
+        // finish if foreground sync begins while it is in flight.
+        if (get().activitySyncStatus === 'syncing' && handoverAtInput === undefined) return;
+        if (get().mainTransitionPending) return;
+        set({ mainTransitionPending: true });
+        try {
+          const state = get();
+          if (state.session?.kind === kind) {
+            if (proDetails) get().setActiveProDetails(proDetails);
+            return;
+          }
+
+          const handoverAt = handoverAtInput ?? Date.now();
+          const remote = state.session
+            ? null
+            : (state.remoteLive.find(
+                (item) => item.track === 'session' && item.childId === state.activeChildId,
+              ) ?? null);
+
+          if (remote) {
+            let end = handoverAt;
+            if (end <= remote.startedAt) end = remote.startedAt + 1;
+            const completed: ActivitySession = {
+              id: `${remote.startedAt}-${remote.kind}`,
+              kind: remote.kind,
+              start: remote.startedAt,
+              end,
+              childId: remote.childId,
+              milkMl: milkOf(remote.proDetails),
+              proDetails: remote.proDetails,
+            };
+            set((current) => ({
+              remoteLive: current.remoteLive.filter((item) => item !== remote),
+            }));
+            await saveSession(completed);
+            const remoteId = remoteIdOfChild(remote.childId);
+            if (remoteId) enqueueSessionUpsert(remoteId, completed);
+            set((current) => ({
+              dataVersion: current.dataVersion + 1,
+              reminderChain: null,
+            }));
+            await get().startActivity(kind, end, proDetails);
+            return;
+          }
+
+          await get().startActivity(kind, handoverAt, proDetails);
+        } finally {
+          set({ mainTransitionPending: false });
         }
       },
 
       setSleepMinutes: (value) => set({ sleepMinutes: clampTimer(value) }),
       setAwakeMinutes: (value) => set({ awakeMinutes: clampTimer(value) }),
       setSettlingMinutes: (value) => set({ settlingMinutes: clampSettling(value) }),
-      setFeedingMinutes: (value) => set({ feedingMinutes: clampFeeding(value) }),
       setNotificationsEnabled: (kind, enabled) => {
         const key = `${kind}NotificationsEnabled` as const;
         set({ [key]: enabled });
-        if (enabled) return;
         const track = trackOf(kind);
         const current = get()[track];
-        if (current?.kind !== kind || !current.reminderId) return;
-        cancelReminder(current.reminderId);
-        const updated = { ...current, reminderId: null };
-        set(track === 'feeding' ? { feeding: updated } : { session: updated });
+        if (current?.kind !== kind) return;
+        if (enabled) {
+          startLiveActivity(
+            track,
+            kind,
+            current.startedAt - (current.carriedMs ?? 0),
+            liveActivityLabels(get().language, kind, current.startedAt),
+          );
+          return;
+        }
+        stopLiveActivity(track);
+        if (current.reminderId) {
+          cancelReminder(current.reminderId);
+          const updated = { ...current, reminderId: null };
+          set(track === 'feeding' ? { feeding: updated } : { session: updated });
+        }
       },
       setActiveProDetails: (details) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const track = details.type === 'feeding' ? 'feeding' : 'session';
         const current = get()[track];
         if (!current || current.kind !== details.type) return;
@@ -488,7 +597,14 @@ export const useAppStore = create<AppStore>()(
         const isFirst = state.children.length === 0;
         set({ children: [...state.children, child], activeChildId: child.id });
         // The first child adopts the history recorded before children existed.
-        if (isFirst) claimUnownedSessions(child.id);
+        const claim = isFirst ? claimUnownedSessions(child.id) : Promise.resolve();
+        // Local creation stays instant and offline-friendly. Once signed in,
+        // the idempotent server RPC links the child and uploads its history;
+        // syncNow retries this path after any temporary failure.
+        void claim
+          .then(() => syncChildToCloud(child))
+          .then((remoteId) => get().setChildRemoteId(child.id, remoteId))
+          .catch(() => {});
       },
 
       addSharedChild: (remote) => {
@@ -560,7 +676,7 @@ export const useAppStore = create<AppStore>()(
       setChildRemoteId: (id, remoteId) =>
         set((state) => ({
           children: state.children.map((child) =>
-            child.id === id ? { ...child, remoteId, proEnabled: true } : child,
+            child.id === id ? { ...child, remoteId } : child,
           ),
         })),
 
@@ -591,13 +707,14 @@ export const useAppStore = create<AppStore>()(
         })),
 
       bumpDataVersion: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
-      clearAccountData: async () => {
+      setAccountId: (id) => set({ accountId: id }),
+
+      clearAccountData: async ({ keepOnboarding = false } = {}) => {
         // Stop anything running first: a reminder or Live Activity would
         // otherwise outlive the data it refers to.
         for (const track of ['session', 'feeding'] as const) {
           const current = get()[track];
           if (!current) continue;
-          if (track === 'feeding') clearAutoStop();
           stopLiveActivity(track);
           cancelReminder(current.reminderId);
         }
@@ -613,9 +730,18 @@ export const useAppStore = create<AppStore>()(
           proExpiresAt: undefined,
           proRenewsAt: undefined,
           trialUsed: false,
+          accountId: null,
+          // Back to square one: without this the app keeps thinking setup is
+          // done and lands on an activity screen that has no child to show.
+          // A swap between accounts keeps it — that device is already set up.
+          ...(keepOnboarding ? {} : { onboardingComplete: false }),
+          // A gate that asked for the paywall just before the account went
+          // away must not get its modal afterwards.
+          pendingPaywall: false,
           dataVersion: get().dataVersion + 1,
         });
         await deleteAllSessions();
+        await clearSyncState();
       },
 
       setProStatus: (active, expiresAt, renewsAt, trialUsed = false) =>
@@ -640,6 +766,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       addManualActivity: async (kind, start, end, proDetails, milkMl) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const activeChild = get().children.find((child) => child.id === get().activeChildId);
         const hasProAccess = get().proActive || activeChild?.proEnabled === true;
         const session: ActivitySession = {
@@ -656,52 +783,72 @@ export const useAppStore = create<AppStore>()(
         set((state) => ({ dataVersion: state.dataVersion + 1 }));
       },
 
-      startActivity: async (kind, startedAtInput) => {
+      startActivity: async (kind, startedAtInput, proDetails) => {
+        // Nested replacement starts run while mainTransitionPending is true and
+        // must finish even if the app begins syncing between its two writes.
+        if (get().activitySyncStatus === 'syncing' && !get().mainTransitionPending) return;
         const track = trackOf(kind);
         const {
           sleepMinutes,
           awakeMinutes,
           settlingMinutes,
-          feedingMinutes,
           sleepNotificationsEnabled,
           awakeNotificationsEnabled,
           settlingNotificationsEnabled,
-          feedingNotificationsEnabled,
           language,
         } = get();
 
         const prev = get()[track];
+        let startedAt = Math.min(startedAtInput ?? Date.now(), Date.now());
         if (prev) {
-          if (track === 'feeding') clearAutoStop();
-          clearLiveIfShared(prev, track);
+          // The replacement may have its notifications disabled and therefore
+          // may not start another widget; always close the previous one first.
+          stopLiveActivity(track);
           await cancelReminder(prev.reminderId);
-          await finalizeSession(prev, feedingLimitOf(get()));
+          startedAt = await finalizeSession(
+            prev,
+            Math.max(startedAt, prev.startedAt + 1),
+          );
         }
 
         // A back-dated start (the pro panel lets one be picked) still counts
         // its reminder and auto-stop from now, not from the timer's origin.
-        const startedAt = Math.min(startedAtInput ?? Date.now(), Date.now());
-        const limitMinutes =
+        const limitMinutes: number | null =
           kind === 'sleep'
             ? sleepMinutes
             : kind === 'awake'
               ? awakeMinutes
               : kind === 'settling'
                 ? settlingMinutes
-                : feedingMinutes;
+                : null;
         // Time already served by an immediately preceding run of the same kind.
         // A chain that already used up the limit has had its reminder, so the
         // next run starts a fresh one instead of firing at once.
-        const carried = carriedFor(get().reminderChain, kind, Date.now());
-        const carriedMs = carried < limitMinutes * 60_000 ? carried : 0;
+        const carried =
+          kind === 'feeding' ? 0 : carriedFor(get().reminderChain, kind, Date.now());
+        const carriedMs =
+          limitMinutes !== null && carried < limitMinutes * 60_000 ? carried : 0;
         const elapsedMs = Date.now() - startedAt + carriedMs;
 
-        startLiveActivity(
-          track,
-          kind,
-          startedAt + limitMinutes * 60_000 - carriedMs,
-          liveActivityLabels(language, kind, startedAt),
-        );
+        const notificationsEnabled =
+          kind === 'sleep'
+            ? sleepNotificationsEnabled
+            : kind === 'awake'
+              ? awakeNotificationsEnabled
+              : kind === 'settling'
+                ? settlingNotificationsEnabled
+                : false;
+
+        // Time carried over from a preceding run of the same kind belongs on
+        // the widget's clock too, so it starts from the earlier point.
+        if (notificationsEnabled) {
+          startLiveActivity(
+            track,
+            kind,
+            startedAt - carriedMs,
+            liveActivityLabels(language, kind, startedAt),
+          );
+        }
 
         // Publish the active timer before requesting notification permission.
         // This lets a quick second tap stop it while scheduling is still in flight.
@@ -711,54 +858,15 @@ export const useAppStore = create<AppStore>()(
           reminderId: null,
           carriedMs,
           childId: get().activeChildId ?? undefined,
+          proDetails,
         };
         set(track === 'feeding' ? { feeding: started } : { session: started });
 
-        // Without its reminder switched on the feeding timer is never cut short.
-        if (track === 'feeding' && feedingNotificationsEnabled) {
-          autoStopTimer = setTimeout(
-            () => {
-              const current = get().feeding;
-              if (current?.startedAt !== startedAt) return;
-              stopLiveActivity('feeding');
-              clearLiveIfShared(current, 'feeding');
-              cancelReminder(current.reminderId);
-              finalizeSession(current, feedingLimitOf(get())).then(() => set({ feeding: null }));
-            },
-            Math.max(1000, limitMinutes * 60_000 - elapsedMs),
-          );
-        }
-
         // Announce the timer to the partner's devices.
-        const remoteChildId = remoteIdOfChild(started.childId);
-        if (remoteChildId) {
-          pushLiveSession(remoteChildId, track, kind, startedAt)
-            .then(() => {
-              const current = get()[track];
-              if (current?.startedAt !== startedAt) return;
-              const updated = { ...current, livePushed: true };
-              set(track === 'feeding' ? { feeding: updated } : { session: updated });
-              if (current.proDetails) {
-                updateLiveSessionDetails(
-                  remoteChildId,
-                  track,
-                  current.proDetails,
-                ).catch(() => {});
-              }
-            })
-            .catch(() => {});
-        }
+        get().retryPendingLive().catch(() => {});
 
-        const notificationsEnabled =
-          kind === 'sleep'
-            ? sleepNotificationsEnabled
-            : kind === 'awake'
-              ? awakeNotificationsEnabled
-              : kind === 'settling'
-                ? settlingNotificationsEnabled
-                : feedingNotificationsEnabled;
         let reminderId: string | null = null;
-        if (notificationsEnabled) {
+        if (notificationsEnabled && limitMinutes !== null) {
           try {
             reminderId = await scheduleActivityNotification(
               {
@@ -782,7 +890,7 @@ export const useAppStore = create<AppStore>()(
                 ? latest.awakeNotificationsEnabled
                 : kind === 'settling'
                   ? latest.settlingNotificationsEnabled
-                  : latest.feedingNotificationsEnabled;
+                  : false;
           if (current?.startedAt === startedAt && stillEnabled) {
             const updated = { ...current, reminderId };
             set(track === 'feeding' ? { feeding: updated } : { session: updated });
@@ -794,29 +902,36 @@ export const useAppStore = create<AppStore>()(
       },
 
       stopActivity: async (kind) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const track = trackOf(kind);
         const current = get()[track];
         if (!current) return;
-        if (track === 'feeding') clearAutoStop();
 
         // Update the UI before waiting for native notification APIs and local
         // persistence. The captured session is still finalized below.
         set(track === 'feeding' ? { feeding: null } : { session: null });
 
         stopLiveActivity(track);
-        clearLiveIfShared(current, track);
+        const continuesAsAwake = kind === 'sleep' || kind === 'settling';
+        if (!continuesAsAwake) await clearLiveIfShared(current, track);
         await cancelReminder(current.reminderId);
-        const end = await finalizeSession(current, feedingLimitOf(get()));
+        const end = await finalizeSession(current);
+
+        // Pressing Stop is an explicit end, not a pause. Discard any elapsed
+        // reminder time so starting the same activity again always schedules
+        // its full configured interval (for example, a new sleep gets 2h).
+        set({ reminderChain: null });
 
         // Waking up is the natural continuation of sleep and of settling, so
         // the awake timer picks up at the very moment they stop — otherwise the
         // day leaves an untracked hole in the timeline.
-        if (kind === 'sleep' || kind === 'settling') {
-          await get().startActivity('awake', end);
+        if (continuesAsAwake) {
+          await get().transitionMainActivity('awake', undefined, end);
         }
       },
 
       logEvent: async (kind) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const start = Date.now();
         const session: ActivitySession = {
           id: `${start}-${kind}`,
@@ -838,32 +953,30 @@ export const useAppStore = create<AppStore>()(
         sleepMinutes,
         awakeMinutes,
         settlingMinutes,
-        feedingMinutes,
         sleepNotificationsEnabled,
         awakeNotificationsEnabled,
         settlingNotificationsEnabled,
-        feedingNotificationsEnabled,
         language,
         themeMode,
         children,
         activeChildId,
         removedRemoteIds,
         onboardingComplete,
+        accountId,
       }) => ({
         sleepMinutes,
         awakeMinutes,
         settlingMinutes,
-        feedingMinutes,
         sleepNotificationsEnabled,
         awakeNotificationsEnabled,
         settlingNotificationsEnabled,
-        feedingNotificationsEnabled,
         language,
         themeMode,
         children,
         activeChildId,
         removedRemoteIds,
         onboardingComplete,
+        accountId,
       }),
       migrate: (persisted, version) => {
         const legacy = (persisted ?? {}) as LegacySettings;
@@ -887,23 +1000,18 @@ export const useAppStore = create<AppStore>()(
             clampSettling,
             current.settlingMinutes,
           ),
-          feedingMinutes: pickNumber(saved.feedingMinutes, clampFeeding, current.feedingMinutes),
           sleepNotificationsEnabled:
             typeof saved.sleepNotificationsEnabled === 'boolean'
               ? saved.sleepNotificationsEnabled
-              : true,
+              : current.sleepNotificationsEnabled,
           awakeNotificationsEnabled:
             typeof saved.awakeNotificationsEnabled === 'boolean'
               ? saved.awakeNotificationsEnabled
-              : true,
+              : current.awakeNotificationsEnabled,
           settlingNotificationsEnabled:
             typeof saved.settlingNotificationsEnabled === 'boolean'
               ? saved.settlingNotificationsEnabled
-              : true,
-          feedingNotificationsEnabled:
-            typeof saved.feedingNotificationsEnabled === 'boolean'
-              ? saved.feedingNotificationsEnabled
-              : true,
+              : current.settlingNotificationsEnabled,
           language: normalizeLanguage(saved.language),
           themeMode: saved.themeMode === 'light' ? 'light' : 'dark',
           children,
@@ -919,6 +1027,9 @@ export const useAppStore = create<AppStore>()(
             typeof saved.onboardingComplete === 'boolean'
               ? saved.onboardingComplete
               : children.length > 0,
+          // Installs from before this field get claimed by whoever signs in
+          // next, so their own data is not treated as another account's.
+          accountId: typeof saved.accountId === 'string' ? saved.accountId : null,
         };
       },
     },
@@ -939,23 +1050,4 @@ configureNotificationHandler();
 useAppStore.persist.onFinishHydration((state) => {
   const first = state.children[0];
   if (first) claimUnownedSessions(first.id);
-});
-
-const globalScope = globalThis as typeof globalThis & {
-  __babytimerAppStateSub?: { remove: () => void };
-};
-globalScope.__babytimerAppStateSub?.remove();
-// Catches up on a feeding whose auto-stop was due while the app was suspended.
-// With the reminder toggle off there is no auto-stop to catch up on.
-globalScope.__babytimerAppStateSub = RNAppState.addEventListener('change', (state) => {
-  if (state !== 'active') return;
-  const stored = useAppStore.getState();
-  const { feeding } = stored;
-  const limit = feedingLimitOf(stored);
-  if (!feeding || limit === null) return;
-  if (Date.now() - feeding.startedAt < limit * 60_000) return;
-  clearAutoStop();
-  stopLiveActivity('feeding');
-  clearLiveIfShared(feeding, 'feeding');
-  finalizeSession(feeding, limit).then(() => useAppStore.setState({ feeding: null }));
 });

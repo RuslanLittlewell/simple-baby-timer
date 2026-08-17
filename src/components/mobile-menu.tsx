@@ -81,7 +81,14 @@ export function MobileMenu() {
     close(() =>
       Alert.alert(t('menu.logoutConfirm'), undefined, [
         { text: t('editor.cancel'), style: 'cancel' },
-        { text: t('menu.logout'), style: 'destructive', onPress: () => void signOut() },
+        {
+          text: t('menu.logout'),
+          style: 'destructive',
+          // Signing out only drops the session: the children stay on the
+          // device, so signing back in does not cost the parent their records.
+          // The sign-in gate in the root layout takes over from here.
+          onPress: () => void signOut(),
+        },
       ]),
     );
 
@@ -97,7 +104,7 @@ export function MobileMenu() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.proBadge}>
-            <ThemedText style={styles.proBadgeText}>PRO</ThemedText>
+            <ThemedText style={styles.proBadgeText}>Premium</ThemedText>
           </LinearGradient>
         )}
         <MaterialCommunityIcons name="menu" size={28} color={theme.text} />

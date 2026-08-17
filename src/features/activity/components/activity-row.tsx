@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { type GestureResponderEvent, Pressable, StyleSheet } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -60,6 +60,11 @@ export function ActivityRow({
     transform: [{ translateX: sheenX.value }, { skewX: '-16deg' }],
   }));
 
+  const handleStopPress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    onStop?.();
+  };
+
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
       <LinearGradient
@@ -85,10 +90,7 @@ export function ActivityRow({
           <Pressable
             accessibilityRole="button"
             hitSlop={10}
-            onPress={(event) => {
-              event.stopPropagation();
-              onStop();
-            }}>
+            onPress={handleStopPress}>
             <TimerToggleIcon
               active
               accent={accent}
