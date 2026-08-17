@@ -67,6 +67,10 @@ interface ProActivityPanelProps {
   onToggleAwake: () => void | Promise<void>;
   onLogEvent: (kind: EventKind) => void | Promise<void>;
   onLogBottleFeeding: (startedAt: number) => void | Promise<void>;
+  onSaveMainActivity: (
+    kind: 'settling' | 'sleep',
+    details: ProDetails,
+  ) => Promise<void>;
   onDetailsChange: (details: ProDetails) => void;
   dismissSignal: number;
   onExpandedChange: (expanded: boolean) => void;
@@ -83,6 +87,7 @@ export function ProActivityPanel({
   onToggleAwake,
   onLogEvent,
   onLogBottleFeeding,
+  onSaveMainActivity,
   onDetailsChange,
   dismissSignal,
   onExpandedChange,
@@ -96,6 +101,7 @@ export function ProActivityPanel({
   const [bottleStart, setBottleStart] = useState(() => new Date());
   const [sleepPlace, setSleepPlace] = useState<SleepPlace>('crib');
   const [settlingMethods, setSettlingMethods] = useState<SettlingMethod[]>([]);
+  const [saving, setSaving] = useState(false);
   const [panelSize, setPanelSize] = useState({ width: 1, height: 1 });
   const [rects, setRects] = useState<Partial<Record<ProKind, Rect>>>({});
   const [eventRowTop, setEventRowTop] = useState(0);
@@ -103,6 +109,7 @@ export function ProActivityPanel({
   // How far the card is pushed up so the keyboard cannot bury the save button.
   const lift = useSharedValue(0);
   const cardRef = useRef<View>(null);
+  const savingRef = useRef(false);
   const expanded = expandedKind !== null;
   const isSleep = expandedKind === 'sleep';
   const isSettling = expandedKind === 'settling';
@@ -111,7 +118,7 @@ export function ProActivityPanel({
   const timerRunning = isSettling ? settlingActive : isSleep ? sleepActive : feedingActive;
   const isFeeding = expandedKind === 'feeding';
   // A breast feeding needs a side before it can be started.
-  const saveDisabled = isFeeding && mode === 'breast' && !side;
+  const formSaveDisabled = isFeeding && mode === 'breast' && !side;
   // Opening the card of a running timer turns the primary button into a stop.
   // The bottle step is the exception: it is where the volume is typed, so it
   // keeps saving — that attaches the parameters to the feeding under way.
@@ -165,6 +172,7 @@ export function ProActivityPanel({
   };
 
   const close = (stopTimer: boolean) => {
+    if (savingRef.current) return;
     if (stopTimer && expandedKind === 'settling' && settlingActive) void onToggleSettling();
     if (stopTimer && expandedKind === 'sleep' && sleepActive) void onToggleSleep();
     if (stopTimer && expandedKind === 'feeding' && feedingActive) void onToggleFeeding();
@@ -216,16 +224,22 @@ export function ProActivityPanel({
     if (!details) return;
     if (kind === 'feeding' && mode === 'bottle') {
       await onLogBottleFeeding(bottleStart.getTime());
-      close(false);
       return;
     }
-    if (kind === 'settling' && !settlingActive) await onToggleSettling();
-    if (kind === 'sleep' && !sleepActive) await onToggleSleep();
+    if (kind === 'settling' || kind === 'sleep') {
+      await onSaveMainActivity(kind, details);
+      return;
+    }
     if (kind === 'feeding' && !feedingActive) {
       await onToggleFeeding();
     }
     onDetailsChange(details);
-    close(false);
+  };
+
+  const stopExpandedTimer = async (kind: ProKind | null) => {
+    if (kind === 'settling' && settlingActive) await onToggleSettling();
+    if (kind === 'sleep' && sleepActive) await onToggleSleep();
+    if (kind === 'feeding' && feedingActive) await onToggleFeeding();
   };
 
   const handlePanelLayout = (event: LayoutChangeEvent) => {
@@ -248,9 +262,22 @@ export function ProActivityPanel({
     );
   };
 
-  const handlePrimaryPress = () => {
-    if (stopping) close(true);
-    else void save(expandedKind);
+  const handlePrimaryPress = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    let succeeded = false;
+    try {
+      if (stopping) await stopExpandedTimer(expandedKind);
+      else await save(expandedKind);
+      succeeded = true;
+    } catch {
+      // Keep the panel open so the user can retry the rejected operation.
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    if (succeeded) close(false);
   };
 
   const measuredRect = expandedKind ? rects[expandedKind] : undefined;
@@ -516,11 +543,15 @@ export function ProActivityPanel({
                 )}
                 <Pressable
                   accessibilityRole="button"
-                  disabled={!stopping && saveDisabled}
-                  onPress={handlePrimaryPress}
+                  accessibilityState={{
+                    busy: saving,
+                    disabled: saving || (!stopping && formSaveDisabled),
+                  }}
+                  disabled={saving || (!stopping && formSaveDisabled)}
+                  onPress={() => void handlePrimaryPress()}
                   style={({ pressed }) => [
                     styles.save,
-                    !stopping && saveDisabled && styles.saveDisabled,
+                    (saving || (!stopping && formSaveDisabled)) && styles.saveDisabled,
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText style={styles.saveText}>

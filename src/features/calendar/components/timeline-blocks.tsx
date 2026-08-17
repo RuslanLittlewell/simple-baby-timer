@@ -17,6 +17,7 @@ import {
   STRIPE_PITCH,
   STRIPE_SKEW,
   STRIPE_THICKNESS,
+  TIMELINE_Z_INDEX,
 } from '../constants';
 import { fmtTime, isEvent, laneLeft, type Translate } from '../helpers';
 import { proDetailsIcon } from '../pro-details';
@@ -102,6 +103,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
             onPress={() => onEdit(s)}
             style={({ pressed }) => [
               styles.block,
+              styles.completedBlock,
               { top, height, left: laneLeft(s.kind) },
               pressed && styles.pressed,
             ]}>
@@ -207,6 +209,10 @@ const styles = StyleSheet.create({
   },
   liveBlock: {
     borderWidth: 2,
+    zIndex: TIMELINE_Z_INDEX.live,
+  },
+  completedBlock: {
+    zIndex: TIMELINE_Z_INDEX.completed,
   },
   eventBlock: {
     position: 'absolute',
@@ -215,6 +221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingRight: Spacing.two,
+    zIndex: TIMELINE_Z_INDEX.event,
   },
   eventStripes: {
     ...StyleSheet.absoluteFillObject,

@@ -1,8 +1,10 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useIsFocused } from "@react-navigation/native";
+import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -47,6 +49,11 @@ export default function ActivityScreen() {
   const startActivity = useAppStore((state) => state.startActivity);
   const stopActivity = useAppStore((state) => state.stopActivity);
   const stopRemoteActivity = useAppStore((state) => state.stopRemoteActivity);
+  const transitionMainActivity = useAppStore((state) => state.transitionMainActivity);
+  const activitySyncing = useAppStore(
+    (state) => state.activitySyncStatus === "syncing",
+  );
+  const themeMode = useAppStore((state) => state.themeMode);
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const sleepNotificationsEnabled = useAppStore(
@@ -205,6 +212,7 @@ export default function ActivityScreen() {
   };
 
   const handleMainActivity = async (kind: "settling" | "sleep" | "awake") => {
+    if (activitySyncing) return;
     if (mainSession?.kind === kind) {
       // Stop whichever side runs it — ours or the partner's.
       if (session) await stopActivity(kind);
@@ -212,13 +220,11 @@ export default function ActivityScreen() {
       return;
     }
 
-    // Switching over a partner-run timer: close it first so its record is
-    // saved, then start ours. startActivity handles a local replacement.
-    if (remoteMain) await stopRemoteActivity("session");
-    await startActivity(kind);
+    await transitionMainActivity(kind);
   };
 
   const handleToggleFeeding = async () => {
+    if (activitySyncing) return;
     if (feeding) await stopActivity("feeding");
     else if (remoteFeeding) await stopRemoteActivity("feeding");
     else await startActivity("feeding");
@@ -227,14 +233,25 @@ export default function ActivityScreen() {
   const handleToggleSettling = () => handleMainActivity("settling");
   const handleToggleSleep = () => handleMainActivity("sleep");
   const handleToggleAwake = () => handleMainActivity("awake");
+  const handleSaveMainActivity = (
+    kind: "settling" | "sleep",
+    details: Parameters<typeof transitionMainActivity>[1],
+  ) => activitySyncing ? Promise.resolve() : transitionMainActivity(kind, details);
 
-  const handleLogBottleFeeding = (startedAt: number) =>
-    addManualActivity(
+  const handleLogBottleFeeding = (startedAt: number) => {
+    if (activitySyncing) return Promise.resolve();
+    return addManualActivity(
       "feeding",
       startedAt,
       startedAt + 15 * 60_000,
       { type: "feeding", mode: "bottle" },
     );
+  };
+
+  const handleLogEvent = (kind: EventKind) => {
+    if (activitySyncing) return;
+    void logEvent(kind);
+  };
 
   return (
     <ThemedView
@@ -347,7 +364,7 @@ export default function ActivityScreen() {
                       icon={EVENTS[0].icon}
                       gradKey={EVENTS[0].gradKey}
                       accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
-                      onPress={() => logEvent(EVENTS[0].id as EventKind)}
+                      onPress={() => handleLogEvent(EVENTS[0].id as EventKind)}
                     />
                   </View>
                   <View style={styles.eventNarrow}>
@@ -355,7 +372,7 @@ export default function ActivityScreen() {
                       icon={EVENTS[1].icon}
                       gradKey={EVENTS[1].gradKey}
                       accessibilityLabel={t(`kind.${EVENTS[1].id}`)}
-                      onPress={() => logEvent(EVENTS[1].id as EventKind)}
+                      onPress={() => handleLogEvent(EVENTS[1].id as EventKind)}
                     />
                   </View>
                 </View>
@@ -375,6 +392,7 @@ export default function ActivityScreen() {
                   onDetailsChange={setActiveProDetails}
                   onLogEvent={logEvent}
                   onLogBottleFeeding={handleLogBottleFeeding}
+                  onSaveMainActivity={handleSaveMainActivity}
                   onToggleFeeding={handleToggleFeeding}
                   onToggleSettling={handleToggleSettling}
                   onToggleSleep={handleToggleSleep}
@@ -397,6 +415,45 @@ export default function ActivityScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {activitySyncing && (
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={t("activity.syncing")}
+          accessibilityState={{ busy: true }}
+          style={styles.syncOverlay}
+        >
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={45}
+            tint={themeMode === "dark" ? "dark" : "light"}
+            pointerEvents="none"
+            style={[
+              styles.syncBlur,
+              {
+                backgroundColor:
+                  themeMode === "dark"
+                    ? "rgba(11,18,32,0.28)"
+                    : "rgba(245,247,251,0.24)",
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.syncLoader,
+              {
+                backgroundColor:
+                  themeMode === "dark"
+                    ? "rgba(21,30,43,0.78)"
+                    : "rgba(255,255,255,0.76)",
+              },
+            ]}
+          >
+            <ActivityIndicator size="large" color={theme.text} />
+            <ThemedText>{t("activity.syncing")}</ThemedText>
+          </View>
+        </View>
+      )}
     </ThemedView>
   );
 }
@@ -481,5 +538,26 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  syncOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  syncBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  syncLoader: {
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.four,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
 });

@@ -8,6 +8,16 @@ import { type SessionKind } from '@/lib/activity-store';
 export const GUTTER = 52;
 export const NOW_COLOR = '#FF3B30';
 
+// Calendar content is absolutely positioned inside one timeline. Keep the
+// semantic layer order explicit so editable history stays above live status.
+export const TIMELINE_Z_INDEX = {
+  grid: 0,
+  live: 1,
+  completed: 2,
+  event: 3,
+  now: 4,
+} as const;
+
 export const ZOOM_MODES = [
   { step: 60, hourHeight: 40 },
   { step: 30, hourHeight: 60 },

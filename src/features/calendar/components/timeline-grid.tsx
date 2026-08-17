@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 
-import { GUTTER } from '../constants';
+import { GUTTER, TIMELINE_Z_INDEX } from '../constants';
 import { pad2 } from '../helpers';
 
 interface TimelineGridProps {
@@ -68,12 +68,14 @@ const styles = StyleSheet.create({
     left: GUTTER,
     right: 0,
     height: StyleSheet.hairlineWidth,
+    zIndex: TIMELINE_Z_INDEX.grid,
   },
   minorLine: {
     position: 'absolute',
     left: GUTTER,
     right: 0,
     height: StyleSheet.hairlineWidth,
+    zIndex: TIMELINE_Z_INDEX.grid,
   },
   hourLabel: {
     position: 'absolute',
@@ -82,6 +84,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
+    zIndex: TIMELINE_Z_INDEX.grid,
   },
   hourNum: {
     fontSize: 15,
@@ -100,5 +103,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 9,
     lineHeight: 11,
+    zIndex: TIMELINE_Z_INDEX.grid,
   },
 });

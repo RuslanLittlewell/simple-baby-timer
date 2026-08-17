@@ -134,6 +134,9 @@ export type Session = {
   // True once the timer was announced in live_sessions — only such timers may
   // be cancelled locally when the partner stops them remotely.
   livePushed?: boolean;
+  // A refresh requested before this publication completed cannot prove that
+  // the newly published timer was removed remotely.
+  livePublishedAt?: number;
   proDetails?: ProDetails;
 } | null;
 
@@ -150,6 +153,7 @@ const trackOf = (kind: ActivityKind): 'session' | 'feeding' =>
   kind === 'feeding' ? 'feeding' : 'session';
 
 type ReminderKind = Exclude<ActivityKind, 'feeding'>;
+export type MainActivityKind = Exclude<ActivityKind, 'feeding'>;
 
 // Stopping an activity and starting the same one again continues one reminder
 // instead of restarting it: two hours of sleep split into 1h + 1h still warns
@@ -188,8 +192,21 @@ type AppStore = PersistedState & {
   session: Session;
   feeding: Session;
   remoteLive: RemoteLive[];
-  reconcileRemoteLive: (list: RemoteLive[]) => void;
+  // Transient: activity controls stay locked until the current foreground
+  // pass has reconciled children, history and live timers.
+  activitySyncStatus: 'syncing' | 'ready';
+  activitySyncGeneration: number;
+  beginActivitySync: (generation: number) => void;
+  finishActivitySync: (generation: number) => void;
+  mainTransitionPending: boolean;
+  reconcileRemoteLive: (list: RemoteLive[], requestedAt?: number) => void;
+  retryPendingLive: () => Promise<void>;
   stopRemoteActivity: (track: LiveTrack) => Promise<void>;
+  transitionMainActivity: (
+    kind: MainActivityKind,
+    proDetails?: ProDetails,
+    handoverAt?: number,
+  ) => Promise<void>;
   setSleepMinutes: (value: number) => void;
   setAwakeMinutes: (value: number) => void;
   setSettlingMinutes: (value: number) => void;
@@ -227,7 +244,11 @@ type AppStore = PersistedState & {
     milkMl?: number,
   ) => Promise<void>;
   // startedAt back-dates the timer; it defaults to now and never runs ahead.
-  startActivity: (kind: ActivityKind, startedAt?: number) => Promise<void>;
+  startActivity: (
+    kind: ActivityKind,
+    startedAt?: number,
+    proDetails?: ProDetails,
+  ) => Promise<void>;
   stopActivity: (kind: ActivityKind) => Promise<void>;
   logEvent: (kind: EventKind) => Promise<void>;
 };
@@ -262,8 +283,11 @@ const milkOf = (proDetails?: ProDetails) =>
 
 // Returns the moment the session was closed, so a follow-up activity can start
 // exactly there instead of a few milliseconds later.
-async function finalizeSession(current: NonNullable<Session>): Promise<number> {
-  let end = Date.now();
+async function finalizeSession(
+  current: NonNullable<Session>,
+  endedAt = Date.now(),
+): Promise<number> {
+  let end = endedAt;
   // Awake is started automatically when sleep or settling stops, so a few
   // seconds of it is the seam between two activities rather than a record.
   // Dropping it leaves the reminder chain untouched: as far as the timers are
@@ -308,10 +332,16 @@ function pushSessionIfShared(session: ActivitySession) {
   if (remoteId) enqueueSessionUpsert(remoteId, session);
 }
 
-// Fire-and-forget removal of the live-timer row for a stopped session.
-function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
+// A true stop waits for its delete so a subsequent start cannot be removed by
+// a late request against the same (child_id, track) row.
+async function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
   const remoteId = remoteIdOfChild(current.childId);
-  if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
+  if (!remoteId) return;
+  try {
+    await clearLiveSession(remoteId, track);
+  } catch {
+    // Local timers remain authoritative while offline.
+  }
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -344,18 +374,33 @@ export const useAppStore = create<AppStore>()(
       session: null,
       feeding: null,
       remoteLive: [],
+      activitySyncStatus: 'syncing',
+      activitySyncGeneration: 0,
+      mainTransitionPending: false,
       reminderChain: null,
+
+      beginActivitySync: (generation) => {
+        if (generation < get().activitySyncGeneration) return;
+        set({ activitySyncStatus: 'syncing', activitySyncGeneration: generation });
+      },
+
+      finishActivitySync: (generation) => {
+        if (generation !== get().activitySyncGeneration) return;
+        set({ activitySyncStatus: 'ready' });
+      },
 
       // Applies the fresh live-timer list; also cancels local timers that the
       // partner already stopped (they saved the completed record themselves).
-      reconcileRemoteLive: (list) => {
+      reconcileRemoteLive: (list, requestedAt = Date.now()) => {
         for (const track of ['session', 'feeding'] as const) {
           const current = get()[track === 'feeding' ? 'feeding' : 'session'];
           if (!current?.livePushed || !current.childId) continue;
+          if (current.livePublishedAt && requestedAt < current.livePublishedAt) continue;
           const stillLive = list.some(
             (item) =>
               item.childId === current.childId &&
               item.track === track &&
+              item.kind === current.kind &&
               item.startedAt === current.startedAt,
           );
           if (stillLive) continue;
@@ -366,9 +411,42 @@ export const useAppStore = create<AppStore>()(
         set({ remoteLive: list });
       },
 
-      // Stops a timer that runs on the partner's device: saves the completed
-      // record and removes the live row so both sides converge.
+      retryPendingLive: async () => {
+        for (const track of ['session', 'feeding'] as const) {
+          const key = track === 'feeding' ? 'feeding' : 'session';
+          const current = get()[key];
+          if (!current || current.livePushed) continue;
+          const remoteId = remoteIdOfChild(current.childId);
+          if (!remoteId) continue;
+          await pushLiveSession(
+            remoteId,
+            track,
+            current.kind,
+            current.startedAt,
+            current.proDetails,
+          );
+          const latest = get()[key];
+          if (
+            !latest ||
+            latest.childId !== current.childId ||
+            latest.kind !== current.kind ||
+            latest.startedAt !== current.startedAt
+          ) {
+            continue;
+          }
+          const updated = {
+            ...latest,
+            livePushed: true,
+            livePublishedAt: Date.now(),
+          };
+          set(track === 'feeding' ? { feeding: updated } : { session: updated });
+        }
+      },
+
+      // Stops a timer that runs on the partner's device. A true final stop
+      // removes the live row; sleep/settling hand over that same row to awake.
       stopRemoteActivity: async (track) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const state = get();
         const live = state.remoteLive.find(
           (item) => item.track === track && item.childId === state.activeChildId,
@@ -395,7 +473,14 @@ export const useAppStore = create<AppStore>()(
         };
         await saveSession(session);
         if (remoteId) enqueueSessionUpsert(remoteId, session);
-        if (remoteId) clearLiveSession(remoteId, track).catch(() => {});
+        const continuesAsAwake = live.kind === 'sleep' || live.kind === 'settling';
+        if (remoteId && !continuesAsAwake) {
+          try {
+            await clearLiveSession(remoteId, track);
+          } catch {
+            // The stopped remote timer has already disappeared locally.
+          }
+        }
         set((current) => ({
           dataVersion: current.dataVersion + 1,
           // Stopping a partner-run timer is also an explicit end, so a future
@@ -405,8 +490,61 @@ export const useAppStore = create<AppStore>()(
 
         // Same hand-over as a local stop: whoever closes the sleep starts the
         // awake stretch, and only that device does it.
-        if (live.kind === 'sleep' || live.kind === 'settling') {
-          await get().startActivity('awake', end);
+        if (continuesAsAwake) {
+          await get().transitionMainActivity('awake', undefined, end);
+        }
+      },
+
+      transitionMainActivity: async (kind, proDetails, handoverAtInput) => {
+        // A timestamp is supplied only by an activity operation that already
+        // owns the handover (for example sleep -> awake). Let that operation
+        // finish if foreground sync begins while it is in flight.
+        if (get().activitySyncStatus === 'syncing' && handoverAtInput === undefined) return;
+        if (get().mainTransitionPending) return;
+        set({ mainTransitionPending: true });
+        try {
+          const state = get();
+          if (state.session?.kind === kind) {
+            if (proDetails) get().setActiveProDetails(proDetails);
+            return;
+          }
+
+          const handoverAt = handoverAtInput ?? Date.now();
+          const remote = state.session
+            ? null
+            : (state.remoteLive.find(
+                (item) => item.track === 'session' && item.childId === state.activeChildId,
+              ) ?? null);
+
+          if (remote) {
+            let end = handoverAt;
+            if (end <= remote.startedAt) end = remote.startedAt + 1;
+            const completed: ActivitySession = {
+              id: `${remote.startedAt}-${remote.kind}`,
+              kind: remote.kind,
+              start: remote.startedAt,
+              end,
+              childId: remote.childId,
+              milkMl: milkOf(remote.proDetails),
+              proDetails: remote.proDetails,
+            };
+            set((current) => ({
+              remoteLive: current.remoteLive.filter((item) => item !== remote),
+            }));
+            await saveSession(completed);
+            const remoteId = remoteIdOfChild(remote.childId);
+            if (remoteId) enqueueSessionUpsert(remoteId, completed);
+            set((current) => ({
+              dataVersion: current.dataVersion + 1,
+              reminderChain: null,
+            }));
+            await get().startActivity(kind, end, proDetails);
+            return;
+          }
+
+          await get().startActivity(kind, handoverAt, proDetails);
+        } finally {
+          set({ mainTransitionPending: false });
         }
       },
 
@@ -436,6 +574,7 @@ export const useAppStore = create<AppStore>()(
         }
       },
       setActiveProDetails: (details) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const track = details.type === 'feeding' ? 'feeding' : 'session';
         const current = get()[track];
         if (!current || current.kind !== details.type) return;
@@ -627,6 +766,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       addManualActivity: async (kind, start, end, proDetails, milkMl) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const activeChild = get().children.find((child) => child.id === get().activeChildId);
         const hasProAccess = get().proActive || activeChild?.proEnabled === true;
         const session: ActivitySession = {
@@ -643,7 +783,10 @@ export const useAppStore = create<AppStore>()(
         set((state) => ({ dataVersion: state.dataVersion + 1 }));
       },
 
-      startActivity: async (kind, startedAtInput) => {
+      startActivity: async (kind, startedAtInput, proDetails) => {
+        // Nested replacement starts run while mainTransitionPending is true and
+        // must finish even if the app begins syncing between its two writes.
+        if (get().activitySyncStatus === 'syncing' && !get().mainTransitionPending) return;
         const track = trackOf(kind);
         const {
           sleepMinutes,
@@ -656,18 +799,20 @@ export const useAppStore = create<AppStore>()(
         } = get();
 
         const prev = get()[track];
+        let startedAt = Math.min(startedAtInput ?? Date.now(), Date.now());
         if (prev) {
           // The replacement may have its notifications disabled and therefore
           // may not start another widget; always close the previous one first.
           stopLiveActivity(track);
-          clearLiveIfShared(prev, track);
           await cancelReminder(prev.reminderId);
-          await finalizeSession(prev);
+          startedAt = await finalizeSession(
+            prev,
+            Math.max(startedAt, prev.startedAt + 1),
+          );
         }
 
         // A back-dated start (the pro panel lets one be picked) still counts
         // its reminder and auto-stop from now, not from the timer's origin.
-        const startedAt = Math.min(startedAtInput ?? Date.now(), Date.now());
         const limitMinutes: number | null =
           kind === 'sleep'
             ? sleepMinutes
@@ -713,28 +858,12 @@ export const useAppStore = create<AppStore>()(
           reminderId: null,
           carriedMs,
           childId: get().activeChildId ?? undefined,
+          proDetails,
         };
         set(track === 'feeding' ? { feeding: started } : { session: started });
 
         // Announce the timer to the partner's devices.
-        const remoteChildId = remoteIdOfChild(started.childId);
-        if (remoteChildId) {
-          pushLiveSession(remoteChildId, track, kind, startedAt)
-            .then(() => {
-              const current = get()[track];
-              if (current?.startedAt !== startedAt) return;
-              const updated = { ...current, livePushed: true };
-              set(track === 'feeding' ? { feeding: updated } : { session: updated });
-              if (current.proDetails) {
-                updateLiveSessionDetails(
-                  remoteChildId,
-                  track,
-                  current.proDetails,
-                ).catch(() => {});
-              }
-            })
-            .catch(() => {});
-        }
+        get().retryPendingLive().catch(() => {});
 
         let reminderId: string | null = null;
         if (notificationsEnabled && limitMinutes !== null) {
@@ -773,6 +902,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       stopActivity: async (kind) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const track = trackOf(kind);
         const current = get()[track];
         if (!current) return;
@@ -782,7 +912,8 @@ export const useAppStore = create<AppStore>()(
         set(track === 'feeding' ? { feeding: null } : { session: null });
 
         stopLiveActivity(track);
-        clearLiveIfShared(current, track);
+        const continuesAsAwake = kind === 'sleep' || kind === 'settling';
+        if (!continuesAsAwake) await clearLiveIfShared(current, track);
         await cancelReminder(current.reminderId);
         const end = await finalizeSession(current);
 
@@ -794,12 +925,13 @@ export const useAppStore = create<AppStore>()(
         // Waking up is the natural continuation of sleep and of settling, so
         // the awake timer picks up at the very moment they stop — otherwise the
         // day leaves an untracked hole in the timeline.
-        if (kind === 'sleep' || kind === 'settling') {
-          await get().startActivity('awake', end);
+        if (continuesAsAwake) {
+          await get().transitionMainActivity('awake', undefined, end);
         }
       },
 
       logEvent: async (kind) => {
+        if (get().activitySyncStatus === 'syncing') return;
         const start = Date.now();
         const session: ActivitySession = {
           id: `${start}-${kind}`,

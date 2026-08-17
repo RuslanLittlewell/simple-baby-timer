@@ -321,6 +321,7 @@ export async function pushLiveSession(
   track: LiveTrack,
   kind: ActivityKind,
   startedAtMs: number,
+  proDetails?: ActivitySession['proDetails'],
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   await requireSession();
@@ -329,6 +330,7 @@ export async function pushLiveSession(
     track,
     kind,
     started_at_ms: startedAtMs,
+    pro_details: proDetails ?? null,
   });
   if (error) throw error;
 }
