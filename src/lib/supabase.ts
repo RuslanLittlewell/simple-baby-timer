@@ -5,6 +5,15 @@ import { createClient, isAuthRetryableFetchError } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
+import { logAuthDiagnostic } from '@/lib/auth-diagnostics';
+import { authGeneration } from '@/lib/auth-generation';
+import {
+  authStatusClass,
+  classifyAuthFailure,
+  classifySessionRecovery,
+  type AccountCheckOutcome,
+} from '@/lib/auth-lifecycle';
+
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 // New-style sb_publishable_… key; legacy anon key works as a fallback.
 const anonKey =
@@ -48,24 +57,49 @@ export async function getUserId(): Promise<string | null> {
   return data.session?.user.id ?? null;
 }
 
-export type AccountCheck = 'ok' | 'signedOut' | 'missing' | 'unreachable';
-
 // A stored session keeps working on the device until something actually asks
 // the auth server, so an account deleted (or a token revoked) server-side stays
 // invisible to the app. This asks. Only an outright rejection counts as gone —
 // a flaky network or a server hiccup must never look like a deleted account.
-export async function checkAccount(): Promise<AccountCheck> {
-  if (!isSupabaseConfigured) return 'signedOut';
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return 'signedOut';
+export async function checkAccount(): Promise<AccountCheckOutcome> {
+  if (!isSupabaseConfigured) return 'definitive-auth-loss';
+  const { data, error: sessionError } = await supabase.auth.getSession();
+  if (!data.session) {
+    const outcome = classifySessionRecovery(
+      false,
+      sessionError
+        ? {
+            status: sessionError.status,
+            code: sessionError.code,
+            retryable: isAuthRetryableFetchError(sessionError),
+          }
+        : undefined,
+    );
+    logAuthDiagnostic('account-check', {
+      outcome,
+      statusClass: authStatusClass(sessionError?.status),
+    });
+    return outcome;
+  }
   // GET /auth/v1/user with the stored token. A deleted user answers 403, an
   // expired or revoked refresh token 400/401, a broken network throws a
   // retryable error and a bad day for the auth server gives 5xx — only the
   // first group means the account is really gone.
   const { error } = await supabase.auth.getUser();
-  if (!error) return 'ok';
-  if (isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500) return 'unreachable';
-  return 'missing';
+  if (!error) {
+    logAuthDiagnostic('account-check', { outcome: 'ok', statusClass: 'none' });
+    return 'ok';
+  }
+  const outcome = classifyAuthFailure({
+    status: error.status,
+    code: error.code,
+    retryable: isAuthRetryableFetchError(error),
+  });
+  logAuthDiagnostic('account-check', {
+    outcome,
+    statusClass: authStatusClass(error.status),
+  });
+  return outcome;
 }
 
 // Drops the local session without calling the server — the token behind a
@@ -77,8 +111,21 @@ export async function signOutLocal(): Promise<void> {
 // User-initiated sign-out: revoke the refresh token server-side when possible,
 // but never leave the device signed in because the network was down.
 export async function signOut(): Promise<void> {
+  const generation = authGeneration.beginLogout();
+  logAuthDiagnostic('logout-stage', {
+    stage: 'started',
+    authGeneration: generation,
+    hasSession: true,
+  });
   const { error } = await supabase.auth.signOut();
-  if (error) await signOutLocal();
+  // The installed Supabase Auth client removes the local session before it
+  // returns a remote-revocation error. A second local sign-out here could run
+  // after a new OAuth session was saved and clear that newer session.
+  logAuthDiagnostic('logout-stage', {
+    stage: error ? 'failed' : 'completed',
+    authGeneration: generation,
+    outcome: error ? 'failed' : 'success',
+  });
 }
 
 // How long to keep waiting for the deep link after the auth session closed.
@@ -109,47 +156,110 @@ async function awaitRedirect(authUrl: string, redirectTo: string): Promise<strin
 
 // Shared browser-based OAuth flow through Supabase; the redirect returns to
 // the app via the babytimer:// scheme. Returns false when the user cancels.
+let oauthAttemptGeneration = 0;
+
+export class RetryableAuthError extends Error {
+  constructor(readonly stage: 'provider-launch' | 'exchange' | 'session-verification') {
+    super('Please try signing in again.');
+    this.name = 'RetryableAuthError';
+  }
+}
+
+// Between opening the provider sheet and exchanging the code there is
+// legitimately no session, and the PKCE verifier for the exchange lives in the
+// same storage a sign-out clears. Anything that reacts to "no session" must
+// hold off while this is true.
+let oauthInFlight = 0;
+
+export const isOAuthInFlight = (): boolean => oauthInFlight > 0;
+
 async function signInWithOAuthProvider(provider: 'google' | 'apple'): Promise<boolean> {
+  oauthInFlight += 1;
+  try {
+    return await runOAuthProviderFlow(provider);
+  } finally {
+    oauthInFlight -= 1;
+  }
+}
+
+async function runOAuthProviderFlow(provider: 'google' | 'apple'): Promise<boolean> {
+  const attemptGeneration = ++oauthAttemptGeneration;
+  const ensureLatestAttempt = () => {
+    if (attemptGeneration === oauthAttemptGeneration) return;
+    logAuthDiagnostic('oauth-stage', { stage: 'stale-rejected', attemptGeneration });
+    throw new RetryableAuthError('session-verification');
+  };
+  const startingAuthGeneration = authGeneration.snapshot();
+  logAuthDiagnostic('oauth-stage', {
+    stage: 'provider-launch',
+    attemptGeneration,
+    authGeneration: startingAuthGeneration,
+  });
   const redirectTo = Linking.createURL('auth-callback');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: { redirectTo, skipBrowserRedirect: true },
   });
-  if (error || !data.url) throw error ?? new Error('no auth url');
+  if (error || !data.url) {
+    logAuthDiagnostic('oauth-stage', { stage: 'failed', failedAt: 'provider-launch', attemptGeneration });
+    throw new RetryableAuthError('provider-launch');
+  }
 
   const url = await awaitRedirect(data.url, redirectTo);
+  ensureLatestAttempt();
   // No redirect at all: the user closed the sheet.
-  if (!url) return false;
+  if (!url) {
+    logAuthDiagnostic('oauth-stage', { stage: 'cancelled', attemptGeneration });
+    return false;
+  }
+  logAuthDiagnostic('oauth-stage', { stage: 'redirect-received', attemptGeneration });
 
   const returned = new URL(url);
   const code = returned.searchParams.get('code');
   if (code) {
+    logAuthDiagnostic('oauth-stage', { stage: 'exchange', attemptGeneration });
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeError) throw exchangeError;
-    return true;
+    if (exchangeError) {
+      logAuthDiagnostic('oauth-stage', { stage: 'failed', failedAt: 'code-exchange', attemptGeneration });
+      throw new RetryableAuthError('exchange');
+    }
+  } else {
+    // Implicit-flow fallback: tokens arrive in the URL hash.
+    const params = new URLSearchParams(returned.hash.replace(/^#/, ''));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (accessToken && refreshToken) {
+      logAuthDiagnostic('oauth-stage', { stage: 'exchange', attemptGeneration });
+      const { error: setError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (setError) {
+        logAuthDiagnostic('oauth-stage', { stage: 'failed', failedAt: 'set-session', attemptGeneration });
+        throw new RetryableAuthError('exchange');
+      }
+    } else {
+      // Provider payloads and callback values intentionally stay out of both
+      // the UI and diagnostics.
+      logAuthDiagnostic('oauth-stage', { stage: 'failed', failedAt: 'no-credentials', attemptGeneration });
+      throw new RetryableAuthError('exchange');
+    }
   }
 
-  // Implicit-flow fallback: tokens arrive in the URL hash.
-  const params = new URLSearchParams(returned.hash.replace(/^#/, ''));
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (accessToken && refreshToken) {
-    const { error: setError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
-    if (setError) throw setError;
-    return true;
+  logAuthDiagnostic('oauth-stage', { stage: 'session-verification', attemptGeneration });
+  const { data: verified, error: verificationError } = await supabase.auth.getSession();
+  ensureLatestAttempt();
+  if (verificationError || !verified.session) {
+    logAuthDiagnostic('oauth-stage', { stage: 'failed', failedAt: 'session-verification', attemptGeneration });
+    throw new RetryableAuthError('session-verification');
   }
-
-  // Supabase reports provider-side failures on the redirect itself; surfacing
-  // them beats returning to the form with no explanation.
-  const providerError =
-    returned.searchParams.get('error_description') ??
-    returned.searchParams.get('error') ??
-    params.get('error_description') ??
-    params.get('error');
-  throw new Error(providerError ?? `sign-in returned no credentials: ${returned.search}`);
+  logAuthDiagnostic('oauth-stage', {
+    stage: 'completed',
+    attemptGeneration,
+    authGeneration: authGeneration.snapshot(),
+    hasSession: true,
+  });
+  return true;
 }
 
 export const signInWithGoogle = () => signInWithOAuthProvider('google');

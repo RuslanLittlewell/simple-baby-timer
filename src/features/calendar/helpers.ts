@@ -82,6 +82,7 @@ export interface DayStats {
   settlingMs: number;
   milkMl: number;
   feedingCount: number;
+  lastFeedingAt: number | null;
   poopCount: number;
   diaperCount: number;
 }
@@ -92,6 +93,7 @@ export function computeDayStats(
   now: number,
   dayStartMs: number,
   dayEndMs: number,
+  liveFeedingStartedAt?: number,
 ): DayStats {
   const durationInDay = (start: number, end: number) =>
     Math.max(0, Math.min(end, dayEndMs) - Math.max(start, dayStartMs));
@@ -105,16 +107,24 @@ export function computeDayStats(
     .filter((item) => item.kind === 'settling')
     .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
   const liveMainMs = liveSession ? durationInDay(liveSession.startedAt, now) : 0;
+  const feedingSessions = sessions.filter(
+    (item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs,
+  );
+  const feedingStarts = feedingSessions.map((item) => item.start);
+  if (
+    liveFeedingStartedAt !== undefined &&
+    liveFeedingStartedAt >= dayStartMs &&
+    liveFeedingStartedAt < dayEndMs
+  ) {
+    feedingStarts.push(liveFeedingStartedAt);
+  }
   return {
     sleepMs: completedSleepMs + (liveSession?.kind === 'sleep' ? liveMainMs : 0),
     awakeMs: completedAwakeMs + (liveSession?.kind === 'awake' ? liveMainMs : 0),
     settlingMs: completedSettlingMs + (liveSession?.kind === 'settling' ? liveMainMs : 0),
-    milkMl: sessions
-      .filter((item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs)
-      .reduce((sum, item) => sum + (item.milkMl ?? 0), 0),
-    feedingCount: sessions.filter(
-      (item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs,
-    ).length,
+    milkMl: feedingSessions.reduce((sum, item) => sum + (item.milkMl ?? 0), 0),
+    feedingCount: feedingSessions.length,
+    lastFeedingAt: feedingStarts.length ? Math.max(...feedingStarts) : null,
     poopCount: sessions.filter(
       (item) => item.kind === 'poop' && item.start >= dayStartMs && item.start < dayEndMs,
     ).length,
