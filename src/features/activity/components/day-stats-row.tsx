@@ -10,9 +10,12 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
-import { formatDuration, type DayStats } from "@/features/calendar/helpers";
+import {
+  formatDuration,
+  fmtTime,
+  type DayStats,
+} from "@/features/calendar/helpers";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/state/app-state";
@@ -29,7 +32,8 @@ interface StatCardContent {
 
 interface InteractiveStatCardProps extends StatCardContent {
   accessibilityHint: string;
-  alternateSelected: boolean;
+  selectedIndex: number;
+  optionCount?: number;
   onPress: () => void;
 }
 
@@ -65,7 +69,8 @@ function InteractiveStatCard({
   label,
   color,
   accessibilityHint,
-  alternateSelected,
+  selectedIndex,
+  optionCount = 2,
   onPress,
 }: InteractiveStatCardProps) {
   const theme = useTheme();
@@ -114,45 +119,28 @@ function InteractiveStatCard({
               name="swap-horizontal"
               size={12}
               color={color}
-              style={alternateSelected && styles.swapIconAlternate}
+              style={selectedIndex > 0 && styles.swapIconAlternate}
             />
           </View>
         </View>
         <StatContent value={value} label={label} color={color} />
         <View style={styles.positionIndicator}>
-          <View
-            style={[
-              styles.positionPill,
-              alternateSelected
-                ? styles.positionPillInactive
-                : styles.positionPillActive,
-              {
-                backgroundColor: alternateSelected ? theme.border : color,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.positionPill,
-              alternateSelected
-                ? styles.positionPillActive
-                : styles.positionPillInactive,
-              {
-                backgroundColor: alternateSelected ? color : theme.border,
-              },
-            ]}
-          />
+          {Array.from({ length: optionCount }, (_, index) => {
+            const active = index === selectedIndex;
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.positionPill,
+                  active ? styles.positionPillActive : styles.positionPillInactive,
+                  { backgroundColor: active ? color : theme.border },
+                ]}
+              />
+            );
+          })}
         </View>
       </View>
     </AnimatedPressable>
-  );
-}
-
-function StaticStatCard({ value, label, color }: StatCardContent) {
-  return (
-    <ThemedView type="backgroundElement" style={styles.card}>
-      <StatContent value={value} label={label} color={color} />
-    </ThemedView>
   );
 }
 
@@ -160,10 +148,13 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
   const t = useT();
   const { accent } = useActivityColors();
   const [showAwake, setShowAwake] = useState(false);
-  const [showMilk, setShowMilk] = useState(false);
+  const [feedingView, setFeedingView] = useState<0 | 1 | 2>(0);
+  const [showPoop, setShowPoop] = useState(false);
 
   const handleSleepToggle = () => setShowAwake((current) => !current);
-  const handleFeedingToggle = () => setShowMilk((current) => !current);
+  const handleFeedingToggle = () =>
+    setFeedingView((current) => ((current + 1) % 3) as 0 | 1 | 2);
+  const handleDiaperToggle = () => setShowPoop((current) => !current);
 
   const sleepMetric: StatCardContent = showAwake
     ? {
@@ -185,23 +176,48 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
         label: t("kind.sleep"),
       };
 
-  const feedingMetric: StatCardContent = showMilk
+  const feedingMetric: StatCardContent = feedingView === 1
     ? {
         color: accent.feed,
         value: `${stats.milkMl} ${t("unit.ml")}`,
         label: t("calendar.milk"),
       }
+    : feedingView === 2
+      ? {
+          color: accent.feed,
+          value: stats.lastFeedingAt === null ? "—" : fmtTime(stats.lastFeedingAt),
+          label: t("stats.lastFeeding"),
+        }
     : {
         color: accent.feed,
         value: String(stats.feedingCount),
         label: t("kind.feeding"),
       };
 
+  const diaperMetric: StatCardContent = showPoop
+    ? {
+        color: accent.poop,
+        value: String(stats.poopCount),
+        label: "💩",
+      }
+    : {
+        color: accent.diaper,
+        value: String(stats.diaperCount),
+        label: t("kind.diaper"),
+      };
+
   const sleepHint = t("stats.showMetric", {
     metric: t(showAwake ? "kind.sleep" : "kind.awake"),
   });
   const feedingHint = t("stats.showMetric", {
-    metric: t(showMilk ? "kind.feeding" : "calendar.milk"),
+    metric: feedingView === 0
+      ? t("calendar.milk")
+      : feedingView === 1
+        ? t("stats.lastFeeding")
+        : t("kind.feeding"),
+  });
+  const diaperHint = t("stats.showMetric", {
+    metric: showPoop ? t("kind.diaper") : "💩",
   });
 
   return (
@@ -209,24 +225,21 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
       <InteractiveStatCard
         {...sleepMetric}
         accessibilityHint={sleepHint}
-        alternateSelected={showAwake}
+        selectedIndex={showAwake ? 1 : 0}
         onPress={handleSleepToggle}
       />
       <InteractiveStatCard
         {...feedingMetric}
         accessibilityHint={feedingHint}
-        alternateSelected={showMilk}
+        selectedIndex={feedingView}
+        optionCount={3}
         onPress={handleFeedingToggle}
       />
-      <StaticStatCard
-        color={accent.diaper}
-        value={String(stats.diaperCount)}
-        label={t("kind.diaper")}
-      />
-      <StaticStatCard
-        color={accent.poop}
-        value={String(stats.poopCount)}
-        label="💩"
+      <InteractiveStatCard
+        {...diaperMetric}
+        accessibilityHint={diaperHint}
+        selectedIndex={showPoop ? 1 : 0}
+        onPress={handleDiaperToggle}
       />
     </View>
   );

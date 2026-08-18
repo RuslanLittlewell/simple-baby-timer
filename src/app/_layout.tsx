@@ -15,7 +15,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { MiniTimer } from '@/components/mini-timer';
 import { OnboardingAuthScreen } from '@/features/onboarding/auth-screen';
 import { PaywallModal } from '@/features/onboarding/components/paywall-modal';
-import { syncNow, useSync } from '@/hooks/use-sync';
+import { useSync } from '@/hooks/use-sync';
 import { configurePurchases } from '@/lib/purchases';
 import { useTabHistory } from '@/hooks/use-tab-history';
 import { useAppStore } from '@/state/app-state';
@@ -33,7 +33,6 @@ export default function RootLayout() {
   const pendingPaywall = useAppStore((state) => state.pendingPaywall);
   const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
   const authRequired = useAppStore((state) => state.authRequired);
-  const setAuthRequired = useAppStore((state) => state.setAuthRequired);
   const onboardingComplete = useAppStore((state) => state.onboardingComplete);
   const [fontsLoaded, fontError] = useFonts({
     NunitoSans_400Regular,
@@ -66,13 +65,11 @@ export default function RootLayout() {
           <View style={styles.authGate}>
             <OnboardingAuthScreen
               onSignedIn={() => {
-                setAuthRequired(false);
                 // Whoever just signed in may be a different parent with a
                 // different set of children, and the screen underneath still
                 // belongs to the previous session. The list is the only safe
                 // landing spot — sync fills it in as the data arrives.
                 router.replace('/children');
-                syncNow();
               }}
             />
           </View>

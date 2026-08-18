@@ -1,6 +1,6 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useIsFocused } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -20,6 +20,11 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { computeDayStats } from "@/features/calendar/helpers";
+import { BabySvg } from "@/features/children/components/baby-svg";
+import {
+  CHILD_GRADIENT_FG,
+  CHILD_GRADIENTS,
+} from "@/features/children/constants";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { useProPaywall } from "@/hooks/use-pro-paywall";
 import { useTheme } from "@/hooks/use-theme";
@@ -175,6 +180,7 @@ export default function ActivityScreen() {
     nowTs,
     todayStartMs,
     todayEndMs,
+    feedingSession?.startedAt,
   );
 
   const primary = mainSession ?? feedingSession;
@@ -238,13 +244,18 @@ export default function ActivityScreen() {
     details: Parameters<typeof transitionMainActivity>[1],
   ) => activitySyncing ? Promise.resolve() : transitionMainActivity(kind, details);
 
-  const handleLogBottleFeeding = (startedAt: number) => {
+  const handleLogBottleFeeding = (
+    startedAt: number,
+    content: "formula" | "breastMilk",
+    volumeMl?: number,
+  ) => {
     if (activitySyncing) return Promise.resolve();
     return addManualActivity(
       "feeding",
       startedAt,
       startedAt + 15 * 60_000,
-      { type: "feeding", mode: "bottle" },
+      { type: "feeding", mode: "bottle", content, volumeMl },
+      volumeMl,
     );
   };
 
@@ -269,31 +280,39 @@ export default function ActivityScreen() {
               onPress={() => router.navigate("/children")}
               style={({ pressed }) => [pressed && styles.pressed]}
             >
-              <ThemedView type="backgroundElement" style={styles.childChip}>
-                <MaterialCommunityIcons
-                  name="baby-face-outline"
-                  size={16}
-                  color={theme.text}
+              <LinearGradient
+                colors={CHILD_GRADIENTS[activeChild.gradientKey]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.childChip}
+              >
+                <BabySvg
+                  size={24}
+                  faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
+                  featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
                 />
                 <View style={styles.childInfo}>
                   <ThemedText
                     type="smallBold"
                     numberOfLines={1}
-                    style={styles.childName}
+                    style={[
+                      styles.childName,
+                      { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
+                    ]}
                   >
                     {activeChild.name}
                   </ThemedText>
                   {childAge && (
                     <ThemedText
                       type="small"
-                      themeColor="textSecondary"
                       numberOfLines={1}
+                      style={{ color: CHILD_GRADIENT_FG[activeChild.gradientKey] }}
                     >
                       {childAge}
                     </ThemedText>
                   )}
                 </View>
-              </ThemedView>
+              </LinearGradient>
             </Pressable>
           ) : (
             <View />

@@ -1,12 +1,13 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { PRIVACY_POLICY_URL } from '@/constants/links';
 import { Spacing } from '@/constants/theme';
 import { signInWithApple, signInWithGoogle } from '@/lib/supabase';
+import { LatestAttemptCoordinator } from '@/lib/auth-generation';
 import { useT } from '@/state/app-state';
 
 interface AuthFormProps {
@@ -21,20 +22,27 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
   // The provider's own words, when it gave any. Shown under the generic line
   // so a failed sign-in is reportable instead of just silent.
   const [detail, setDetail] = useState('');
+  const attemptRef = useRef(new LatestAttemptCoordinator());
 
   const withProvider = async (signIn: () => Promise<boolean>) => {
     if (busy) return;
+    const attempt = attemptRef.current.begin();
     setBusy(true);
     setError(false);
     setDetail('');
     try {
       const ok = await signIn();
+      if (!attemptRef.current.isCurrent(attempt)) return;
       if (ok) onSignedIn();
-      else setBusy(false);
-    } catch (caught) {
+    } catch {
+      if (!attemptRef.current.isCurrent(attempt)) return;
       setError(true);
-      setDetail(caught instanceof Error ? caught.message : '');
-      setBusy(false);
+      // Detailed provider payloads may contain credentials or account data.
+      // The translated generic message is enough for a retry; sanitized stage
+      // diagnostics are emitted only in development.
+      setDetail('');
+    } finally {
+      if (attemptRef.current.isCurrent(attempt)) setBusy(false);
     }
   };
 
