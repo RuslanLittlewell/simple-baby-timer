@@ -15,6 +15,7 @@ import {
 import { WheelSelect } from '@/components/wheel-select';
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
+import { WheelSheetHost } from '@/components/wheel-sheet';
 import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
@@ -46,7 +47,7 @@ interface EntryEditorProps {
   entry: ActivitySession | null;
   proActive: boolean;
   onClose: () => void;
-  // Called after the entry was updated or deleted so the owner can reload.
+  
   onChanged: () => void | Promise<void>;
 }
 
@@ -97,7 +98,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
         ? (details.content ?? 'formula')
         : 'formula',
     );
-    // One amount per entry: older records may carry it in either field.
+    
     const bottleVolume =
       details?.type === 'feeding' && details.mode === 'bottle' ? details.volumeMl : undefined;
     const amount = entry.milkMl ?? bottleVolume;
@@ -110,7 +111,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
     if (entry.kind === 'sleep') return { type: 'sleep', place: sleepPlace };
     if (entry.kind === 'feeding') {
       if (feedingMode === 'breast') return { type: 'feeding', mode: 'breast', side: breastSide };
-      // Mirrors the milk amount so the PRO parameters line stays in step.
+      
       const parsedVolume = Number.parseInt(milkInput, 10);
       return {
         type: 'feeding',
@@ -206,6 +207,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
 
   return (
     <Modal visible={!!entry} transparent animationType="fade" onRequestClose={onClose}>
+      <WheelSheetHost>
       <KeyboardAvoidingView
         style={modalStyles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -425,6 +427,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      </WheelSheetHost>
     </Modal>
   );
 }
@@ -476,8 +479,6 @@ const styles = StyleSheet.create({
   },
   timeInputText: {
     fontSize: 22,
-    // ThemedText's type sets lineHeight 20 — without this the taller glyphs
-    // are clipped.
     lineHeight: 28,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],

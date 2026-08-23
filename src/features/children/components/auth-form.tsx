@@ -19,8 +19,8 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  // The provider's own words, when it gave any. Shown under the generic line
-  // so a failed sign-in is reportable instead of just silent.
+  
+  
   const [detail, setDetail] = useState('');
   const attemptRef = useRef(new LatestAttemptCoordinator());
 
@@ -37,9 +37,9 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
     } catch {
       if (!attemptRef.current.isCurrent(attempt)) return;
       setError(true);
-      // Detailed provider payloads may contain credentials or account data.
-      // The translated generic message is enough for a retry; sanitized stage
-      // diagnostics are emitted only in development.
+      
+      
+      
       setDetail('');
     } finally {
       if (attemptRef.current.isCurrent(attempt)) setBusy(false);
@@ -79,8 +79,8 @@ export function AuthForm({ onSignedIn }: AuthFormProps) {
         </View>
       )}
 
-      {/* Signing in is what creates the account, so consent is collected here
-          rather than behind a checkbox nobody reads. */}
+      
+
       <ThemedText type="small" themeColor="textSecondary" style={styles.consent}>
         {t('auth.consentPrefix')}{' '}
         <ThemedText

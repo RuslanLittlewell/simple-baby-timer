@@ -4,8 +4,8 @@ import { REGIMES } from './data';
 import { REGIME_STRINGS } from './data-i18n';
 import { type RegimeAge } from './types';
 
-// Returns the schedule dataset with all content keys translated into the
-// given language; unknown keys fall back to Russian and finally to the key.
+
+
 export function localizeRegimes(lang: LanguageCode): RegimeAge[] {
   const tr = (key: string) => REGIME_STRINGS[lang][key] ?? REGIME_STRINGS.ru[key] ?? key;
   return REGIMES.map((age) => ({

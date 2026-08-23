@@ -1,14 +1,14 @@
-import { type TranslateParams } from '@/i18n';
-import { type ActivitySession, type SessionKind } from '@/lib/activity-store';
-import { type Session } from '@/state/app-state';
+import { type TranslateParams } from "@/i18n";
+import { type ActivitySession, type SessionKind } from "@/lib/activity-store";
+import { type Session } from "@/state/app-state";
 
-import { Spacing } from '@/constants/theme';
+import { Spacing } from "@/constants/theme";
 
-import { GUTTER, LANES, SCREEN_WIDTH } from './constants';
+import { GUTTER, LANES, SCREEN_WIDTH } from "./constants";
 
 export type Translate = (key: string, params?: TranslateParams) => string;
 
-export const pad2 = (n: number) => String(n).padStart(2, '0');
+export const pad2 = (n: number) => String(n).padStart(2, "0");
 
 export const fmtTime = (ts: number) => {
   const d = new Date(ts);
@@ -26,7 +26,7 @@ export const startOfDayMs = (ts: number) => {
 };
 
 export const startOfWeek = (date: Date) => {
-  const dow = (date.getDay() + 6) % 7; // Monday = 0
+  const dow = (date.getDay() + 6) % 7;
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() - dow);
 };
 
@@ -35,12 +35,25 @@ export const shiftDayMs = (dayMs: number, delta: number) => {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta).getTime();
 };
 
-export const combineDayTime = (dayMs: number, time: { hours: number; minutes: number }) => {
+export const combineDayTime = (
+  dayMs: number,
+  time: { hours: number; minutes: number },
+) => {
   const d = new Date(dayMs);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), time.hours, time.minutes).getTime();
+  return new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    time.hours,
+    time.minutes,
+  ).getTime();
 };
 
-export const formatDuration = (milliseconds: number, hoursUnit: string, minutesUnit: string) => {
+export const formatDuration = (
+  milliseconds: number,
+  hoursUnit: string,
+  minutesUnit: string,
+) => {
   const totalMinutes = Math.max(0, Math.round(milliseconds / 60000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -51,23 +64,30 @@ export const formatDuration = (milliseconds: number, hoursUnit: string, minutesU
 
 export const parseTime = (value: string) => {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
-  const [hours, minutes] = value.split(':').map(Number);
+  const [hours, minutes] = value.split(":").map(Number);
   if (hours > 23 || minutes > 59) return null;
   return { hours, minutes };
 };
 
-export const isEvent = (kind: SessionKind) => kind === 'poop' || kind === 'diaper';
+export const isEvent = (kind: SessionKind) =>
+  kind === "poop" || kind === "diaper";
 
-// Each kind keeps a fixed share of the track, measured from its right edge:
-// sleep / awake / settling take all of it, feeding a half, the point events a
-// fifth. LANES still decides what draws on top.
 const TRACK_WIDTH = SCREEN_WIDTH - GUTTER - Spacing.two;
 const trackLeft = (share: number) => GUTTER + TRACK_WIDTH * (1 - share);
 
 export const laneLeft = (kind: SessionKind) =>
-  isEvent(kind) ? trackLeft(0.2) : LANES[kind] === 0 ? GUTTER : trackLeft(0.5);
+  kind === "poop"
+    ? trackLeft(0.29095)
+    : kind === "diaper"
+      ? trackLeft(0.2)
+      : LANES[kind] === 0
+        ? GUTTER
+        : trackLeft(0.5);
 
-export function buildMonthCells(year: number, month: number): (number | null)[] {
+export function buildMonthCells(
+  year: number,
+  month: number,
+): (number | null)[] {
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = Array(firstWeekday).fill(null);
@@ -78,13 +98,16 @@ export function buildMonthCells(year: number, month: number): (number | null)[] 
 
 export interface DayStats {
   sleepMs: number;
+  lastSleepAt: number | null;
   awakeMs: number;
   settlingMs: number;
   milkMl: number;
   feedingCount: number;
   lastFeedingAt: number | null;
   poopCount: number;
+  lastPoopAt: number | null;
   diaperCount: number;
+  lastDiaperAt: number | null;
 }
 
 export function computeDayStats(
@@ -98,17 +121,22 @@ export function computeDayStats(
   const durationInDay = (start: number, end: number) =>
     Math.max(0, Math.min(end, dayEndMs) - Math.max(start, dayStartMs));
   const completedSleepMs = sessions
-    .filter((item) => item.kind === 'sleep')
+    .filter((item) => item.kind === "sleep")
     .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
   const completedAwakeMs = sessions
-    .filter((item) => item.kind === 'awake')
+    .filter((item) => item.kind === "awake")
     .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
   const completedSettlingMs = sessions
-    .filter((item) => item.kind === 'settling')
+    .filter((item) => item.kind === "settling")
     .reduce((sum, item) => sum + durationInDay(item.start, item.end), 0);
-  const liveMainMs = liveSession ? durationInDay(liveSession.startedAt, now) : 0;
+  const liveMainMs = liveSession
+    ? durationInDay(liveSession.startedAt, now)
+    : 0;
   const feedingSessions = sessions.filter(
-    (item) => item.kind === 'feeding' && item.start >= dayStartMs && item.start < dayEndMs,
+    (item) =>
+      item.kind === "feeding" &&
+      item.start >= dayStartMs &&
+      item.start < dayEndMs,
   );
   const feedingStarts = feedingSessions.map((item) => item.start);
   if (
@@ -119,17 +147,56 @@ export function computeDayStats(
     feedingStarts.push(liveFeedingStartedAt);
   }
   return {
-    sleepMs: completedSleepMs + (liveSession?.kind === 'sleep' ? liveMainMs : 0),
-    awakeMs: completedAwakeMs + (liveSession?.kind === 'awake' ? liveMainMs : 0),
-    settlingMs: completedSettlingMs + (liveSession?.kind === 'settling' ? liveMainMs : 0),
+    sleepMs:
+      completedSleepMs + (liveSession?.kind === "sleep" ? liveMainMs : 0),
+    lastSleepAt:
+      sessions
+        .filter(
+          (item) =>
+            item.kind === "sleep" &&
+            item.end >= dayStartMs &&
+            item.end < dayEndMs,
+        )
+        .map((item) => item.end)
+        .reduce((max, end) => Math.max(max, end), 0) || null,
+    awakeMs:
+      completedAwakeMs + (liveSession?.kind === "awake" ? liveMainMs : 0),
+    settlingMs:
+      completedSettlingMs + (liveSession?.kind === "settling" ? liveMainMs : 0),
     milkMl: feedingSessions.reduce((sum, item) => sum + (item.milkMl ?? 0), 0),
     feedingCount: feedingSessions.length,
     lastFeedingAt: feedingStarts.length ? Math.max(...feedingStarts) : null,
     poopCount: sessions.filter(
-      (item) => item.kind === 'poop' && item.start >= dayStartMs && item.start < dayEndMs,
+      (item) =>
+        item.kind === "poop" &&
+        item.start >= dayStartMs &&
+        item.start < dayEndMs,
     ).length,
+    lastPoopAt:
+      sessions
+        .filter(
+          (item) =>
+            item.kind === "poop" &&
+            item.start >= dayStartMs &&
+            item.start < dayEndMs,
+        )
+        .map((item) => item.start)
+        .reduce((max, start) => Math.max(max, start), 0) || null,
     diaperCount: sessions.filter(
-      (item) => item.kind === 'diaper' && item.start >= dayStartMs && item.start < dayEndMs,
+      (item) =>
+        item.kind === "diaper" &&
+        item.start >= dayStartMs &&
+        item.start < dayEndMs,
     ).length,
+    lastDiaperAt:
+      sessions
+        .filter(
+          (item) =>
+            item.kind === "diaper" &&
+            item.start >= dayStartMs &&
+            item.start < dayEndMs,
+        )
+        .map((item) => item.start)
+        .reduce((max, start) => Math.max(max, start), 0) || null,
   };
 }

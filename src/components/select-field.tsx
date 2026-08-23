@@ -16,26 +16,26 @@ export interface SelectOption {
 }
 
 interface SelectFieldProps {
-  // Text shown on the closed button (the field's own caption, if any, is
-  // the caller's responsibility — this component is just the button + list).
+  
+  
   value: string;
   options: readonly SelectOption[];
   selectedValue?: string;
   onSelect: (value: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // Skips the auto-measured direction and always opens upward. Use this for
-  // fields whose position makes the "is there room below" measurement
-  // unreliable (e.g. right after another field that just changed the
-  // layout above it).
+  
+  
+  
+  
   openUpward?: boolean;
 }
 
-// A closed button that expands into a floating options list. Measures its
-// own position on open and flips the list above the button instead of below
-// when there isn't enough room left on screen — this also sidesteps a
-// ScrollView clipping the list, since flipping up only ever overlaps space
-// the ScrollView already allocated, never space beyond its content edge.
+
+
+
+
+
 export function SelectField({
   value,
   options,

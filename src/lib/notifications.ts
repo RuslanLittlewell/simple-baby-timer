@@ -3,7 +3,9 @@ import { Platform } from 'react-native';
 
 export type ActivityKind = 'settling' | 'sleep' | 'feeding' | 'awake';
 
-const ANDROID_CHANNEL = 'reminders';
+
+
+const ANDROID_CHANNEL = 'reminders-quiet';
 
 let handlerConfigured = false;
 
@@ -14,7 +16,9 @@ export function configureNotificationHandler() {
     handleNotification: async () => ({
       shouldShowBanner: true,
       shouldShowList: true,
-      shouldPlaySound: true,
+      
+      
+      shouldPlaySound: false,
       shouldSetBadge: false,
     }),
   });
@@ -37,7 +41,10 @@ export async function scheduleActivityNotification(
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL, {
       name: 'Напоминания',
-      importance: Notifications.AndroidImportance.HIGH,
+      
+      
+      importance: Notifications.AndroidImportance.LOW,
+      sound: null,
     });
   }
 
@@ -45,8 +52,11 @@ export async function scheduleActivityNotification(
   return Notifications.scheduleNotificationAsync({
     content: {
       ...message,
-      sound: true,
-      interruptionLevel: 'timeSensitive',
+      
+      
+      
+      sound: false,
+      interruptionLevel: 'passive',
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,

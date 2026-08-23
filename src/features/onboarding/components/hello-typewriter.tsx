@@ -4,9 +4,9 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { LANGUAGES, translate } from '@/i18n';
 
-// All languages' translation of "Hello" — always the full set, independent
-// of the app's current language, since this is what the animation cycles
-// through before the user has picked one.
+
+
+
 const GREETINGS = LANGUAGES.map((item) => translate(item.code, 'onboarding.greeting'));
 
 const TYPE_MS = 95;

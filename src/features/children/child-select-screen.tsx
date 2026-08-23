@@ -19,7 +19,7 @@ import { deleteSessionsForChild } from '@/lib/activity-store';
 import { getIsSignedIn } from '@/lib/supabase';
 import { leaveChild } from '@/lib/sync';
 
-import { AddChildModal } from './components/add-child-modal';
+import { AddChildModal } from './components/add-child-modal/add-child-modal';
 import { AuthModal } from './components/auth-modal';
 import { ChildCard } from './components/child-card';
 import { EnterCodeModal } from './components/enter-code-modal';
@@ -49,14 +49,14 @@ export default function ChildSelectScreen() {
     else setEnteringCode(true);
   };
 
-  // Sharing is PRO: the paywall stands in for it, and unlocking there carries
-  // straight on into the share sheet.
+  
+  
   const requestPro = (action: PendingAction) =>
     openPaywall((unlocked) => {
       if (unlocked) runAction(action);
     });
 
-  // Sharing needs an account — ask to sign in first, then continue.
+  
   const requestAction = async (action: PendingAction) => {
     if (!(await getIsSignedIn())) {
       setPendingAction(action);
@@ -81,13 +81,12 @@ export default function ChildSelectScreen() {
   };
 
   const performDelete = async (child: Child) => {
-    // Remove immediately even while offline. The store keeps a persisted
-    // remote tombstone so sync cannot restore a shared child in the meantime.
+    
+    
     useAppStore.getState().removeChild(child.id);
     try {
       await deleteSessionsForChild(child.id);
     } catch {
-      // The profile is already removed; stale local history is harmless.
     }
     if (child.remoteId) leaveChild(child.remoteId).catch(() => {});
   };
@@ -177,7 +176,7 @@ export default function ChildSelectScreen() {
           onSignedIn={async () => {
             const action = pendingAction;
             setPendingAction(null);
-            // New device: children linked to this account appear in the list.
+            
             await syncNow();
             if (!action) return;
             if (action.type === 'enterCode' || useAppStore.getState().proActive) {

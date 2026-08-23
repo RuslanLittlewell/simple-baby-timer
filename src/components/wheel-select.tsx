@@ -18,15 +18,15 @@ const VISIBLE_ITEMS = 5;
 const EDGE_PAD = (ITEM_HEIGHT * (VISIBLE_ITEMS - 1)) / 2;
 
 interface WheelSelectProps {
-  // The selected option's value, not its label.
+  
   value: string;
   options: readonly WheelOption[];
   onSelect: (value: string) => void;
 }
 
-// A field that opens its options as a spinner in a bottom sheet, the way the
-// date and time fields do. A floating list would be clipped by the card it
-// sits in; a modal cannot be.
+
+
+
 export function WheelSelect({ value, options, onSelect }: WheelSelectProps) {
   const theme = useTheme();
   const t = useT();
@@ -39,8 +39,8 @@ export function WheelSelect({ value, options, onSelect }: WheelSelectProps) {
     return found < 0 ? 0 : found;
   };
 
-  // The sheet has to be laid out before the wheel can be positioned on the
-  // current option, so this waits a tick rather than scrolling on mount.
+  
+  
   useEffect(() => {
     if (!visible) return;
     const id = setTimeout(
@@ -48,7 +48,7 @@ export function WheelSelect({ value, options, onSelect }: WheelSelectProps) {
       0,
     );
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [visible, value]);
 
   const settle = (offsetY: number) => {

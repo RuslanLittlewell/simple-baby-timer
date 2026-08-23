@@ -74,7 +74,6 @@ const writeQueue = (queue: QueuedOp[]) =>
 async function enqueue(op: QueuedOp): Promise<void> {
   if (!isSupabaseConfigured) return;
   const queue = await readQueue();
-  // The latest op for a session wins; drop stale entries for the same id.
   const next = queue.filter(
     (item) => !(item.session.id === op.session.id && item.remoteChildId === op.remoteChildId),
   );
@@ -83,10 +82,6 @@ async function enqueue(op: QueuedOp): Promise<void> {
   flushQueue().catch(() => {});
 }
 
-// Drops every trace of the previous account's syncing: pending uploads, which
-// would be retried under the next account, refused by RLS and abort each pass
-// on the same rows forever; and the per-child pull cursors, which would make
-// sync skip the history it has already seen — history the wipe just removed.
 export async function clearSyncState(): Promise<void> {
   const keys = await AsyncStorage.getAllKeys();
   await AsyncStorage.multiRemove([
@@ -105,23 +100,16 @@ export interface AccountProStatus {
   active: boolean;
   expiresAt?: number;
   renewsAt?: number;
-  // The 14-day trial is once per account: a trial that is running or already
-  // over both count as used, and the paywall stops offering it.
   trialUsed: boolean;
 }
 
 export async function fetchAccountProStatus(): Promise<AccountProStatus> {
   if (!isSupabaseConfigured) return { active: false, trialUsed: false };
   await requireSession();
-  // maybeSingle, not single: an account whose profile row is missing (created
-  // before the profiles trigger existed) is a plain "no PRO", and single()
-  // would turn it into an HTTP 406 on every sync pass.
   const { data, error } = await supabase
     .from('profiles')
     .select('pro_active, trial_ends_at, pro_renews_at')
     .maybeSingle();
-  // Keep the rest of account sync working while the profile migration is
-  // still being applied to an existing Supabase project.
   if (
     error?.code === '42P01' ||
     error?.code === 'PGRST116' ||
@@ -144,17 +132,12 @@ export async function fetchAccountProStatus(): Promise<AccountProStatus> {
   };
 }
 
-// Erases the account server-side: memberships, children left without members,
-// their sessions and the auth user itself. The local session is dead after
-// this, so the caller must sign out and wipe on-device data too.
 export async function deleteAccount(): Promise<void> {
   await requireSession();
   const { error } = await supabase.rpc('delete_account');
   if (error) throw error;
 }
 
-// Starts the one-off trial for the signed-in account; the server refuses a
-// second call. Returns when the trial ends.
 export async function startTrial(): Promise<number> {
   await requireSession();
   const { data, error } = await supabase.rpc('start_trial');
@@ -175,7 +158,6 @@ export async function activateTestPro(): Promise<number> {
 
 let flushing = false;
 
-// Uploads all queued ops; keeps the queue intact when the network fails.
 export async function flushQueue(): Promise<void> {
   if (!isSupabaseConfigured || flushing) return;
   flushing = true;
@@ -193,8 +175,6 @@ export async function flushQueue(): Promise<void> {
   }
 }
 
-// Idempotently creates/updates the owner's remote child, registers membership
-// server-side and uploads any local history recorded before the link existed.
 export async function syncChildToCloud(child: Child): Promise<string> {
   await requireSession();
   const { data, error } = await supabase.rpc('ensure_owned_child', {
@@ -217,8 +197,6 @@ export async function syncChildToCloud(child: Child): Promise<string> {
   return remoteId;
 }
 
-// Sharing only creates an invite now; owner backup itself is available to all
-// signed-in accounts and is reused here when the child is not linked yet.
 export async function shareChild(child: Child): Promise<string> {
   if (child.remoteId) return child.remoteId;
   const remoteId = await syncChildToCloud(child);
@@ -232,8 +210,6 @@ export async function createInviteCode(remoteId: string): Promise<string> {
   return data as string;
 }
 
-// Keeps profile fields in sync and backfills birthdays for children that were
-// shared while the server was still running the pre-birthday schema.
 export async function syncChildProfile(child: Child): Promise<void> {
   if (!child.remoteId) return;
   await requireSession();
@@ -269,8 +245,6 @@ const isMissingBirthdayColumn = (error: { code?: string; message?: string }): bo
   error.code === 'PGRST204' ||
   error.message?.includes('birthday_ms') === true;
 
-// All children the signed-in account has access to (RLS narrows the select
-// to own + member rows). Used to restore children on a new device.
 export async function fetchRemoteChildren(): Promise<RemoteChild[]> {
   if (!isSupabaseConfigured) return [];
   await requireSession();
@@ -315,7 +289,6 @@ export interface RemoteLiveRow {
   proDetails?: ActivitySession['proDetails'];
 }
 
-// Announces a running timer to the child's members (start = upsert).
 export async function pushLiveSession(
   remoteChildId: string,
   track: LiveTrack,
@@ -380,8 +353,6 @@ export async function fetchLiveSessions(remoteChildIds: string[]): Promise<Remot
     }));
 }
 
-// Leaves a shared child on the server (the child itself is deleted once the
-// last member leaves) and clears local sync state for it.
 export async function leaveChild(remoteId: string): Promise<void> {
   await requireSession();
   const { error } = await supabase.rpc('leave_child', { cid: remoteId });
@@ -391,8 +362,6 @@ export async function leaveChild(remoteId: string): Promise<void> {
   await writeQueue(queue.filter((op) => op.remoteChildId !== remoteId));
 }
 
-// Pulls remote changes since the stored cursor and merges them into the local
-// day buckets. Returns the number of applied rows.
 export async function pullChildSessions(
   remoteId: string,
   localChildId: string,

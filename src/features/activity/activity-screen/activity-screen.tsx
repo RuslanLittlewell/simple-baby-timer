@@ -9,7 +9,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,7 +17,7 @@ import { AuroraBackground } from "@/components/aurora-background";
 import { MobileMenu } from "@/components/mobile-menu";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 import { computeDayStats } from "@/features/calendar/helpers";
 import { BabySvg } from "@/features/children/components/baby-svg";
 import {
@@ -33,17 +32,28 @@ import {
   getSessionsForDay,
   type ActivitySession,
   type EventKind,
+  type ProDetails,
 } from "@/lib/activity-store";
 import { formatAge } from "@/lib/children";
 import { useAppStore, useT } from "@/state/app-state";
 
-import { ActivityRow } from "./components/activity-row";
-import { DayStatsRow } from "./components/day-stats-row";
-import { EventTile } from "./components/event-tile";
-import { FloatingIcons } from "./components/floating-icons";
-import { ProActivityPanel } from "./components/pro-activety-panel";
-import { StatusCard } from "./components/status-card";
-import { ACTIVITIES, EVENTS, FEEDING, MAIN_ACTIVITIES } from "./constants";
+import { ActivityRow } from "../components/activity-row";
+import { DayStatsRow } from "../components/day-stats/day-stats-row";
+import { EventTile } from "../components/event-tile";
+import { FloatingIcons } from "../components/floating-icons";
+import { ProActivityPanel } from "../components/pro-activity-panel/pro-activity-panel";
+import { StartTimePicker } from "../components/start-time-picker";
+import { StatusCard } from "../components/status-card";
+import { ACTIVITIES, EVENTS, FEEDING, MAIN_ACTIVITIES } from "../constants";
+import { useDenseActivityLayout } from "../use-compact-activity-layout";
+import { PANEL_GAP, styles } from "./styles";
+
+
+
+interface PendingStart {
+  kind: "settling" | "sleep" | "awake";
+  details?: ProDetails;
+}
 
 export default function ActivityScreen() {
   const theme = useTheme();
@@ -82,13 +92,18 @@ export default function ActivityScreen() {
   const focused = useIsFocused();
   const openPaywall = useProPaywall();
   const { float } = useActivityColors();
+  const dense = useDenseActivityLayout();
   const [nowTs, setNowTs] = useState(Date.now());
   const [panelWidth, setPanelWidth] = useState(1);
   const [panelIndex, setPanelIndex] = useState(proAccess ? 1 : 0);
   const [proExpanded, setProExpanded] = useState(false);
   const [proDismissSignal, setProDismissSignal] = useState(0);
   const [todaySessions, setTodaySessions] = useState<ActivitySession[]>([]);
+  const [pendingStart, setPendingStart] = useState<PendingStart | null>(null);
   const pagerRef = useRef<ScrollView>(null);
+  
+  
+  const pendingStartResolve = useRef<((started: boolean) => void) | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -100,8 +115,8 @@ export default function ActivityScreen() {
     };
   }, [activeChildId, dataVersion]);
 
-  // Partner-run timers for the active child; hidden while a local timer of
-  // the same track exists.
+  
+  
   const remoteMain = session
     ? null
     : (remoteLive.find(
@@ -131,11 +146,11 @@ export default function ActivityScreen() {
     return () => clearInterval(id);
   }, [mainSession?.startedAt, feedingSession?.startedAt]);
 
-  // Without a child this screen has nothing to show and no way out: the header
-  // chip that leads to the list is the child itself. Losing one — by switching
-  // accounts, or deleting the last child — must not strand the user here. When
-  // children exist but none is picked (the moment after landing here from the
-  // index route), take the first rather than bouncing the user to the list.
+  
+  
+  
+  
+  
   useEffect(() => {
     if (!focused || activeChild) return;
     const fallback = children[0];
@@ -148,10 +163,10 @@ export default function ActivityScreen() {
     pagerRef.current?.scrollTo({ x: 0, animated: true });
   }, []);
 
-  // Swiping to the pro panel without access opens the paywall; closing it
-  // without PRO slides back to the basic panel. The focus check matters: this
-  // screen stays mounted behind the other tabs, and losing PRO elsewhere (by
-  // deleting the account, say) would otherwise flash the paywall from here.
+  
+  
+  
+  
   useEffect(() => {
     if (!focused || proAccess || panelIndex !== 1) return;
     openPaywall((unlocked) => {
@@ -164,7 +179,7 @@ export default function ActivityScreen() {
     const targetIndex = proAccess ? 1 : 0;
     setPanelIndex(targetIndex);
     pagerRef.current?.scrollTo({
-      x: targetIndex * panelWidth,
+      x: targetIndex * (panelWidth + PANEL_GAP),
       animated: false,
     });
   }, [panelWidth, proAccess]);
@@ -197,8 +212,8 @@ export default function ActivityScreen() {
           : []),
       ]
     : [];
-  // The note describes what the reminder will do, so it has nothing to say
-  // while that reminder is switched off in settings.
+  
+  
   let statusNote = "";
   if (primary?.kind === "sleep" && sleepNotificationsEnabled)
     statusNote = t("activity.noteSleep", {
@@ -220,13 +235,14 @@ export default function ActivityScreen() {
   const handleMainActivity = async (kind: "settling" | "sleep" | "awake") => {
     if (activitySyncing) return;
     if (mainSession?.kind === kind) {
-      // Stop whichever side runs it — ours or the partner's.
+      
       if (session) await stopActivity(kind);
       else await stopRemoteActivity("session");
       return;
     }
 
-    await transitionMainActivity(kind);
+    
+    setPendingStart({ kind });
   };
 
   const handleToggleFeeding = async () => {
@@ -242,7 +258,37 @@ export default function ActivityScreen() {
   const handleSaveMainActivity = (
     kind: "settling" | "sleep",
     details: Parameters<typeof transitionMainActivity>[1],
-  ) => activitySyncing ? Promise.resolve() : transitionMainActivity(kind, details);
+  ) => {
+    if (activitySyncing) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      pendingStartResolve.current = resolve;
+      setPendingStart({ kind, details });
+    });
+  };
+
+  const settlePendingStart = (started: boolean) => {
+    const resolve = pendingStartResolve.current;
+    pendingStartResolve.current = null;
+    resolve?.(started);
+  };
+
+  const confirmPendingStart = async (startedAt: number) => {
+    const pending = pendingStart;
+    setPendingStart(null);
+    
+    
+    if (!pending || activitySyncing) {
+      settlePendingStart(false);
+      return;
+    }
+    await transitionMainActivity(pending.kind, pending.details, startedAt);
+    settlePendingStart(true);
+  };
+
+  const dismissPendingStart = () => {
+    setPendingStart(null);
+    settlePendingStart(false);
+  };
 
   const handleLogBottleFeeding = (
     startedAt: number,
@@ -272,8 +318,8 @@ export default function ActivityScreen() {
     >
       <AuroraBackground />
       {floatingKinds.length > 0 && <FloatingIcons kinds={floatingKinds} />}
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.safeArea, dense && styles.safeAreaDense]} edges={["top", "left", "right"]}>
+        <View style={[styles.header, dense && styles.headerDense]}>
           {activeChild ? (
             <Pressable
               accessibilityLabel={activeChild.name}
@@ -284,7 +330,7 @@ export default function ActivityScreen() {
                 colors={CHILD_GRADIENTS[activeChild.gradientKey]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.childChip}
+                style={[styles.childChip, dense && styles.childChipDense]}
               >
                 <BabySvg
                   size={24}
@@ -323,7 +369,7 @@ export default function ActivityScreen() {
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={Spacing.two}
-          style={styles.center}
+          style={[styles.center, dense && styles.centerDense]}
         >
           <DayStatsRow stats={dayStats} />
 
@@ -342,14 +388,21 @@ export default function ActivityScreen() {
             <ScrollView
               ref={pagerRef}
               horizontal
-              pagingEnabled
+              contentContainerStyle={styles.pagerContent}
+              decelerationRate="fast"
+              disableIntervalMomentum
+              snapToAlignment="start"
+              snapToInterval={panelWidth + PANEL_GAP}
               bounces={false}
               keyboardDismissMode="interactive"
               keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(event) =>
                 setPanelIndex(
-                  Math.round(event.nativeEvent.contentOffset.x / panelWidth),
+                  Math.round(
+                    event.nativeEvent.contentOffset.x /
+                      (panelWidth + PANEL_GAP),
+                  ),
                 )
               }
             >
@@ -434,6 +487,13 @@ export default function ActivityScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {pendingStart && (
+        <StartTimePicker
+          runningStartedAt={mainSession?.startedAt}
+          onConfirm={(startedAt) => void confirmPendingStart(startedAt)}
+          onDismiss={dismissPendingStart}
+        />
+      )}
       {activitySyncing && (
         <View
           accessible
@@ -476,107 +536,3 @@ export default function ActivityScreen() {
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-  },
-  safeArea: {
-    flex: 1,
-    alignSelf: "stretch",
-    alignItems: "center",
-    paddingHorizontal: Spacing.four,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-    width: "100%",
-  },
-  header: {
-    alignSelf: "stretch",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: Spacing.four,
-  },
-  childChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: 999,
-  },
-  childInfo: {
-    maxWidth: 190,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.one,
-  },
-  childName: {
-    flexShrink: 1,
-  },
-  center: {
-    flex: 1,
-    alignSelf: "stretch",
-    justifyContent: "center",
-    gap: Spacing.five,
-  },
-  list: {
-    gap: Spacing.two,
-  },
-  pager: {
-    alignSelf: "stretch",
-    gap: Spacing.three,
-    position: "relative",
-  },
-  pageIndicator: {
-    flexDirection: "row",
-    alignSelf: "center",
-    gap: Spacing.two,
-  },
-  pageDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.25)",
-  },
-  pageDotActive: {
-    width: 18,
-    backgroundColor: "#C4B5FD",
-  },
-  eventRow: {
-    flexDirection: "row",
-    alignSelf: "stretch",
-    gap: Spacing.two,
-  },
-  eventNarrow: {
-    flex: 2,
-  },
-  eventWide: {
-    flex: 6,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  syncOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 100,
-  },
-  syncBlur: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  syncLoader: {
-    alignItems: "center",
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.four,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-});

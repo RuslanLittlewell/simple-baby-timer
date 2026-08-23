@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -53,6 +53,7 @@ function SettingSlider({
   format,
 }: SettingSliderProps) {
   const theme = useTheme();
+  const themeMode = useAppStore((state) => state.themeMode);
   const [local, setLocal] = useState(value);
 
   useEffect(() => setLocal(value), [value]);
@@ -71,7 +72,7 @@ function SettingSlider({
             value={enabled}
             onValueChange={onEnabledChange}
             trackColor={{ false: theme.border, true: '#C4B5FD' }}
-            style={styles.switch}
+            style={[styles.switch, themeMode === 'light' && styles.lightSwitchBorder]}
           />
         </View>
       </View>
@@ -126,7 +127,7 @@ export default function SettingsScreen() {
   const proActive = useAppStore((state) => state.proActive);
   const children = useAppStore((state) => state.children);
   const activeChildId = useAppStore((state) => state.activeChildId);
-  // Settling is a PRO activity, so its reminder is only configurable there.
+  
   const proAccess =
     proActive || children.find((child) => child.id === activeChildId)?.proEnabled === true;
   const themeMode = useAppStore((state) => state.themeMode);
@@ -156,12 +157,8 @@ export default function SettingsScreen() {
               setDeleting(false);
               return;
             }
-            // The device is only wiped once the server confirmed the deletion.
             await clearAccountData();
             await signOut();
-            // Clearing resets onboarding, but this screen is a tab route and
-            // would happily stay mounted — send the user to the root, which
-            // now renders the onboarding flow from its first step.
             router.replace('/');
           })();
         },
@@ -172,7 +169,12 @@ export default function SettingsScreen() {
     <TabFade>
       <ThemedView gradient style={styles.container}>
         <AuroraBackground />
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <SafeAreaView
+          style={[
+            styles.safeArea,
+            Platform.OS === 'ios' && Platform.isPad && styles.ipadTopTabsInset,
+          ]}
+          edges={['top', 'left', 'right']}>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
@@ -198,7 +200,7 @@ export default function SettingsScreen() {
                     value={themeMode === 'light'}
                     onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
                     trackColor={{ false: theme.border, true: '#C4B5FD' }}
-                    style={styles.switch}
+                    style={[styles.switch, themeMode === 'light' && styles.lightSwitchBorder]}
                   />
                 </View>
               </View>
@@ -279,6 +281,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  ipadTopTabsInset: {
+    paddingTop: 52,
+  },
   scroll: {
     flex: 1,
     alignSelf: 'stretch',
@@ -318,6 +323,10 @@ const styles = StyleSheet.create({
   switch: {
     transform: [{ scale: 0.78 }],
   },
+  lightSwitchBorder: {
+    borderRadius: 16,
+    boxShadow: 'inset 0 0 0 2px #C4B5FD',
+  },
   slider: {
     width: '100%',
     height: 40,
@@ -326,8 +335,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  // The only card without a control on the right, so its row is centred
-  // instead of starting at the left edge like the settings above.
   deleteAccount: {
     justifyContent: 'center',
   },

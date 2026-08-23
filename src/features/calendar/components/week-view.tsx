@@ -6,7 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
-import { useAppStore } from '@/state/app-state';
+import { useAppStore, useT } from '@/state/app-state';
 
 import { isSameDay, pad2 } from '../helpers';
 import { OverlayShell } from './overlay-shell';
@@ -16,8 +16,7 @@ interface WeekViewProps {
   shownDay: Date;
   today: Date;
   onShiftWeek: (delta: number) => void;
-  onOpenMonth: () => void;
-  onOpenStats: () => void;
+  onSwitchPeriod: () => void;
   onClose: () => void;
   onPickDay: (date: Date) => void;
 }
@@ -27,12 +26,12 @@ export function WeekView({
   shownDay,
   today,
   onShiftWeek,
-  onOpenMonth,
-  onOpenStats,
+  onSwitchPeriod,
   onClose,
   onPickDay,
 }: WeekViewProps) {
   const theme = useTheme();
+  const t = useT();
   const language = useAppStore((state) => state.language);
   const WEEKDAYS = WEEKDAYS_I18N[language];
 
@@ -49,12 +48,11 @@ export function WeekView({
   return (
     <OverlayShell
       navLabel={rangeLabel}
-      onBack={onOpenMonth}
+      onSwitchPeriod={onSwitchPeriod}
+      switchLabel={t('calendar.month')}
       onClose={onClose}
-      onStats={onOpenStats}
       onPrev={() => onShiftWeek(-1)}
-      onNext={() => onShiftWeek(1)}
-      fill>
+      onNext={() => onShiftWeek(1)}>
       <View style={styles.list}>
         {weekDays.map((d, i) => {
           const isTodayRow = isSameDay(d, today);
@@ -63,7 +61,7 @@ export function WeekView({
             <Pressable
               key={i}
               onPress={() => onPickDay(d)}
-              style={({ pressed }) => [styles.dayItem, pressed && styles.pressed]}>
+              style={({ pressed }) => pressed && styles.pressed}>
               <ThemedView
                 type={isSelected ? 'backgroundSelected' : 'backgroundElement'}
                 style={styles.dayRow}>
@@ -94,16 +92,10 @@ export function WeekView({
 }
 
 const styles = StyleSheet.create({
-  // The seven days share out the whole card rather than stacking at its top.
   list: {
-    flex: 1,
     gap: Spacing.one,
   },
-  dayItem: {
-    flex: 1,
-  },
   dayRow: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,

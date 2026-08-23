@@ -16,17 +16,17 @@ export function OnboardingFlow() {
   const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
   const [step, setStep] = useState<Step>('welcome');
 
-  // The paywall belongs to a first run, not to someone signing back in — they
-  // may well be paying already.
+  
+  
   const finish = (offerPro: boolean) => {
     setOnboardingComplete(true);
     if (offerPro) setPendingPaywall(true);
     router.replace('/activity');
   };
 
-  // Signing in after a logout or an account deletion goes through here again.
-  // Pull the account's children first: whoever already has one should not be
-  // asked to invent another.
+  
+  
+  
   const afterSignIn = async () => {
     await syncNow();
     if (useAppStore.getState().children.length > 0) finish(false);

@@ -24,11 +24,11 @@ const DRAWER_WIDTH = Dimensions.get('window').width * 0.5;
 export function MobileMenu() {
   const theme = useTheme();
   const t = useT();
-  // A SafeAreaView mounted inside a Modal measures itself only after the first
-  // frame, which used to drop the header under the status bar on the very
-  // first open. Reading the insets out here — where they are already known —
-  // and padding by hand keeps the drawer correct from the start. The insets sit
-  // on top of the drawer's own padding, the way SafeAreaView stacked them.
+  
+  
+  
+  
+  
   const insets = useSafeAreaInsets();
   const fallback = initialWindowMetrics?.insets;
   const safeArea = {
@@ -42,8 +42,8 @@ export function MobileMenu() {
   const proActive = useAppStore((state) => state.proActive);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
-  // The paywall lives in the root layout, so the menu just asks for it — and
-  // only once its own drawer is out of the way.
+  
+  
   const setPendingPaywall = useAppStore((state) => state.setPendingPaywall);
   const [visible, setVisible] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
@@ -75,8 +75,8 @@ export function MobileMenu() {
     );
   };
 
-  // The drawer closes first and the Alert follows: asking over a half-dismissed
-  // drawer looks like the app got stuck mid-animation.
+  
+  
   const confirmLogout = () =>
     close(() =>
       Alert.alert(t('menu.logoutConfirm'), undefined, [
@@ -84,9 +84,9 @@ export function MobileMenu() {
         {
           text: t('menu.logout'),
           style: 'destructive',
-          // Signing out only drops the session: the children stay on the
-          // device, so signing back in does not cost the parent their records.
-          // The sign-in gate in the root layout takes over from here.
+          
+          
+          
           onPress: () => void signOut(),
         },
       ]),
@@ -173,6 +173,7 @@ export function MobileMenu() {
                     value={themeMode === 'light'}
                     onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
                     trackColor={{ false: theme.border, true: '#C4B5FD' }}
+                    style={themeMode === 'light' && styles.lightSwitchBorder}
                   />
                 </View>
               </View>
@@ -270,6 +271,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  lightSwitchBorder: {
+    borderRadius: 16,
+    boxShadow: 'inset 0 0 0 2px #C4B5FD',
   },
   footer: {
     flex: 1,

@@ -40,7 +40,7 @@ export function ShareChildModal({ child, onClose }: ShareChildModalProps) {
       try {
         let remoteId = child.remoteId;
         if (!remoteId) {
-          // First share: create the remote child and upload its history.
+          
           remoteId = await shareChild(child);
           setChildRemoteId(child.id, remoteId);
         }

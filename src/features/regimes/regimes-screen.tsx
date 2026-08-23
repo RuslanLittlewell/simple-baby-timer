@@ -1,7 +1,7 @@
 import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuroraBackground } from '@/components/aurora-background';
@@ -22,7 +22,7 @@ import { RegimeTimeline } from './components/regime-timeline';
 import { localizeRegimes } from './localize';
 import { type RegimeStep } from './types';
 
-const FALLBACK_AGE_INDEX = 2; // 3–4 месяца when no birthday is known
+const FALLBACK_AGE_INDEX = 2; 
 
 export default function RegimesScreen() {
   const theme = useTheme();
@@ -35,8 +35,8 @@ export default function RegimesScreen() {
   const openPaywall = useProPaywall();
   const router = useRouter();
 
-  // Opening the tab without PRO shows the paywall and nothing else; closing it
-  // without unlocking returns to the tab the user came from.
+  
+  
   useEffect(() => {
     if (!focused || proActive) return;
     openPaywall((unlocked) => {
@@ -53,7 +53,7 @@ export default function RegimesScreen() {
   const [variantIndex, setVariantIndex] = useState(0);
   const [selectedStep, setSelectedStep] = useState<RegimeStep | null>(null);
 
-  // Re-open on the active child's age group when the child (or its birthday) changes.
+  
   useEffect(() => {
     setAgeIndex(defaultAgeIndex);
     setVariantIndex(0);
@@ -67,8 +67,8 @@ export default function RegimesScreen() {
     setVariantIndex(0);
   };
 
-  // Nothing but the app background sits under the paywall — the regimes are
-  // PRO content, and the effect above is already sending the user back.
+  
+  
   if (!proActive) {
     return (
       <ThemedView gradient style={styles.container}>
@@ -80,7 +80,12 @@ export default function RegimesScreen() {
   return (
     <ThemedView gradient style={styles.container}>
       <AuroraBackground />
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <SafeAreaView
+        style={[
+          styles.safe,
+          Platform.OS === 'ios' && Platform.isPad && styles.ipadTopTabsInset,
+        ]}
+        edges={['top', 'left', 'right']}>
         <AgePicker
           labels={regimes.map((r) => r.age)}
           selectedIndex={ageIndex}
@@ -138,6 +143,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     alignSelf: 'stretch',
+  },
+  ipadTopTabsInset: {
+    paddingTop: 52,
   },
   scroll: {
     flex: 1,

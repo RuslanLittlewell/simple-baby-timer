@@ -38,7 +38,7 @@ export function AgePicker({ labels, selectedIndex, onSelect }: AgePickerProps) {
 }
 
 const styles = StyleSheet.create({
-  // Cap the strip height and stop it from flex-growing to fill the column.
+  
   scroll: {
     alignSelf: 'stretch',
     flexGrow: 0,

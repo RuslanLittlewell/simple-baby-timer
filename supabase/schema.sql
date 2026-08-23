@@ -1,17 +1,5 @@
--- BabyTimer sharing schema. Run in Supabase SQL editor.
--- Auth setup — the app signs in with Google and Apple only, no email flow:
---   • Google provider: Authentication → Providers → Google (needs OAuth client
---     ID/secret from Google Cloud Console).
---   • Apple provider: Authentication → Providers → Apple (needs a Services ID,
---     Team ID, Key ID and the .p8 key from Apple Developer).
---   • Add the app redirect URL (babytimer://auth-callback) to Authentication →
---     URL Configuration → Redirect URLs.
 
--- ── Tables ──────────────────────────────────────────────────────────────
 
--- trial_ends_at stays null until the user starts the trial from the paywall
--- (start_trial() below). A non-null value therefore means "trial used", no
--- matter whether it is still running or already over.
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   pro_active boolean not null default false,
@@ -23,11 +11,8 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists pro_active boolean not null default false;
 alter table public.profiles add column if not exists trial_ends_at timestamptz;
 alter table public.profiles add column if not exists pro_renews_at timestamptz;
--- Stops the automatic trial in projects created while sign-up still granted one.
 alter table public.profiles alter column trial_ends_at drop default;
 
--- Accounts that predate the profiles table get a row without a trial; they can
--- still start one from the paywall.
 insert into public.profiles (id)
 select id from auth.users
 on conflict (id) do nothing;
@@ -55,13 +40,10 @@ create table if not exists public.children (
   created_at timestamptz not null default now()
 );
 
--- For projects created before birthday support.
 alter table public.children add column if not exists birthday_ms bigint;
 alter table public.children add column if not exists pro_enabled boolean not null default false;
 alter table public.children add column if not exists client_id text;
 
--- The local id makes owner backup idempotent: retries after a lost response do
--- not create a second copy of the same child.
 create unique index if not exists children_creator_client_id
   on public.children (created_by, client_id)
   where client_id is not null;
@@ -91,8 +73,6 @@ alter table public.sessions add column if not exists pro_details jsonb;
 create index if not exists sessions_child_updated
   on public.sessions (child_id, updated_at);
 
--- Currently running timers, one row per (child, track). Started = upsert,
--- stopped = delete; the completed record then arrives through sessions.
 create table if not exists public.live_sessions (
   child_id uuid not null references public.children (id) on delete cascade,
   track text not null check (track in ('session', 'feeding')),
@@ -114,7 +94,6 @@ create table if not exists public.invites (
   expires_at timestamptz not null default now() + interval '7 days'
 );
 
--- Server-authoritative updated_at so pull cursors can trust it.
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin
@@ -127,9 +106,6 @@ create trigger sessions_touch
   before insert or update on public.sessions
   for each row execute function public.touch_updated_at();
 
--- ── Realtime ────────────────────────────────────────────────────────────
--- Stream sessions changes to subscribed clients (RLS still applies: only
--- members of the child receive its events).
 
 do $$ begin
   if not exists (
@@ -150,7 +126,6 @@ do $$ begin
   end if;
 end $$;
 
--- ── Membership helper (security definer avoids RLS recursion) ───────────
 
 create or replace function public.is_child_member(cid uuid)
 returns boolean
@@ -179,7 +154,6 @@ language sql stable security definer set search_path = public as $$
   );
 $$;
 
--- ── RLS ─────────────────────────────────────────────────────────────────
 
 alter table public.profiles enable row level security;
 alter table public.children enable row level security;
@@ -208,7 +182,6 @@ drop policy if exists members_select on public.child_members;
 create policy members_select on public.child_members
   for select using (user_id = auth.uid());
 
--- The creator may add themselves; everyone else joins via redeem_invite().
 drop policy if exists members_insert on public.child_members;
 create policy members_insert on public.child_members
   for insert with check (
@@ -238,11 +211,7 @@ drop policy if exists invites_insert on public.invites;
 create policy invites_insert on public.invites
   for insert with check (public.is_child_member(child_id));
 
--- ── RPC ─────────────────────────────────────────────────────────────────
 
--- Saves a child for its owner independently of Premium sharing. The caller
--- can only create rows owned by their own auth.uid(); invite creation remains
--- gated by has_active_pro() below.
 create or replace function public.ensure_owned_child(
   local_id text,
   child_name text,
@@ -280,8 +249,6 @@ end $$;
 revoke execute on function public.ensure_owned_child(text, text, text, bigint) from public, anon;
 grant execute on function public.ensure_owned_child(text, text, text, bigint) to authenticated;
 
--- Temporary purchase hook. Replace this RPC with verified App Store purchase
--- handling when StoreKit integration is added.
 create or replace function public.activate_test_pro()
 returns timestamptz
 language plpgsql security definer set search_path = public as $$
@@ -297,8 +264,6 @@ begin
   return renewal;
 end $$;
 
--- Starts the one-off 14-day trial. trial_ends_at is written exactly once per
--- account, so a second call fails whether the trial is running or long over.
 create or replace function public.start_trial()
 returns timestamptz
 language plpgsql security definer set search_path = public as $$
@@ -319,7 +284,6 @@ begin
   return updated;
 end $$;
 
--- Generates a short invite code for a child (member only).
 create or replace function public.create_invite(cid uuid)
 returns text
 language plpgsql security definer set search_path = public as $$
@@ -343,8 +307,6 @@ begin
   return new_code;
 end $$;
 
--- Removes the caller from a child; deletes the child (and its sessions,
--- via cascade) when no members remain.
 create or replace function public.leave_child(cid uuid)
 returns void
 language plpgsql security definer set search_path = public as $$
@@ -355,9 +317,6 @@ begin
   end if;
 end $$;
 
--- Erases the caller's account: every membership goes, children nobody is left
--- in go with it (their sessions cascade), and finally the auth user itself —
--- which cascades the profile row. Required by App Store guideline 5.1.1(v).
 create or replace function public.delete_account()
 returns void
 language plpgsql security definer set search_path = public as $$
@@ -374,16 +333,12 @@ begin
       delete from children where id = cid;
     end if;
   end loop;
-  -- Safety net for children created without a membership row.
   delete from children c
   where c.created_by = uid
     and not exists (select 1 from child_members m where m.child_id = c.id);
   delete from auth.users where id = uid;
 end $$;
 
--- Joins the caller to the invite's child and returns the child profile.
--- PostgreSQL cannot change the OUT row type with CREATE OR REPLACE, so the
--- pre-birthday version must be removed before recreating it.
 drop function if exists public.redeem_invite(text);
 create function public.redeem_invite(invite_code text)
 returns table (

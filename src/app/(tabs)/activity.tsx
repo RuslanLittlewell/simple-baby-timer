@@ -1,5 +1,5 @@
 import { TabFade } from '@/components/tab-fade';
-import ActivityScreen from '@/features/activity/activity-screen';
+import ActivityScreen from '@/features/activity/activity-screen/activity-screen';
 
 export default function ActivityTab() {
   return (

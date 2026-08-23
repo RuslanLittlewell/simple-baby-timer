@@ -11,8 +11,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/state/app-state';
 
 interface OnboardingAuthScreenProps {
-  // Omitted when the screen is a gate rather than a step: a user whose account
-  // is gone has nowhere to go back to.
+  
+  
   onBack?: () => void;
   onSignedIn: () => void;
 }

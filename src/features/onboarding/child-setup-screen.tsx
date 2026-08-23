@@ -7,7 +7,7 @@ import { AuroraBackground } from '@/components/aurora-background';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { AddChildModal } from '@/features/children/components/add-child-modal';
+import { AddChildModal } from '@/features/children/components/add-child-modal/add-child-modal';
 import { EnterCodeModal } from '@/features/children/components/enter-code-modal';
 import { useTheme } from '@/hooks/use-theme';
 import { type ChildGradientKey } from '@/lib/children';

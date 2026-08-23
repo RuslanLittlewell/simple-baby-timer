@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,7 +15,7 @@ import { useAppStore, useT } from '@/state/app-state';
 import { EntryEditor } from './components/entry-editor';
 import { AddActivityModal } from './components/add-activity-modal';
 import { MonthView } from './components/month-view';
-import { StatsModal } from './components/stats-modal';
+import { StatsModal } from './components/stats-modal/stats-modal';
 import { LiveBlocks, TimelineBlocks, type LiveBlock } from './components/timeline-blocks';
 import { TimelineGrid } from './components/timeline-grid';
 import { WeekView } from './components/week-view';
@@ -31,7 +31,7 @@ export default function CalendarScreen() {
 
   const [today, setToday] = useState(() => new Date());
   const todayRef = useRef(today);
-  const [view, setView] = useState<'day' | 'week' | 'month'>('day');
+  const [overlay, setOverlay] = useState<'none' | 'week' | 'month'>('none');
   const [shownDay, setShownDay] = useState<Date>(today);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today));
   const [monthCursor, setMonthCursor] = useState<Date>(
@@ -99,7 +99,7 @@ export default function CalendarScreen() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     syncCurrentDate();
-    const id = view === 'day' ? setInterval(syncCurrentDate, 1000) : undefined;
+    const id = overlay === 'none' ? setInterval(syncCurrentDate, 1000) : undefined;
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') syncCurrentDate();
     });
@@ -107,7 +107,7 @@ export default function CalendarScreen() {
       if (id) clearInterval(id);
       subscription.remove();
     };
-  }, [syncCurrentDate, view]);
+  }, [syncCurrentDate, overlay]);
 
   const {
     zoom,
@@ -125,22 +125,47 @@ export default function CalendarScreen() {
   const openWeek = () => {
     setWeekStart(startOfWeek(shownDay));
     clearPinchOffset();
-    setView('week');
+    setOverlay('week');
   };
   const shiftWeek = (delta: number) =>
     setWeekStart(
       (prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta * 7),
     );
-  const openMonthFromWeek = () => {
-    setMonthCursor(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1));
-    setView('month');
+  
+  const switchPeriod = () => {
+    if (overlay === 'week') {
+      setMonthCursor(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1));
+      setOverlay('month');
+      return;
+    }
+    setOverlay('week');
+  };
+  const closeOverlay = () => {
+    setOverlay('none');
+    
+    syncCurrentDate();
   };
   const shiftMonth = (delta: number) =>
     setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  
+  
+  const shiftShownDay = (delta: number) =>
+    setShownDay(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + delta),
+    );
   const goToDay = (date: Date) => {
     setShownDay(date);
-    didAutoScroll.current = false;
-    setView('day');
+    closeOverlay();
+    
+    
+    const onToday = isSameDay(date, todayRef.current);
+    const minutes = onToday
+      ? (Date.now() -
+          new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) /
+        60000
+      : 6 * 60;
+    const target = (minutes / 60) * hourHeight - (onToday ? 140 : 20);
+    scrollRef.current?.scrollTo({ y: Math.max(0, target), animated: false });
   };
   const pickDay = (day: number) =>
     goToDay(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day));
@@ -155,9 +180,9 @@ export default function CalendarScreen() {
     shownDay.getMonth(),
     shownDay.getDate() + 1,
   ).getTime();
-  // The modal loads and navigates its own periods; it only needs the day the
-  // user was looking at as a starting point. Statistics are PRO, so without
-  // access the button opens the paywall instead.
+  
+  
+  
   const openStats = () => {
     if (!proAccess) {
       openPaywall((unlocked) => {
@@ -171,45 +196,8 @@ export default function CalendarScreen() {
     <StatsModal
       visible={statsVisible}
       onClose={() => setStatsVisible(false)}
-      day={shownDay}
     />
   );
-
-  if (view === 'week') {
-    return (
-      <>
-        <WeekView
-          weekStart={weekStart}
-          shownDay={shownDay}
-          today={today}
-          onShiftWeek={shiftWeek}
-          onOpenMonth={openMonthFromWeek}
-          onOpenStats={openStats}
-          onClose={() => setView('day')}
-          onPickDay={goToDay}
-        />
-        {dayStats}
-      </>
-    );
-  }
-
-  if (view === 'month') {
-    return (
-      <>
-        <MonthView
-          monthCursor={monthCursor}
-          shownDay={shownDay}
-          today={today}
-          onShiftMonth={shiftMonth}
-          onBackToWeek={() => setView('week')}
-          onOpenStats={openStats}
-          onClose={() => setView('day')}
-          onPickDay={pickDay}
-        />
-        {dayStats}
-      </>
-    );
-  }
 
   const isToday = isSameDay(shownDay, today);
   const nowMinutes = (now - dayStartMs) / 60000;
@@ -217,8 +205,8 @@ export default function CalendarScreen() {
   const px = (minutes: number) => (minutes / 60) * hourHeight;
 
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
-  // Partner-run timers for the active child, unless our own timer covers
-  // the same track already.
+  
+  
   const remoteLiveItems = remoteLive
     .filter((item) => item.childId === activeChildId)
     .filter((item) => (item.track === 'session' ? !session : !feeding))
@@ -245,19 +233,41 @@ export default function CalendarScreen() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <ThemedView gradient style={styles.container}>
-        <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+        <SafeAreaView
+          edges={['top', 'left', 'right']}
+          style={[
+            styles.safe,
+            Platform.OS === 'ios' && Platform.isPad && styles.ipadTopTabsInset,
+          ]}>
           <View style={styles.header}>
             <Pressable
+              accessibilityLabel={t('calendar.week')}
               onPress={openWeek}
               hitSlop={12}
               style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
-              <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text} />
+              <MaterialCommunityIcons name="calendar-month-outline" size={24} color={theme.text} />
             </Pressable>
-            <View style={styles.dateBlock}>
-              <ThemedText style={styles.dateDay}>{pad2(shownDay.getDate())}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {pad2(shownDay.getMonth() + 1)}.{shownDay.getFullYear()}
-              </ThemedText>
+            <View style={styles.dateRow}>
+              <Pressable
+                accessibilityLabel={t('editor.prevDay')}
+                onPress={() => shiftShownDay(-1)}
+                hitSlop={12}
+                style={({ pressed }) => [styles.dayArrow, pressed && styles.pressed]}>
+                <MaterialCommunityIcons name="chevron-left" size={30} color={theme.text} />
+              </Pressable>
+              <View style={styles.dateBlock}>
+                <ThemedText style={styles.dateDay}>{pad2(shownDay.getDate())}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {pad2(shownDay.getMonth() + 1)}.{shownDay.getFullYear()}
+                </ThemedText>
+              </View>
+              <Pressable
+                accessibilityLabel={t('editor.nextDay')}
+                onPress={() => shiftShownDay(1)}
+                hitSlop={12}
+                style={({ pressed }) => [styles.dayArrow, pressed && styles.pressed]}>
+                <MaterialCommunityIcons name="chevron-right" size={30} color={theme.text} />
+              </Pressable>
             </View>
             <View style={styles.headerActions}>
               <Pressable
@@ -265,14 +275,14 @@ export default function CalendarScreen() {
                 onPress={openStats}
                 hitSlop={12}
                 style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-                <MaterialCommunityIcons name="chart-box-outline" size={26} color={theme.text} />
+                <MaterialCommunityIcons name="chart-box-outline" size={24} color={theme.text} />
               </Pressable>
               <Pressable
                 accessibilityLabel={t('manual.title')}
                 onPress={() => setAddingActivity(true)}
                 hitSlop={12}
                 style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-                <MaterialCommunityIcons name="plus" size={27} color={theme.text} />
+                <MaterialCommunityIcons name="plus" size={24} color={theme.text} />
               </Pressable>
             </View>
           </View>
@@ -357,6 +367,35 @@ export default function CalendarScreen() {
             onClose={() => setAddingActivity(false)}
             onSave={addManualActivity}
           />
+
+          
+          <Modal
+            visible={overlay !== 'none'}
+            transparent
+            animationType="fade"
+            onRequestClose={closeOverlay}>
+            {overlay === 'month' ? (
+              <MonthView
+                monthCursor={monthCursor}
+                shownDay={shownDay}
+                today={today}
+                onShiftMonth={shiftMonth}
+                onSwitchPeriod={switchPeriod}
+                onClose={closeOverlay}
+                onPickDay={pickDay}
+              />
+            ) : (
+              <WeekView
+                weekStart={weekStart}
+                shownDay={shownDay}
+                today={today}
+                onShiftWeek={shiftWeek}
+                onSwitchPeriod={switchPeriod}
+                onClose={closeOverlay}
+                onPickDay={goToDay}
+              />
+            )}
+          </Modal>
         </SafeAreaView>
       </ThemedView>
     </GestureHandlerRootView>
@@ -370,6 +409,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
   },
+  ipadTopTabsInset: {
+    paddingTop: 52,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -380,7 +422,7 @@ const styles = StyleSheet.create({
   backBtn: {
     position: 'absolute',
     left: Spacing.four,
-    width: 40,
+    width: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -399,6 +441,17 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.5,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  dayArrow: {
+    width: 34,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dateBlock: {
     alignItems: 'center',

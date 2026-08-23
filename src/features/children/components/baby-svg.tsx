@@ -6,7 +6,7 @@ interface BabySvgProps {
   featureColor?: string;
 }
 
-// Simple baby face: head with ears, a hair curl, eyes, cheeks and a smile.
+
 export function BabySvg({
   size = 56,
   faceColor = '#FFFFFF',

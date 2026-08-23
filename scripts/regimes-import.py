@@ -140,16 +140,12 @@ def main():
                        'source': ages[age].get('_src', ''), 'variants': variants})
 
     strings = extract_strings(result, load_translations())
-    ts = ("// AUTO-GENERATED from the published Google Sheet by scripts/regimes-import.py.\n"
-          "// Do not edit by hand.\n"
-          "import { type RegimeAge } from './types';\n\n"
+    ts = ("import { type RegimeAge } from './types';\n\n"
           "export const REGIMES: RegimeAge[] = "
           + json.dumps(result, ensure_ascii=False, indent=2) + ";\n")
     with open(OUT, 'w') as f:
         f.write(ts)
-    i18n_ts = ("// Regime copy keyed by stable paths from data.ts. Russian is translated through\n"
-               "// the same lookup as every other supported language.\n"
-               "import { type LanguageCode } from '@/i18n';\n\n"
+    i18n_ts = ("import { type LanguageCode } from '@/i18n';\n\n"
                "export const REGIME_STRINGS: Record<LanguageCode, Record<string, string>> = "
                + json.dumps(strings, ensure_ascii=False, indent=2) + ";\n")
     with open(I18N_OUT, 'w') as f:

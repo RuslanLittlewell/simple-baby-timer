@@ -9,9 +9,9 @@ export function usePinchZoom() {
   const zoomRef = useRef(zoom);
 
   const [pinching, setPinching] = useState(false);
-  // Applied via the contentOffset prop so the scroll correction lands in the
-  // same commit as the new timeline height — a scrollTo against the not-yet
-  // resized content gets clamped by the native side and flashes wrong hours.
+  
+  
+  
   const [pinchOffset, setPinchOffset] = useState<{ x: number; y: number } | null>(null);
   const scrollY = useRef(0);
   const viewportHeight = useRef(0);
@@ -46,7 +46,7 @@ export function usePinchZoom() {
     const target = Math.min(maxScroll, Math.max(0, hour * height - screenY));
     pendingScrollY.current = target;
     scrollY.current = target;
-    // Batched with setZoom: offset and new content height land in one commit.
+    
     setZoom(next);
     setPinchOffset({ x: 0, y: target });
   }, []);

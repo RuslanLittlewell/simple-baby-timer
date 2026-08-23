@@ -5,12 +5,10 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 export const formatMin = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
 
 export interface TimelineWindow {
-  startHour: number; // first hour line
-  endHour: number; // last hour line
+  startHour: number;
+  endHour: number;
 }
 
-// The hour range that tightly contains every timed step of a variant, padded
-// to whole hours so the grid looks like the calendar day view.
 export function windowForVariant(variant: RegimeVariant): TimelineWindow {
   let min = 24 * 60;
   let max = 0;
@@ -25,8 +23,6 @@ export function windowForVariant(variant: RegimeVariant): TimelineWindow {
 
 const MIN_FILL_MINUTES = 10;
 
-// Awake windows = the parts of the day between sleeps. Feedings and activities
-// overlay these, so only sleep carves the timeline.
 export function awakeFills(
   variant: RegimeVariant,
   startMin: number,

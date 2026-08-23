@@ -60,8 +60,8 @@ export function AnimatedSplashOverlay() {
 
 const styles = StyleSheet.create({
   image: {
-    // Square now that it carries the app icon; the old 76×71 came from the
-    // Expo wordmark's proportions.
+    
+    
     width: 76,
     height: 76,
   },
@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    // Matches the native splash background in app.json, so the hand-off from
-    // the system splash to this overlay is invisible.
+    
+    
     backgroundColor: '#04215B',
     alignItems: 'center',
     justifyContent: 'center',

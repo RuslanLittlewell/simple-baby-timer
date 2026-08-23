@@ -33,8 +33,8 @@ interface AuthDiagnosticDetails {
     | 'stale-rejected'
     | 'completed'
     | 'failed';
-  // Which step of the sign-in gave up. Five places report stage: 'failed', and
-  // without this they are indistinguishable in a log.
+  
+  
   failedAt?:
     | 'provider-launch'
     | 'code-exchange'
@@ -61,9 +61,9 @@ export function createAuthDiagnosticRecord(
   event: AuthDiagnosticEvent,
   details: AuthDiagnosticDetails = {},
 ): AuthDiagnosticRecord {
-  // Copy every permitted field explicitly. This runtime allow-list prevents a
-  // loosely typed caller from smuggling a session, token, URL, or raw error
-  // into diagnostics through object spreading.
+  
+  
+  
   const record: AuthDiagnosticRecord = { event };
   if (details.previousAppState !== undefined) {
     record.previousAppState = details.previousAppState;

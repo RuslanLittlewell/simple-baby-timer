@@ -11,7 +11,8 @@ import Animated, {
 import { Spacing } from '@/constants/theme';
 import { useActivityColors } from '@/hooks/use-activity-colors';
 
-import { CARD_HEIGHT, type GradKey, type IconName } from '../constants';
+import { CARD_HEIGHT, COMPACT_CARD_HEIGHT, DENSE_CARD_HEIGHT, type GradKey, type IconName } from '../constants';
+import { useCompactActivityLayout, useDenseActivityLayout } from '../use-compact-activity-layout';
 
 interface EventTileProps {
   icon: IconName;
@@ -24,6 +25,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventTileProps) {
   const { gradients, fg } = useActivityColors();
+  const compact = useCompactActivityLayout();
+  const dense = useDenseActivityLayout();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -48,8 +51,8 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
         colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.tile}>
-        <MaterialCommunityIcons name={icon} size={26} color={fg[gradKey]} />
+        style={[styles.tile, compact && styles.tileCompact, dense && styles.tileDense]}>
+        <MaterialCommunityIcons name={icon} size={dense ? 22 : compact ? 24 : 26} color={fg[gradKey]} />
       </LinearGradient>
     </AnimatedPressable>
   );
@@ -65,5 +68,14 @@ const styles = StyleSheet.create({
     minHeight: CARD_HEIGHT,
     paddingVertical: Spacing.four,
     borderRadius: Spacing.four,
+  },
+  tileCompact: {
+    minHeight: COMPACT_CARD_HEIGHT,
+    paddingVertical: Spacing.three,
+  },
+  tileDense: {
+    minHeight: DENSE_CARD_HEIGHT,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.three,
   },
 });

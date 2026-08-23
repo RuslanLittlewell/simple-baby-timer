@@ -41,8 +41,8 @@ type SyncOutcome = 'success' | 'unavailable' | 'auth-required' | 'failed';
 const ACTIVITY_SYNC_TIMEOUT_MS = 15_000;
 const gateTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
-// One full pass. The coordinator below serializes calls so this body never
-// races another copy of itself.
+
+
 async function performSyncPass(generation: number): Promise<SyncOutcome> {
   const capturedAuthGeneration = authGeneration.snapshot();
   const isCurrentAuth = () => authGeneration.isCurrent(capturedAuthGeneration);
@@ -52,19 +52,19 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
   });
   if (!isSupabaseConfigured) return 'unavailable';
   try {
-    // The account comes first: entering the app (and every return to it)
-    // re-checks that it still exists, and only then is there any point in
-    // uploading or pulling anything.
+    
+    
+    
     const account = await checkAccount();
     if (!isCurrentAuth()) return 'unavailable';
-    // Offline: keep whatever the last successful pass established.
+    
     if (account === 'inconclusive') return 'unavailable';
     if (accountOutcomeRequiresGate(account)) {
-      // Returning from the provider sheet raises a foreground edge, and that
-      // pass lands here while the code is still on its way to being exchanged:
-      // there is no session yet, which is not the same as having lost one.
-      // Signing out now would also wipe the PKCE verifier and break the
-      // exchange that is about to run.
+      
+      
+      
+      
+      
       if (isOAuthInFlight()) return 'unavailable';
       await signOutLocal();
       if (!isCurrentAuth()) return 'unavailable';
@@ -74,10 +74,10 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     }
     useAppStore.getState().setAuthRequired(false);
 
-    // A different account on the same device: its owner must not inherit the
-    // previous one's children. Their own are restored from the server further
-    // down; anything that lived only on this device belonged to the account
-    // that left and goes with it.
+    
+    
+    
+    
     const userId = await getUserId();
     if (!isCurrentAuth()) return 'unavailable';
     const known = useAppStore.getState().accountId;
@@ -86,28 +86,28 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
         await useAppStore.getState().clearAccountData({ keepOnboarding: true });
         if (!isCurrentAuth()) return 'unavailable';
       }
-      // Notification consent is account-specific. A newly attached account
-      // starts with every reminder (and its matching Live Activity) disabled,
-      // even when another account enabled them on this device before.
+      
+      
+      
       for (const kind of ['sleep', 'awake', 'settling'] as const) {
         useAppStore.getState().setNotificationsEnabled(kind, false);
       }
     }
-    // Only ever record a real id: overwriting it with null would make the next
-    // account look like the same one and let its children through.
+    
+    
     if (userId) useAppStore.getState().setAccountId(userId);
-    // Purchases belong to the account, not the device.
+    
     if (userId) await identifyPurchaser(userId);
     if (!isCurrentAuth()) return 'unavailable';
 
     await flushQueue();
     if (!isCurrentAuth()) return 'unavailable';
 
-    // Subscription and trial are re-evaluated here, so a plan that ran out
-    // while the app was closed locks PRO again on the way in. Two sources:
-    // the profile row, which the RevenueCat webhook keeps current and which
-    // the server's RLS trusts, and the receipt on the device, which is right
-    // the instant a purchase completes — before any webhook has landed.
+    
+    
+    
+    
+    
     const pro = await fetchAccountProStatus();
     const receipt = await fetchEntitlement().catch(() => ({ active: false }) as ProEntitlement);
     if (!isCurrentAuth()) return 'unavailable';
@@ -154,7 +154,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     if (!isCurrentAuth()) return 'unavailable';
     return 'success';
   } catch {
-    // Offline or Supabase unreachable — the queue survives, retry later.
+    
     return 'failed';
   }
 }
@@ -168,9 +168,9 @@ const syncCoordinator = new SingleFlightCoordinator(async (generation) => {
   useAppStore.getState().finishActivitySync(generation);
 });
 
-// Full sync requests are single-flight. A foreground request explicitly asks
-// for a pass that starts after any older in-flight work; ordinary duplicate
-// callers join the current runner.
+
+
+
 export function syncNow({ fresh = false }: { fresh?: boolean } = {}): Promise<void> {
   return syncCoordinator.request(fresh, (generation) => {
     logAuthDiagnostic('sync-request', { fresh, syncGeneration: generation });
@@ -179,16 +179,16 @@ export function syncNow({ fresh = false }: { fresh?: boolean } = {}): Promise<vo
       generation,
       setTimeout(() => {
         gateTimers.delete(generation);
-        // Fail open for offline/hung requests. Generation matching prevents an
-        // old timeout from releasing a newer foreground gate.
+        
+        
         useAppStore.getState().finishActivitySync(generation);
       }, ACTIVITY_SYNC_TIMEOUT_MS),
     );
   });
 }
 
-// Fetches the partner's currently running timers for every shared child and
-// hands them to the store (which also cancels remotely stopped local timers).
+
+
 async function refreshLivePass(): Promise<void> {
   const { children, reconcileRemoteLive, retryPendingLive } = useAppStore.getState();
   const shared = children.filter((child) => child.remoteId);
@@ -216,8 +216,8 @@ async function refreshLivePass(): Promise<void> {
   reconcileRemoteLive(mapped, requestedAt);
 }
 
-// Foreground and realtime live snapshots share one ordered lane. A response
-// can therefore never overtake a snapshot requested before it.
+
+
 let liveRefreshTail: Promise<void> = Promise.resolve();
 
 function refreshLive(): Promise<void> {
@@ -236,8 +236,8 @@ function scheduleLiveRefresh() {
   }, 200);
 }
 
-// Realtime events arrive in bursts (own echo included) — collapse them into
-// one cursor-based pull per child.
+
+
 const pullTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function schedulePull(remoteId: string, localChildId: string) {
@@ -251,19 +251,18 @@ function schedulePull(remoteId: string, localChildId: string) {
         const applied = await pullChildSessions(remoteId, localChildId);
         if (applied > 0) useAppStore.getState().bumpDataVersion();
       } catch {
-        // Foreground sync will catch up.
       }
     }, 300),
   );
 }
 
-// Runs a sync pass on app start / foreground and keeps realtime subscriptions
-// on the sessions table for every shared child while the app is open.
+
+
 export function useSync() {
   const children = useAppStore((state) => state.children);
   const [authed, setAuthed] = useState(false);
 
-  // Track the auth state so subscriptions (re)start right after sign-in.
+  
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
@@ -277,9 +276,9 @@ export function useSync() {
           authGeneration: verified.generation,
         });
         useAppStore.getState().setAuthRequired(false);
-        // INITIAL_SESSION is covered by the mount pass. Supabase can emit
-        // SIGNED_IN again when revalidating an existing session, so only a
-        // transition from no session requests a fresh account sync.
+        
+        
+        
         if (verified.isNew) {
           logAuthDiagnostic('verified-session', {
             stage: 'gate-transition',
@@ -296,17 +295,17 @@ export function useSync() {
         hasSession: false,
         authGeneration: authGeneration.snapshot(),
       });
-      // A null payload is meaningful only for the initial recovery result or
-      // an explicit SDK SIGNED_OUT event. Other auth events must not turn a
-      // transient observation into a destructive UI transition.
+      
+      
+      
       if (!authEventRequiresGate(event, hasSession)) return;
-      // Same reason as in the sync pass: a sign-in in progress has no session
-      // yet, and the sign-out it triggers here would cancel itself.
+      
+      
       if (isOAuthInFlight()) return;
       authGeneration.observeMissingSession();
       const capturedGeneration = authGeneration.snapshot();
-      // Supabase awaits auth callbacks. Verify outside this callback so
-      // getSession cannot deadlock initialization and so a newer session wins.
+      
+      
       queueMicrotask(() => {
         void (async () => {
           const { data: current } = await supabase.auth.getSession();
@@ -324,8 +323,8 @@ export function useSync() {
           syncState.finishActivitySync(syncState.activitySyncGeneration);
           syncState.setProStatus(false);
           syncState.setAuthRequired(true);
-          // Purchases go back to an anonymous id, so the next person to sign in
-          // on this device does not inherit the subscription.
+          
+          
           await forgetPurchaser();
         })();
       });

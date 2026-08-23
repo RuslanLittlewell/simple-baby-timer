@@ -20,8 +20,8 @@ export class SingleFlightCoordinator {
   private async drain(): Promise<void> {
     try {
       while (this.completedGeneration < this.requestedGeneration) {
-        // Multiple requests arriving during a pass collapse into the newest
-        // generation, producing at most one serialized follow-up pass.
+        
+        
         const generation = this.requestedGeneration;
         await this.runGeneration(generation);
         this.completedGeneration = generation;
