@@ -15,8 +15,8 @@ import { useAppStore, useT } from '@/state/app-state';
 
 import { HelloTypewriter } from './components/hello-typewriter';
 
-// The launcher artwork, downscaled: the full 1024px icon would be decoded in
-// full just to draw an 84pt square.
+
+
 const APP_ICON = require('../../../assets/images/app-mark.png');
 
 interface WelcomeScreenProps {
@@ -74,6 +74,7 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
                 value={themeMode === 'light'}
                 onValueChange={(isLight) => setThemeMode(isLight ? 'light' : 'dark')}
                 trackColor={{ false: theme.border, true: '#C4B5FD' }}
+                style={themeMode === 'light' && styles.lightSwitchBorder}
               />
             </View>
           </View>
@@ -129,6 +130,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  lightSwitchBorder: {
+    borderRadius: 16,
+    boxShadow: 'inset 0 0 0 2px #C4B5FD',
   },
   brandText: {
     fontSize: 22,

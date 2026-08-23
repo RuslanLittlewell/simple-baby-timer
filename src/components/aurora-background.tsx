@@ -24,7 +24,7 @@ interface BlobSpec {
   duration: number;
 }
 
-// голубой / синий / молочный / розовый / фиолетовый
+
 const BLOBS: BlobSpec[] = [
   {
     id: 'sky',
@@ -88,8 +88,8 @@ function AuroraBlob({ spec, running }: AuroraBlobProps) {
 
   useEffect(() => {
     if (!running) {
-      // Freeze in place rather than reset: resuming should not snap the blob
-      // back to where it started.
+      
+      
       cancelAnimation(progress);
       return;
     }
@@ -131,10 +131,6 @@ function AuroraBlob({ spec, running }: AuroraBlobProps) {
 }
 
 export function AuroraBackground() {
-  // Five large translucent layers redrawn 60 times a second are not free. Tab
-  // screens stay mounted behind each other, so without this the backgrounds of
-  // every visited tab keep animating out of sight — and keep the GPU busy while
-  // the phone is in a pocket.
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
 

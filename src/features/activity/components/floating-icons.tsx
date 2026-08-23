@@ -19,17 +19,17 @@ interface StreakSpec {
   left: number;
   travelY: number;
   duration: number;
-  // Where in its fall the icon sits when the loop is at zero, as a fraction of
-  // the trip. This is what keeps the icons apart — see FloatingIcon.
+  
+  
   phase: number;
   opacity: number;
 }
 
 const START_TOP = -60;
 
-// Five horizontal positions, each repeated across three staggered, slightly
-// varied waves so the screen never looks empty — 15 icons total, all
-// falling straight down without ever moving in visible lockstep.
+
+
+
 const BASE_LANES: Omit<StreakSpec, 'id' | 'phase'>[] = [
   { size: 26, left: SCREEN_W * 0.08, travelY: SCREEN_H - START_TOP + 60, duration: 9000, opacity: 0.22 },
   { size: 34, left: SCREEN_W * 0.28, travelY: SCREEN_H - START_TOP + 60, duration: 12000, opacity: 0.16 },
@@ -48,7 +48,6 @@ const STREAKS: StreakSpec[] = BASE_LANES.flatMap((lane, laneIndex) =>
     id: `s${laneIndex}-${wave}`,
     left: lane.left + (wave - 1) * SCREEN_W * 0.06,
     size: lane.size + (wave - 1) * 3,
-    // The old start delays, expressed as a position in the loop instead.
     phase: ((laneIndex * LANE_DELAY + wave * WAVE_DELAY) % lane.duration) / lane.duration,
   })),
 );
@@ -62,10 +61,6 @@ interface FloatingIconProps {
 function FloatingIcon({ spec, icon, color }: FloatingIconProps) {
   const progress = useSharedValue(0);
 
-  // Every icon runs the same plain 0→1 loop; the offset that keeps them apart
-  // lives in the style below. A start delay would do the same on a fresh mount,
-  // but it is spent once: after the app is backgrounded the loops resume
-  // together and the whole field falls in lockstep.
   useEffect(() => {
     progress.value = 0;
     progress.value = withRepeat(
@@ -77,7 +72,6 @@ function FloatingIcon({ spec, icon, color }: FloatingIconProps) {
 
   const style = useAnimatedStyle(() => {
     const position = (progress.value + spec.phase) % 1;
-    // Fade in/out at the ends of each loop so icons never pop at the edges.
     const edge = 0.08;
     const fade =
       position < edge ? position / edge : position > 1 - edge ? (1 - position) / edge : 1;
@@ -100,8 +94,6 @@ export interface FloatingIconKind {
 }
 
 interface FloatingIconsProps {
-  // Multiple kinds (e.g. sleep + feeding running at once) are interleaved
-  // round-robin across the streaks so both fall together.
   kinds: FloatingIconKind[];
 }
 

@@ -17,17 +17,17 @@ export interface ChartSeries {
 }
 
 interface LineChartProps {
-  // One label per x position; only every nth is drawn when they would collide.
+  
   labels: string[];
   series: ChartSeries[];
-  // Shown once above the plot instead of repeating on every tick.
+  
   unit: string;
-  // Hours get h:mm gridlines once the zoom makes room for them.
+  
   scale?: 'hours' | 'plain';
-  // 1 = the whole scale fits the viewport. Above that the plot grows taller and
-  // is dragged with a finger, the way the calendar timeline magnifies hours.
+  
+  
   zoom?: number;
-  // Pinching the plot drives the same zoom the slider does.
+  
   onZoomChange?: (zoom: number) => void;
   height?: number;
 }
@@ -39,18 +39,18 @@ const PAD_LEFT = 36;
 const PAD_RIGHT = 6;
 const PLOT_TOP = 8;
 const PLOT_BOTTOM = 4;
-// The x labels sit outside the panned plot so they stay visible when zoomed.
+
 const AXIS_HEIGHT = 16;
-// Beyond this many points the dots merge into the line and only add noise.
+
 const MAX_MARKERS = 10;
-// Smallest distance between gridlines that keeps their labels readable.
+
 const MIN_TICK_GAP = 26;
-// Candidate gridline steps, coarsest first. Hours run down to a single minute.
+
 const HOUR_STEPS = [12, 6, 3, 2, 1, 0.5, 0.25, 1 / 6, 1 / 12, 1 / 60];
 const PLAIN_STEPS = [1000, 500, 250, 100, 50, 25, 10, 5, 2, 1];
 
-// Rounds the top of the scale up to something a person would pick, so the
-// gridline labels stay readable.
+
+
 function niceMax(value: number): number {
   if (value <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(value));
@@ -62,8 +62,8 @@ function niceMax(value: number): number {
   return 10 * magnitude;
 }
 
-// The finest step that still leaves the gridlines far enough apart — this is
-// what turns whole hours into half hours and then minutes as the plot grows.
+
+
 function pickStep(steps: number[], max: number, plotHeight: number): number {
   let chosen = steps[0];
   for (const step of steps) {
@@ -111,14 +111,10 @@ export function LineChart({
     return values;
   }, [max, step]);
 
-  // Panning writes straight to the shared value, so dragging never re-renders
-  // the chart — only the transform is updated.
   const offset = useSharedValue(0);
   const bounds = useRef({ min: 0, max: 0 });
   const zoomRef = useRef(zoom);
   const zoomChangeRef = useRef(onZoomChange);
-  // Drag and pinch each remember where they started; a finger landing or
-  // lifting restarts the other one instead of jumping.
   const drag = useRef<{ offset: number; dy: number } | null>(null);
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
   bounds.current = { min: Math.min(0, viewport - svgHeight), max: 0 };
@@ -127,7 +123,6 @@ export function LineChart({
 
   const previousPlot = useRef(plotHeight);
   useEffect(() => {
-    // Keep whatever sits in the middle of the viewport in the middle of it.
     const ratio = previousPlot.current > 0 ? plotHeight / previousPlot.current : 1;
     previousPlot.current = plotHeight;
     const centred = (offset.value - viewport / 2) * ratio + viewport / 2;
@@ -137,8 +132,6 @@ export function LineChart({
   const responder = useMemo(
     () =>
       PanResponder.create({
-        // Claim the touch outright: nothing inside the plot needs taps, and
-        // leaving it to the ancestors is what made dragging unreliable.
         onStartShouldSetPanResponder: () => true,
         onStartShouldSetPanResponderCapture: (event) =>
           event.nativeEvent.touches.length > 1,

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   Pressable,
-  StyleSheet,
   TextInput,
   View,
   type GestureResponderEvent,
@@ -25,36 +24,33 @@ import { useActivityColors } from "@/hooks/use-activity-colors";
 import { type EventKind, type ProDetails } from "@/lib/activity-store";
 import { useT } from "@/state/app-state";
 
-import { CARD_HEIGHT, EVENTS, MAIN_ACTIVITIES } from "../constants";
-import { ActivityRow } from "./activity-row";
-import { EventTile } from "./event-tile";
+import {
+  AWAKE_ACTIVITY,
+  CARD_HEIGHT,
+  EVENTS,
+  SLEEP_ACTIVITY,
+} from "../../constants";
+import { ActivityRow } from "../activity-row";
+import { EventTile } from "../event-tile";
+import {
+  buildProDetails,
+  formatClock,
+  parseVolumeMl,
+  SETTLING_METHODS,
+  toggleInSettlingMethods,
+  withAlpha,
+  type BottleContent,
+  type BreastSide,
+  type FeedingMode,
+  type ProKind,
+  type SettlingMethod,
+  type SleepPlace,
+} from "./helpers";
+import { styles } from "./styles";
 
-type FeedingMode = "breast" | "bottle";
-type BreastSide = "left" | "right" | "both";
-type BottleContent = "formula" | "breastMilk";
-type ProKind = "settling" | "sleep" | "feeding";
-type SleepPlace = Extract<ProDetails, { type: "sleep" }>["place"];
-type SettlingMethod = Extract<
-  ProDetails,
-  { type: "settling" }
->["methods"][number];
 
-const SETTLING_METHODS: SettlingMethod[][] = [
-  ["rocking", "fitball", "inArms"],
-  ["crib", "pacifier", "whiteNoise"],
-  ["music", "swaddling", "darkRoom"],
-  ["walk", "independent"],
-];
-const PANEL_GAP = Spacing.two;
-const EVENT_GAP = Spacing.two;
 
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const fmtClock = (date: Date) =>
-  `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 
-// Frame of the row that opens a panel, in panel coordinates. The expanding
-// card grows out of it, so it is measured rather than derived from the layout
-// rules — the bottom row nests its wide tile inside the event row.
 interface Rect {
   x: number;
   y: number;
@@ -77,10 +73,12 @@ interface ProActivityPanelProps {
     content: BottleContent,
     volumeMl?: number,
   ) => void | Promise<void>;
+  
+  
   onSaveMainActivity: (
     kind: "settling" | "sleep",
     details: ProDetails,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   onDetailsChange: (details: ProDetails) => void;
   dismissSignal: number;
   onExpandedChange: (expanded: boolean) => void;
@@ -105,7 +103,7 @@ export function ProActivityPanel({
   const t = useT();
   const { gradients, fg: fgColors } = useActivityColors();
   const [expandedKind, setExpandedKind] = useState<ProKind | null>(null);
-  // Feeding opens on the mode step with nothing picked yet.
+  
   const [mode, setMode] = useState<FeedingMode | null>(null);
   const [side, setSide] = useState<BreastSide | null>(null);
   const [bottleStart, setBottleStart] = useState(() => new Date());
@@ -118,7 +116,7 @@ export function ProActivityPanel({
   const [rects, setRects] = useState<Partial<Record<ProKind, Rect>>>({});
   const [eventRowTop, setEventRowTop] = useState(0);
   const expansion = useSharedValue(0);
-  // How far the card is pushed up so the keyboard cannot bury the save button.
+  
   const lift = useSharedValue(0);
   const cardRef = useRef<View>(null);
   const savingRef = useRef(false);
@@ -133,11 +131,11 @@ export function ProActivityPanel({
       ? sleepActive
       : feedingActive;
   const isFeeding = expandedKind === "feeding";
-  // A breast feeding needs a side before it can be started.
+  
   const formSaveDisabled = isFeeding && mode === "breast" && !side;
-  // Opening the card of a running timer turns the primary button into a stop.
-  // The bottle step is the exception: it is where the volume is typed, so it
-  // keeps saving — that attaches the parameters to the feeding under way.
+  
+  
+  
   const stopping = timerRunning && !(isFeeding && mode === "bottle");
 
   const captureRect = (kind: ProKind) => (event: LayoutChangeEvent) => {
@@ -158,7 +156,7 @@ export function ProActivityPanel({
     });
   };
 
-  // Opening only reveals the options — the timer starts on "save".
+  
   const open = (kind: ProKind) => {
     if (kind === "feeding") {
       setMode(null);
@@ -171,8 +169,8 @@ export function ProActivityPanel({
     expansion.value = withTiming(1, { duration: 420 });
   };
 
-  // Picking "bottle" reveals the wheel already set to the current time, so
-  // saving straight away starts the timer from now.
+  
+  
   const chooseMode = (next: FeedingMode) => {
     setMode(next);
     if (next === "bottle") setBottleStart(new Date());
@@ -204,18 +202,18 @@ export function ProActivityPanel({
 
   useEffect(() => {
     if (expanded && dismissSignal > 0) close(false);
-    // A changed signal represents a new outside press.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
+    
   }, [dismissSignal]);
 
-  // The card is absolutely positioned inside the panel, so the screen's
-  // KeyboardAvoidingView cannot move it — measure how much of it the keyboard
-  // covers and slide it up by exactly that.
+  
+  
+  
   useEffect(() => {
     if (!expanded) return;
     const show = Keyboard.addListener("keyboardDidShow", (event) => {
       cardRef.current?.measureInWindow((_x, y, _width, height) => {
-        // y already includes any lift applied, so the overlap is added to it.
+        
         const overlap = y + height + Spacing.two - event.endCoordinates.screenY;
         lift.value = withTiming(Math.max(0, lift.value + overlap), {
           duration: 220,
@@ -231,38 +229,35 @@ export function ProActivityPanel({
     };
   }, [expanded, lift]);
 
-  const parsedVolume = Number.parseInt(volume, 10);
-  const volumeMl = Number.isFinite(parsedVolume) ? parsedVolume : undefined;
+  const volumeMl = parseVolumeMl(volume);
 
-  const buildDetails = (kind: ProKind): ProDetails | null => {
-    if (kind === "settling")
-      return { type: "settling", methods: settlingMethods };
-    if (kind === "sleep") return { type: "sleep", place: sleepPlace };
-    if (mode === "breast")
-      return side ? { type: "feeding", mode: "breast", side } : null;
-    if (mode === "bottle")
-      return { type: "feeding", mode: "bottle", content, volumeMl };
-    return null;
-  };
-
-  // Breast feeding keeps the timer flow. Bottle feeding is written immediately
-  // as a fixed-duration event by the parent screen.
+  
+  
   const save = async (kind: ProKind | null) => {
-    if (!kind) return;
-    const details = buildDetails(kind);
-    if (!details) return;
+    if (!kind) return false;
+    const details = buildProDetails(kind, {
+      settlingMethods,
+      sleepPlace,
+      mode,
+      side,
+      content,
+      volumeMl,
+    });
+    if (!details) return false;
     if (kind === "feeding" && mode === "bottle") {
       await onLogBottleFeeding(bottleStart.getTime(), content, volumeMl);
-      return;
+      return true;
     }
     if (kind === "settling" || kind === "sleep") {
-      await onSaveMainActivity(kind, details);
-      return;
+      
+      
+      return onSaveMainActivity(kind, details);
     }
     if (kind === "feeding" && !feedingActive) {
       await onToggleFeeding();
     }
     onDetailsChange(details);
+    return true;
   };
 
   const stopExpandedTimer = async (kind: ProKind | null) => {
@@ -285,9 +280,7 @@ export function ProActivityPanel({
 
   const toggleSettlingMethod = (method: SettlingMethod) => {
     setSettlingMethods((current) =>
-      current.includes(method)
-        ? current.filter((item) => item !== method)
-        : [...current, method],
+      toggleInSettlingMethods(current, method),
     );
   };
 
@@ -297,11 +290,13 @@ export function ProActivityPanel({
     setSaving(true);
     let succeeded = false;
     try {
-      if (stopping) await stopExpandedTimer(expandedKind);
-      else await save(expandedKind);
-      succeeded = true;
+      if (stopping) {
+        await stopExpandedTimer(expandedKind);
+        succeeded = true;
+      } else {
+        succeeded = await save(expandedKind);
+      }
     } catch {
-      // Keep the panel open so the user can retry the rejected operation.
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -310,7 +305,7 @@ export function ProActivityPanel({
   };
 
   const measuredRect = expandedKind ? rects[expandedKind] : undefined;
-  // The feeding tile is measured inside the event row, so its offset is added.
+  
   const originRect = measuredRect
     ? expandedKind === "feeding"
       ? { ...measuredRect, y: measuredRect.y + eventRowTop }
@@ -363,8 +358,8 @@ export function ProActivityPanel({
       </View>
       <View onLayout={captureRect("sleep")}>
         <ActivityRow
-          icon={MAIN_ACTIVITIES[0].icon}
-          gradKey={MAIN_ACTIVITIES[0].gradKey}
+          icon={SLEEP_ACTIVITY.icon}
+          gradKey={SLEEP_ACTIVITY.gradKey}
           label={t("kind.sleep")}
           isActive={sleepActive}
           onStop={() => void onToggleSleep()}
@@ -372,8 +367,8 @@ export function ProActivityPanel({
         />
       </View>
       <ActivityRow
-        icon={MAIN_ACTIVITIES[1].icon}
-        gradKey={MAIN_ACTIVITIES[1].gradKey}
+        icon={AWAKE_ACTIVITY.icon}
+        gradKey={AWAKE_ACTIVITY.gradKey}
         label={t("kind.awake")}
         isActive={awakeActive}
         onPress={() => void onToggleAwake()}
@@ -443,7 +438,7 @@ export function ProActivityPanel({
                       : "pro.feeding",
                 )}
               </ThemedText>
-              {/* Stopping lives in the footer button; the header only closes. */}
+              
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("editor.cancel")}
@@ -569,7 +564,7 @@ export function ProActivityPanel({
                       value={bottleStart}
                       maximumDate={new Date()}
                       openOnMount
-                      displayText={`${t("editor.start")} · ${fmtClock(bottleStart)}`}
+                      displayText={`${t("editor.start")} · ${formatClock(bottleStart)}`}
                       onChange={setBottleStart}
                       style={styles.wheel}
                       textStyle={[styles.wheelText, { color: fg }]}
@@ -655,14 +650,6 @@ interface ChoiceProps {
   onPress: () => void;
 }
 
-const withAlpha = (hex: string, alpha: number) => {
-  const value = hex.replace("#", "");
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-};
-
 function Choice({
   tone = "feed",
   icon,
@@ -673,9 +660,6 @@ function Choice({
 }: ChoiceProps) {
   const { fg } = useActivityColors();
   const sleep = tone === "sleep";
-  // Sleep chips sit on the sleep gradient, which is deep blue in the dark theme
-  // and nearly white in the light one — so their ink follows the palette
-  // instead of being hardcoded white, which vanished on the light card.
   const ink = fg.sleep;
   const contentColor = !sleep || selected ? "#3E2D19" : ink;
   return (
@@ -709,181 +693,3 @@ function Choice({
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  panel: {
-    alignSelf: "stretch",
-    gap: PANEL_GAP,
-  },
-  eventRow: {
-    flexDirection: "row",
-    alignSelf: "stretch",
-    gap: EVENT_GAP,
-  },
-  eventNarrow: {
-    flex: 2,
-  },
-  eventWide: {
-    flex: 6,
-  },
-  overlay: {
-    position: "absolute",
-    zIndex: 10,
-    elevation: 10,
-    overflow: "hidden",
-  },
-  card: {
-    flex: 1,
-    padding: Spacing.four,
-    gap: Spacing.two,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.three,
-  },
-  title: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  details: {
-    flex: 1,
-    gap: Spacing.two,
-  },
-  sleepOptions: {
-    flex: 1,
-    gap: Spacing.two,
-  },
-  options: {
-    flex: 1,
-    flexDirection: "row",
-    gap: Spacing.two,
-  },
-  choice: {
-    flex: 1,
-    minHeight: 38,
-    gap: Spacing.one,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(122, 78, 45, 0.58)",
-    borderRadius: 12,
-    paddingHorizontal: Spacing.two,
-    backgroundColor: "rgba(255,255,255,0.56)",
-  },
-  choiceSelected: {
-    borderWidth: 2,
-    borderColor: "#7A4E2D",
-    backgroundColor: "rgba(255,248,235,0.92)",
-  },
-  choiceSleep: {
-    borderColor: "rgba(255,255,255,0.62)",
-    backgroundColor: "rgba(255,255,255,0.14)",
-  },
-  choiceSleepSelected: {
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    backgroundColor: "rgba(255,255,255,0.9)",
-  },
-  choiceText: {
-    color: "#3E2D19",
-    fontSize: 12,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  // One step of the feeding flow: a row of controls that keeps its natural
-  // height instead of stretching over the whole card.
-  step: {
-    flexDirection: "row",
-    gap: Spacing.two,
-    minHeight: 48,
-  },
-  // Feeding steps share out the whole card instead of leaving dead space.
-  stepFill: {
-    flex: 1,
-  },
-  breastSides: {
-    flex: 1,
-    gap: Spacing.two,
-  },
-  breastSidesTop: {
-    flex: 7,
-    minHeight: 0,
-  },
-  breastSidesBottom: {
-    flex: 3,
-    minHeight: 0,
-  },
-  bottle: {
-    flex: 1,
-    gap: Spacing.two,
-  },
-  bottleChoiceRow: {
-    minHeight: 48,
-    height: 48,
-  },
-  wheel: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "#7A4E2D",
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.72)",
-  },
-  wheelText: {
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "700",
-  },
-  volume: {
-    minHeight: 100,
-    height: 100,
-    borderWidth: 1.5,
-    borderColor: "#7A4E2D",
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.72)",
-    paddingHorizontal: Spacing.three,
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  footer: {
-    flexDirection: "row",
-    gap: Spacing.two,
-  },
-  back: {
-    flex: 1,
-    minHeight: 46,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(122, 78, 45, 0.58)",
-  },
-  backText: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  save: {
-    flex: 1,
-    minHeight: 46,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.92)",
-  },
-  saveDisabled: {
-    opacity: 0.45,
-  },
-  saveText: {
-    color: "#3E2D19",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});

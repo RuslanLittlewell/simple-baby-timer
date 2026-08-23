@@ -13,7 +13,7 @@ export const SCROLL_BOTTOM_PAD = Spacing.six;
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
-// Extra gradients for kinds the tracker itself does not have.
+
 const RITUAL_GRADIENT = ['#A98BF5', '#7A55E0'] as const;
 const OTHER_GRADIENT = ['#8A9BB4', '#5B6b82'] as const;
 
@@ -36,6 +36,6 @@ export function useKindStyle(): Record<RegimeKind, KindStyle> {
   };
 }
 
-// Awake-window fill: yellow-lime block with just a sun icon.
+
 export const AWAKE_FILL_GRADIENT = ['#CFE95C', '#EAF69B'] as const;
 export const AWAKE_FILL_ICON = '#3F5406';

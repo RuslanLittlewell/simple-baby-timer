@@ -7,9 +7,11 @@ import { type ActivityKind } from '@/lib/notifications';
 export type GradKey = keyof typeof ACTIVITY_GRADIENTS.dark;
 export type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
-// Shared row height for the bottom row (feeding / diaper / poop) so the wide
-// ActivityRow and the two narrow EventTiles line up exactly.
+
+
 export const CARD_HEIGHT = 82;
+export const COMPACT_CARD_HEIGHT = 68;
+export const DENSE_CARD_HEIGHT = 54;
 
 export interface ActivityMeta {
   id: ActivityKind;
@@ -31,9 +33,11 @@ export const ACTIVITIES: ActivityMeta[] = [
 ];
 
 export const MAIN_ACTIVITIES = ACTIVITIES.filter(
-  (activity): activity is ActivityMeta & { id: 'sleep' | 'awake' } =>
-    activity.id === 'sleep' || activity.id === 'awake',
+  (activity): activity is ActivityMeta & { id: 'settling' | 'sleep' | 'awake' } =>
+    activity.id === 'settling' || activity.id === 'sleep' || activity.id === 'awake',
 );
+export const SLEEP_ACTIVITY = ACTIVITIES.find((activity) => activity.id === 'sleep')!;
+export const AWAKE_ACTIVITY = ACTIVITIES.find((activity) => activity.id === 'awake')!;
 export const FEEDING = ACTIVITIES.find((a) => a.id === 'feeding')!;
 
 export const EVENTS: EventMeta[] = [

@@ -8,6 +8,7 @@ import { Spacing } from '@/constants/theme';
 import { useActivityColors } from '@/hooks/use-activity-colors';
 import { type ActivitySession } from '@/lib/activity-store';
 import { type ActivityKind } from '@/lib/notifications';
+import { useAppStore } from '@/state/app-state';
 
 import {
   KIND_META,
@@ -38,6 +39,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
   t,
 }: TimelineBlocksProps) {
   const { gradients, fg: fgColors } = useActivityColors();
+  const themeMode = useAppStore((state) => state.themeMode);
   const px = (minutes: number) => (minutes / 60) * hourHeight;
   const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
 
@@ -59,7 +61,9 @@ export const TimelineBlocks = memo(function TimelineBlocks({
         const proIcon = proDetailsIcon(s.proDetails);
 
         if (isEvent(s.kind)) {
-          const eventHeight = Math.max(spanHeight, MIN_EVENT_HEIGHT);
+          
+          
+          const eventHeight = Math.max(spanHeight, px(10), MIN_EVENT_HEIGHT);
           const stripeColor = gradients[meta.gradKey][0];
           const blockWidth = SCREEN_WIDTH - laneLeft(s.kind) - Spacing.two;
           const stripes = Math.ceil((blockWidth + 2 * eventHeight) / STRIPE_PITCH);
@@ -71,6 +75,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
               onPress={() => onEdit(s)}
               style={({ pressed }) => [
                 styles.eventBlock,
+                s.kind === 'poop' && styles.poopEventBlock,
                 { top, height: eventHeight, left: laneLeft(s.kind) },
                 pressed && styles.pressed,
               ]}>
@@ -80,18 +85,24 @@ export const TimelineBlocks = memo(function TimelineBlocks({
                     key={i}
                     style={[
                       styles.eventStripe,
-                      { left: i * STRIPE_PITCH - eventHeight, backgroundColor: stripeColor },
+                      {
+                        left: i * STRIPE_PITCH - eventHeight,
+                        backgroundColor: stripeColor,
+                        transform: [{ skewX: s.kind === 'poop' ? '45deg' : STRIPE_SKEW }],
+                      },
                     ]}
                   />
                 ))}
               </View>
-              <MaterialCommunityIcons name={meta.icon} size={17} color={stripeColor} />
+              <MaterialCommunityIcons
+                name={meta.icon}
+                size={17}
+                color={s.kind === 'poop' && themeMode === 'dark' ? '#FFFFFF' : '#000000'}
+              />
             </Pressable>
           );
         }
 
-        // Short tracked sessions keep their real timestamps, but render as at
-        // least five minutes tall (and never below the minimum touch target).
         const height = Math.max(spanHeight, px(5), MIN_EVENT_HEIGHT);
         const showText = height >= 16;
         const showTime = height >= 34;
@@ -223,6 +234,11 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.two,
     zIndex: TIMELINE_Z_INDEX.event,
   },
+  poopEventBlock: {
+    justifyContent: 'flex-start',
+    paddingLeft: Spacing.two,
+    paddingRight: 0,
+  },
   eventStripes: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 6,
@@ -233,7 +249,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: STRIPE_THICKNESS,
-    transform: [{ skewX: STRIPE_SKEW }],
   },
   blockContent: {
     paddingHorizontal: Spacing.two,

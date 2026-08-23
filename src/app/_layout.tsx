@@ -12,8 +12,8 @@ import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { MiniTimer } from '@/components/mini-timer';
 import { OnboardingAuthScreen } from '@/features/onboarding/auth-screen';
+import { WheelSheetHost } from '@/components/wheel-sheet';
 import { PaywallModal } from '@/features/onboarding/components/paywall-modal';
 import { useSync } from '@/hooks/use-sync';
 import { configurePurchases } from '@/lib/purchases';
@@ -22,8 +22,8 @@ import { useAppStore } from '@/state/app-state';
 
 SplashScreen.preventAutoHideAsync();
 
-// Before any screen can ask for offerings. Safe to call on every start; the
-// SDK ignores repeats.
+
+
 configurePurchases();
 
 export default function RootLayout() {
@@ -41,47 +41,48 @@ export default function RootLayout() {
     NunitoSans_700Bold,
   });
 
-  // The native splash is still up (it is only hidden by the overlay below), so
-  // holding here avoids a frame of system font. A load failure falls through
-  // rather than freezing the app on the splash.
+  
+  
+  
   if (!fontsLoaded && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <WheelSheetHost>
       <ThemeProvider value={DarkTheme}>
         <AnimatedSplashOverlay />
         <Stack screenOptions={{ headerShown: false }} />
-        <MiniTimer />
-        {/* Buying anything needs an account, and a native modal would sit on
-            top of the gate below. */}
+        
+
         <PaywallModal
           visible={pendingPaywall && !authRequired}
           onClose={() => setPendingPaywall(false)}
         />
-        {/* The account behind a finished setup is gone or signed out: the app
-            needs one, so sign-in covers everything until it is back. During
-            onboarding the flow asks for it on its own. */}
+        
+
+
         {onboardingComplete && authRequired && (
           <View style={styles.authGate}>
             <OnboardingAuthScreen
               onSignedIn={() => {
-                // Whoever just signed in may be a different parent with a
-                // different set of children, and the screen underneath still
-                // belongs to the previous session. The list is the only safe
-                // landing spot — sync fills it in as the data arrives.
+                
+                
+                
+                
                 router.replace('/children');
               }}
             />
           </View>
         )}
       </ThemeProvider>
+      </WheelSheetHost>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  // Above the tabs and the floating mini timer, so nothing of the app is
-  // reachable while the account is missing.
+  
+  
   authGate: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,

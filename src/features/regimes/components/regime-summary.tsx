@@ -11,8 +11,8 @@ import { type RegimeSummary } from '../types';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
-// Verbose qualifiers to drop from the summary so it stays compact (all
-// supported languages, since the value may be shown in any of them).
+
+
 const DROP_PHRASES = [
   'Обычно около ', 'Usually about ', 'Zwykle około ', 'Normalmente unas ', 'Habituellement environ ',
   '; индивидуальный разброс большой', '; wide individual variation', '; duże różnice indywidualne',

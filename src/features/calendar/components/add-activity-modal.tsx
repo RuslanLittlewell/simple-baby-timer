@@ -14,14 +14,19 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
+import { WheelSheetHost } from '@/components/wheel-sheet';
 import { WheelSelect } from '@/components/wheel-select';
 import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { type ProDetails } from '@/lib/activity-store';
-import { type ActivityKind } from '@/lib/notifications';
-import { useT } from '@/state/app-state';
+import { WEEKDAYS_I18N } from '@/i18n';
+import {
+  EVENT_DURATION_MS,
+  type ProDetails,
+  type SessionKind,
+} from '@/lib/activity-store';
+import { useAppStore, useT } from '@/state/app-state';
 
-import { combineDayTime, fmtTime, parseTime } from '../helpers';
+import { combineDayTime, fmtTime, isEvent, parseTime, startOfDayMs } from '../helpers';
 import { modalStyles } from '../modal-styles';
 import {
   BOTTLE_CONTENTS,
@@ -30,10 +35,11 @@ import {
   SLEEP_PLACES,
   type SettlingMethod,
 } from '../pro-details';
+import { DayStepper } from './day-stepper';
 
-type ManualKind = Extract<ActivityKind, 'settling' | 'sleep' | 'awake' | 'feeding'>;
+type ManualKind = SessionKind;
 
-const KINDS: ManualKind[] = ['settling', 'sleep', 'awake', 'feeding'];
+const KINDS: ManualKind[] = ['settling', 'sleep', 'awake', 'feeding', 'diaper', 'poop'];
 
 interface AddActivityModalProps {
   visible: boolean;
@@ -58,9 +64,13 @@ export function AddActivityModal({
 }: AddActivityModalProps) {
   const theme = useTheme();
   const t = useT();
+  const language = useAppStore((state) => state.language);
+  const WEEKDAYS = WEEKDAYS_I18N[language];
   const [kind, setKind] = useState<ManualKind>('settling');
   const [startInput, setStartInput] = useState('09:00');
   const [endInput, setEndInput] = useState('09:30');
+  const [startDayMs, setStartDayMs] = useState(0);
+  const [endDayMs, setEndDayMs] = useState(0);
   const [sleepPlace, setSleepPlace] = useState<(typeof SLEEP_PLACES)[number]>('crib');
   const [feedingMode, setFeedingMode] = useState<'breast' | 'bottle'>('breast');
   const [breastSide, setBreastSide] = useState<(typeof BREAST_SIDES)[number]>('left');
@@ -92,6 +102,8 @@ export function AddActivityModal({
     setKind('settling');
     setStartInput(fmt(startMinutes));
     setEndInput(fmt(endMinutes));
+    setStartDayMs(startOfDayMs(day.getTime()));
+    setEndDayMs(startOfDayMs(day.getTime()));
     setSleepPlace('crib');
     setFeedingMode('breast');
     setBreastSide('left');
@@ -103,14 +115,14 @@ export function AddActivityModal({
   }, [day, visible]);
 
   const parsedVolume = Number.parseInt(volume, 10);
-  // The one amount the form asks for; stored in both fields of the entry.
+  const eventKind = isEvent(kind);
   const bottleVolume =
     kind === 'feeding' && feedingMode === 'bottle' && Number.isFinite(parsedVolume) && parsedVolume > 0
       ? parsedVolume
       : undefined;
 
   const buildDetails = (): ProDetails | undefined => {
-    if (!proActive || kind === 'awake') return undefined;
+    if (!proActive || kind === 'awake' || eventKind) return undefined;
     if (kind === 'settling') return { type: 'settling', methods: settlingMethods };
     if (kind === 'sleep') return { type: 'sleep', place: sleepPlace };
     if (feedingMode === 'breast') return { type: 'feeding', mode: 'breast', side: breastSide };
@@ -124,13 +136,15 @@ export function AddActivityModal({
 
   const submit = async () => {
     const startTime = parseTime(startInput);
-    const endTime = parseTime(endInput);
+    const endTime = eventKind ? startTime : parseTime(endInput);
     if (!startTime || !endTime) {
       setError(t('editor.errTimeFormat'));
       return;
     }
-    const start = combineDayTime(day.getTime(), startTime);
-    const end = combineDayTime(day.getTime(), endTime);
+    const start = combineDayTime(startDayMs, startTime);
+    const end = eventKind
+      ? start + EVENT_DURATION_MS
+      : combineDayTime(endDayMs, endTime);
     if (end <= start) {
       setError(t('editor.errEndAfterStart'));
       return;
@@ -158,6 +172,7 @@ export function AddActivityModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <WheelSheetHost>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={modalStyles.backdrop}>
@@ -179,7 +194,10 @@ export function AddActivityModal({
             {selectField(
               t('manual.activity'),
               kind,
-              KINDS.map((item) => ({ value: item, label: t(`kind.${item}`) })),
+              KINDS.map((item) => ({
+                value: item,
+                label: item === 'poop' ? '💩' : t(`kind.${item}`),
+              })),
               (value) => setKind(value as ManualKind),
             )}
 
@@ -194,21 +212,39 @@ export function AddActivityModal({
                   style={[styles.timeInputBox, { backgroundColor: theme.backgroundElement }]}
                   textStyle={[styles.timeInputText, { color: theme.text }]}
                 />
-              </View>
-              <View style={[styles.field, styles.timeField]}>
-                <ThemedText type="small" themeColor="textSecondary">{t('editor.end')}</ThemedText>
-                <WheelField
-                  mode="time"
-                  value={timeAsDate(endInput)}
-                  displayText={endInput || '00:00'}
-                  onChange={(date) => { setEndInput(fmtTime(date.getTime())); setError(''); }}
-                  style={[styles.timeInputBox, { backgroundColor: theme.backgroundElement }]}
-                  textStyle={[styles.timeInputText, { color: theme.text }]}
+                <DayStepper
+                  dayMs={startDayMs}
+                  weekdays={WEEKDAYS}
+                  textColor={theme.text}
+                  backgroundColor={theme.backgroundElement}
+                  onChange={(next) => { setStartDayMs(next); setError(''); }}
+                  t={t}
                 />
               </View>
+              {!eventKind && (
+                <View style={[styles.field, styles.timeField]}>
+                  <ThemedText type="small" themeColor="textSecondary">{t('editor.end')}</ThemedText>
+                  <WheelField
+                    mode="time"
+                    value={timeAsDate(endInput)}
+                    displayText={endInput || '00:00'}
+                    onChange={(date) => { setEndInput(fmtTime(date.getTime())); setError(''); }}
+                    style={[styles.timeInputBox, { backgroundColor: theme.backgroundElement }]}
+                    textStyle={[styles.timeInputText, { color: theme.text }]}
+                  />
+                  <DayStepper
+                    dayMs={endDayMs}
+                    weekdays={WEEKDAYS}
+                    textColor={theme.text}
+                    backgroundColor={theme.backgroundElement}
+                    onChange={(next) => { setEndDayMs(next); setError(''); }}
+                    t={t}
+                  />
+                </View>
+              )}
             </View>
 
-            {proActive && kind !== 'awake' && (
+            {proActive && kind !== 'awake' && !eventKind && (
               <View style={styles.proBlock}>
                 <ThemedText type="smallBold">{t('editor.proParameters')}</ThemedText>
 
@@ -304,7 +340,7 @@ export function AddActivityModal({
               </View>
             )}
 
-            {!proActive && (
+            {!proActive && !eventKind && (
               <ThemedText type="small" themeColor="textSecondary">
                 {t('manual.proRequired')}
               </ThemedText>
@@ -322,6 +358,7 @@ export function AddActivityModal({
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      </WheelSheetHost>
     </Modal>
   );
 }
@@ -351,6 +388,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   timeInputText: {

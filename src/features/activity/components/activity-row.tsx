@@ -15,7 +15,8 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useActivityColors } from '@/hooks/use-activity-colors';
 
-import { CARD_HEIGHT, type GradKey, type IconName } from '../constants';
+import { CARD_HEIGHT, COMPACT_CARD_HEIGHT, DENSE_CARD_HEIGHT, type GradKey, type IconName } from '../constants';
+import { useCompactActivityLayout, useDenseActivityLayout } from '../use-compact-activity-layout';
 import { TimerToggleIcon } from './timer-toggle-icon';
 
 interface ActivityRowProps {
@@ -40,6 +41,8 @@ export function ActivityRow({
   const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
   const fg = fgColors[gradKey];
   const accent = accentColors[gradKey];
+  const compact = useCompactActivityLayout();
+  const dense = useDenseActivityLayout();
   const sheenX = useSharedValue(-140);
 
   useEffect(() => {
@@ -71,7 +74,7 @@ export function ActivityRow({
         colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={[styles.row, dimmed && styles.rowDimmed]}>
+        style={[styles.row, compact && styles.rowCompact, dense && styles.rowDense, dimmed && styles.rowDimmed]}>
         {isActive && (
           <Animated.View pointerEvents="none" style={[styles.sheen, sheenStyle]}>
             <LinearGradient
@@ -82,7 +85,7 @@ export function ActivityRow({
             />
           </Animated.View>
         )}
-        <MaterialCommunityIcons name={icon} size={26} color={accent} />
+        <MaterialCommunityIcons name={icon} size={dense ? 22 : compact ? 24 : 26} color={accent} />
         <ThemedText style={[styles.label, { color: fg }]} numberOfLines={1}>
           {label}
         </ThemedText>
@@ -122,6 +125,15 @@ const styles = StyleSheet.create({
   },
   rowDimmed: {
     opacity: 0.45,
+  },
+  rowCompact: {
+    minHeight: COMPACT_CARD_HEIGHT,
+    paddingVertical: Spacing.three,
+  },
+  rowDense: {
+    minHeight: DENSE_CARD_HEIGHT,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.three,
   },
   label: {
     flex: 1,

@@ -12,8 +12,8 @@ const ICONS: Record<ActivityKind, string> = {
   awake: 'la-awake',
 };
 
-// The lock-screen widget always renders in its own dark chrome (see
-// backgroundColor/titleColor below), independent of the in-app theme.
+
+
 const TINTS: Record<ActivityKind, string> = {
   settling: ACTIVITY_ACCENT.dark.settling,
   sleep: ACTIVITY_ACCENT.dark.sleep,
@@ -25,7 +25,7 @@ export const liveActivitySupported = Platform.OS === 'ios';
 
 type Labels = {
   title: string;
-  subtitle: string;
+  subtitle?: string;
 };
 
 export type LiveSlot = 'session' | 'feeding';
@@ -33,9 +33,9 @@ export type LiveSlot = 'session' | 'feeding';
 const activeIds: Record<LiveSlot, string | null> = { session: null, feeding: null };
 const activeLabels: Record<LiveSlot, Labels | null> = { session: null, feeding: null };
 
-// Counts up from when the activity started, not down to the reminder: the
-// widget answers "how long has this been going", which is what the timer on
-// screen shows.
+
+
+
 const stateFor = (
   kind: ActivityKind,
   startedAt: number,
@@ -67,6 +67,10 @@ export function startLiveActivity(
         progressViewTint: TINTS[kind],
         progressViewLabelColor: '#FFFFFF',
         deepLinkUrl: 'babytimer://',
+        
+        
+        padding: { vertical: 6, horizontal: 10 },
+        imageSize: { width: 28, height: 28 },
       }) ?? null;
   } catch {
     activeIds[slot] = null;

@@ -9,7 +9,7 @@ import { CHART_ZOOM_MAX, CHART_ZOOM_MIN } from '../constants';
 
 interface VerticalZoomProps {
   value: number;
-  // Length of the track — the column matches the height of what it zooms.
+  
   length: number;
   onChange: (value: number) => void;
 }
@@ -17,9 +17,9 @@ interface VerticalZoomProps {
 const TRACK = 40;
 const ICON = 18;
 
-// The platform slider is horizontal only, so it is laid out at its full length
-// and rotated a quarter turn inside a fixed-width column. Touches are
-// transformed with it, so dragging still follows the thumb.
+
+
+
 export function VerticalZoom({ value, length, onChange }: VerticalZoomProps) {
   const theme = useTheme();
   const track = Math.max(0, length - (ICON + Spacing.one) * 2);
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   slider: {
     height: TRACK,
-    // Zoom in at the top of the column, out at the bottom.
+    
     transform: [{ rotate: '-90deg' }],
   },
 });

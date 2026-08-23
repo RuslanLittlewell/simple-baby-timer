@@ -1,5 +1,5 @@
-// Regime copy keyed by stable paths from data.ts. Russian is translated through
-// the same lookup as every other supported language.
+
+
 import { type LanguageCode } from '@/i18n';
 
 export const REGIME_STRINGS: Record<LanguageCode, Record<string, string>> = {

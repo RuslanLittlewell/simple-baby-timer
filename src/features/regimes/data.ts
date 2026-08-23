@@ -1,5 +1,5 @@
-// AUTO-GENERATED from the published Google Sheet by scripts/regimes-import.py.
-// Do not edit by hand.
+
+
 import { type RegimeAge } from './types';
 
 export const REGIMES: RegimeAge[] = [

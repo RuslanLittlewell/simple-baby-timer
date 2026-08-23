@@ -37,8 +37,8 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
   const y = (min: number) => ((min - winStart) / 60) * HOUR_HEIGHT;
 
   const sleeps = variant.steps.filter((s) => s.kind === 'sleep' && s.startMin !== null);
-  // Everything that happens during awake time (feedings, meals, rituals,
-  // activities, wake-ups) is overlaid on the awake fill.
+  
+  
   const overlays = variant.steps.filter((s) => s.kind !== 'sleep' && s.startMin !== null);
 
   const fills: RegimeStep[] = awakeFills(variant, winStart, winEnd).map((f) => ({
@@ -82,8 +82,6 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
     );
   };
 
-  // Awake window base — yellow-lime block with only a sun icon; feeding and
-  // activity chips overlay it.
   const renderFill = (step: RegimeStep, key: string) => {
     const top = y(step.startMin!);
     const blockHeight = Math.max(MIN_BLOCK_HEIGHT, y(step.endMin!) - top);
@@ -229,8 +227,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.two,
   },
-  // Feeding / activity chips overlaid on the awake fill, anchored right so the
-  // "any activity" label underneath stays visible on the left.
   overlay: {
     position: 'absolute',
     left: '45%',

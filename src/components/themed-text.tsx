@@ -23,8 +23,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
     type === 'code' && styles.code,
     style,
   ];
-  // Each Nunito weight is a separate family, so the requested weight is turned
-  // into a family here — once, for every piece of text in the app.
+  
+  
   const flattened: TextStyle = StyleSheet.flatten(composed);
 
   return (

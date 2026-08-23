@@ -9,8 +9,8 @@ export interface ThemedViewProps extends ViewProps {
   lightColor?: string;
   darkColor?: string;
   type?: ThemeColor;
-  // Screen-level background: renders the app's gradient backdrop instead of
-  // a flat fill. Only meant for full-screen root containers.
+  
+  
   gradient?: boolean;
 }
 

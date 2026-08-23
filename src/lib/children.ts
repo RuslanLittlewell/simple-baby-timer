@@ -10,11 +10,11 @@ export interface Child {
   id: string;
   name: string;
   gradientKey: ChildGradientKey;
-  // Local midnight of the birth date, in ms. Optional for legacy children.
+  
   birthday?: number;
-  // PRO capabilities inherited from a cloud-shared child profile.
+  
   proEnabled?: boolean;
-  // Supabase children.id (uuid) once the owner backup or shared access is linked.
+  
   remoteId?: string;
 }
 
@@ -23,7 +23,7 @@ export const isChildGradientKey = (value: unknown): value is ChildGradientKey =>
 
 const DAY_MS = 86_400_000;
 
-// Calendar-aware age. Returns whole months and the leftover days.
+
 function ageParts(birthdayMs: number, now = Date.now()): { months: number; days: number; totalDays: number } {
   const b = new Date(birthdayMs);
   const t = new Date(now);
@@ -44,7 +44,7 @@ interface AgeWords {
   month: [string, string, string];
 }
 
-// [one, few, many] — few/many only differ for Slavic languages.
+
 const AGE_WORDS: Record<LanguageCode, AgeWords> = {
   en: { day: ['day', 'days', 'days'], month: ['month', 'months', 'months'] },
   ru: { day: ['день', 'дня', 'дней'], month: ['месяц', 'месяца', 'месяцев'] },
@@ -67,7 +67,7 @@ function plural(n: number, lang: LanguageCode, forms: [string, string, string]):
   return forms[2];
 }
 
-// e.g. "5 дней", "1 месяц 2 дня", "2 months".
+
 export function formatAge(birthdayMs: number, lang: LanguageCode, now = Date.now()): string {
   const { months, days, totalDays } = ageParts(birthdayMs, now);
   const words = AGE_WORDS[lang];
@@ -77,16 +77,15 @@ export function formatAge(birthdayMs: number, lang: LanguageCode, now = Date.now
   return parts.join(' ');
 }
 
-// Maps a birthday to the default regime age-group index (see REGIMES order).
 export function regimeIndexForBirthday(birthdayMs: number, now = Date.now()): number {
   const months = ageParts(birthdayMs, now).totalDays / 30.44;
-  if (months < 1.5) return 0; // 0–6 weeks
-  if (months < 3) return 1; // 6–12 weeks
-  if (months < 5) return 2; // 3–4 months
-  if (months < 7) return 3; // 5–6 months
-  if (months < 10) return 4; // 7–9 months
-  if (months < 12) return 5; // 10–12 months
-  if (months < 15) return 6; // 12–15 months
-  if (months < 18) return 7; // 15–18 months
-  return 8; // 18–24 months
+  if (months < 1.5) return 0;
+  if (months < 3) return 1;
+  if (months < 5) return 2;
+  if (months < 7) return 3;
+  if (months < 10) return 4;
+  if (months < 12) return 5;
+  if (months < 15) return 6;
+  if (months < 18) return 7;
+  return 8;
 }

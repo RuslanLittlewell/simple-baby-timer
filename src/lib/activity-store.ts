@@ -4,7 +4,7 @@ import { type ActivityKind } from '@/lib/notifications';
 
 export type EventKind = 'poop' | 'diaper';
 
-export const EVENT_DURATION_MS = 5 * 60_000;
+export const EVENT_DURATION_MS = 10 * 60_000;
 
 export type SessionKind = ActivityKind | EventKind;
 
@@ -37,8 +37,8 @@ export type ProDetails =
   | {
       type: 'feeding';
       mode: 'bottle';
-      // Records written before water was dropped may still carry 'water' at
-      // runtime; the label for it is kept in the dictionary so they read right.
+      
+      
       content?: 'formula' | 'breastMilk';
       volumeMl?: number;
     };
@@ -51,7 +51,7 @@ export type ActivitySession = {
 
   milkMl?: number;
   proDetails?: ProDetails;
-  // Absent only on legacy entries written before children existed.
+  
   childId?: string;
 };
 
@@ -66,8 +66,6 @@ export function dayKeyFromDate(date: Date): string {
 
 const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
-// Every session overlapping [startMs, endMs). One pass over the store, so a
-// month of stats costs the same read as a single day.
 export async function getSessionsInRange(
   startMs: number,
   endMs: number,
@@ -88,8 +86,11 @@ export async function getSessionsInRange(
       }
     });
 
-    return sessions
-      .filter((session) => session.start < endMs && session.end > startMs)
+    const byId = new Map<string, ActivitySession>();
+    for (const session of sessions) {
+      if (session.start < endMs && session.end > startMs) byId.set(session.id, session);
+    }
+    return [...byId.values()]
       .filter((session) => !childId || !session.childId || session.childId === childId)
       .sort((a, b) => a.start - b.start);
   } catch {
@@ -110,7 +111,7 @@ export async function getAllSessionsForChild(childId: string): Promise<ActivityS
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
   if (!keys.length) return [];
   const storedDays = await AsyncStorage.multiGet(keys);
-  return storedDays.flatMap(([, raw]) => {
+  const all = storedDays.flatMap(([, raw]) => {
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw) as ActivitySession[];
@@ -119,10 +120,9 @@ export async function getAllSessionsForChild(childId: string): Promise<ActivityS
       return [];
     }
   });
+  return [...new Map(all.map((session) => [session.id, session])).values()];
 }
 
-// One-time adoption: stamp legacy sessions (written before children existed)
-// with the given child id.
 export async function claimUnownedSessions(childId: string): Promise<void> {
   try {
     const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
@@ -144,10 +144,6 @@ export async function claimUnownedSessions(childId: string): Promise<void> {
   }
 }
 
-// Removes every stored session of the given child (used when the child is
-// deleted from this device).
-// Drops every stored day bucket. Used when the account (and with it all of
-// its history) is deleted.
 export async function deleteAllSessions(): Promise<void> {
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
   if (keys.length) await AsyncStorage.multiRemove(keys);
@@ -173,8 +169,6 @@ export async function deleteSessionsForChild(childId: string): Promise<void> {
   }
 }
 
-// Upsert sessions coming from sync. Handles entries that moved between day
-// buckets (start date edited remotely) and tombstoned deletions.
 export async function mergeRemoteSessions(
   upserts: ActivitySession[],
   deletedIds: string[],
@@ -223,7 +217,9 @@ export async function saveSession(session: ActivitySession): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(key);
     const list: ActivitySession[] = raw ? JSON.parse(raw) : [];
-    list.push(session);
+    const existing = list.findIndex((item) => item.id === session.id);
+    if (existing === -1) list.push(session);
+    else list[existing] = session;
     await AsyncStorage.setItem(key, JSON.stringify(list));
   } catch {
   }
@@ -264,7 +260,6 @@ export async function updateSession(
     return;
   }
 
-  // Start moved to another day — relocate the entry to that day's bucket.
   await AsyncStorage.setItem(
     oldKey,
     JSON.stringify(list.filter((session) => session.id !== sessionId)),

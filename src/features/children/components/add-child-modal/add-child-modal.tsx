@@ -6,46 +6,22 @@ import {
   Modal,
   Platform,
   Pressable,
-  StyleSheet,
   TextInput,
   View,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { WheelSheetHost } from '@/components/wheel-sheet';
 import { useTheme } from '@/hooks/use-theme';
 import { type ChildGradientKey } from '@/lib/children';
 import { useT } from '@/state/app-state';
 
-import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../constants';
-import { BabySvg } from './baby-svg';
-import { GradientPicker } from './gradient-picker';
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-const formatBirthday = (date: Date) =>
-  `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`;
-
-// Parses "DD.MM.YYYY" into a local-midnight timestamp; rejects invalid,
-// future, or absurdly old dates.
-const parseBirthday = (value: string): number | null => {
-  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
-  if (!m) return null;
-  const day = +m[1];
-  const month = +m[2];
-  const year = +m[3];
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return null;
-  }
-  const now = new Date();
-  if (date.getTime() > now.getTime()) return null;
-  if (year < now.getFullYear() - 6) return null;
-  return date.getTime();
-};
-
-const BIRTHDAY_MIN_DATE = new Date(new Date().getFullYear() - 6, 0, 1);
+import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../../constants';
+import { BabySvg } from '../baby-svg';
+import { GradientPicker } from '../gradient-picker';
+import { BIRTHDAY_MIN_DATE, formatBirthday, parseBirthday } from './helpers';
+import { styles } from './styles';
 
 interface AddChildModalProps {
   visible: boolean;
@@ -74,6 +50,7 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <WheelSheetHost>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -84,7 +61,7 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
           pointerEvents="none"
           style={styles.blur}
         />
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={styles.absoluteFill} onPress={onClose} />
         <View style={[styles.card, { backgroundColor: theme.background }]}>
           <ThemedText style={styles.title}>{t('children.add')}</ThemedText>
 
@@ -147,84 +124,7 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      </WheelSheetHost>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.four,
-  },
-  blur: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: Spacing.four,
-    borderWidth: 1,
-    borderColor: '#3A3D43',
-    padding: Spacing.four,
-    gap: Spacing.three,
-  },
-  title: {
-    fontSize: 18,
-    lineHeight: 23,
-    fontWeight: '700',
-  },
-  preview: {
-    alignItems: 'center',
-  },
-  previewCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nameInput: {
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: NunitoSans.bold,
-  },
-  dateInput: {
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-  },
-  dateInputText: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  saveButton: {
-    alignItems: 'center',
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-  },
-  saveDisabled: {
-    opacity: 0.35,
-  },
-  saveText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});

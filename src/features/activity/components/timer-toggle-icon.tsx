@@ -5,11 +5,11 @@ import { useAppStore } from '@/state/app-state';
 
 interface TimerToggleIconProps {
   active: boolean;
-  // Row's accent color — used as a solid fill in light mode, matching the
-  // pale cards there. Dark mode keeps the neutral glass circle.
+  
+  
   accent: string;
-  // Some dark-theme activity cards (feeding) use a light gradient and need
-  // an opaque dark control for sufficient contrast.
+  
+  
   darkBackgroundColor?: string;
 }
 

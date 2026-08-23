@@ -6,7 +6,7 @@ import { Platform, type TextStyle } from 'react-native';
 
 export type ThemeMode = 'light' | 'dark';
 
-// "Morning Nursery" / "Night Nursery" token sets.
+
 export const Colors = {
   light: {
     text: '#182230',
@@ -54,9 +54,9 @@ export const BackgroundGradient: Record<
   },
 };
 
-// Nunito Sans ships one file per weight and each registers as its own family,
-// so a weight has to be turned into a family name — fontWeight alone would be
-// ignored on Android and synthesised on iOS.
+
+
+
 export const NunitoSans = {
   regular: 'NunitoSans_400Regular',
   medium: 'NunitoSans_500Medium',

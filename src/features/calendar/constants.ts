@@ -8,8 +8,8 @@ import { type SessionKind } from '@/lib/activity-store';
 export const GUTTER = 52;
 export const NOW_COLOR = '#FF3B30';
 
-// Calendar content is absolutely positioned inside one timeline. Keep the
-// semantic layer order explicit so editable history stays above live status.
+
+
 export const TIMELINE_Z_INDEX = {
   grid: 0,
   live: 1,
@@ -31,8 +31,8 @@ export const ZOOM_BADGE_HOLD = 700;
 
 export const SCROLL_BOTTOM_PAD = Spacing.six;
 
-// Vertical magnification of the stats charts — the slider and the pinch
-// gesture drive the same range.
+
+
 export const CHART_ZOOM_MIN = 1;
 export const CHART_ZOOM_MAX = 4;
 

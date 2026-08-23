@@ -2,7 +2,15 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { PACKAGE_TYPE, type PurchasesPackage } from 'react-native-purchases';
 
 import { ThemedText } from '@/components/themed-text';
@@ -21,8 +29,8 @@ import {
 } from '@/lib/purchases';
 import { useAppStore, useT } from '@/state/app-state';
 
-// How many months a package covers, for the "per month" comparison. Anything
-// outside this list is shown at its plain price with no comparison.
+
+
 const MONTHS_IN: Partial<Record<PACKAGE_TYPE, number>> = {
   [PACKAGE_TYPE.MONTHLY]: 1,
   [PACKAGE_TYPE.TWO_MONTH]: 2,
@@ -38,32 +46,32 @@ const DURATION_KEY: Partial<Record<PACKAGE_TYPE, 'paywall.month1' | 'paywall.mon
     [PACKAGE_TYPE.ANNUAL]: 'paywall.year1',
   };
 
-// App Store Connect asks for a review screenshot before the store products can
-// necessarily be fetched. Development builds keep a display-only version of
-// the three planned tiers for that screenshot; production only shows prices
-// returned by Apple through RevenueCat.
-const PREVIEW_PLANS = [
-  { id: 'month1', durationKey: 'paywall.month1', pricePerMonth: 5.99 },
-  { id: 'month3', durationKey: 'paywall.month3', pricePerMonth: 4.99 },
-  { id: 'year1', durationKey: 'paywall.year1', pricePerMonth: 3.99 },
-] as const;
+
+
+const TRIAL_OPTION = '__account_trial__';
 
 interface OptionRowProps {
   active: boolean;
+  compact: boolean;
   label: string;
-  price: ReactNode;
-  // Percent saved against the monthly plan; omitted rows carry no badge.
-  saving?: number;
+  
+  
+  
+  billed: string;
+  
+  
+  secondary?: ReactNode;
   onPress: () => void;
 }
 
-function OptionRow({ active, label, price, saving, onPress }: OptionRowProps) {
+function OptionRow({ active, compact, label, billed, secondary, onPress }: OptionRowProps) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
       style={[
         styles.plan,
+        compact && styles.planCompact,
         {
           borderColor: active ? '#A78BFA' : theme.border,
           backgroundColor: active ? 'rgba(124,58,237,0.14)' : theme.backgroundElement,
@@ -72,15 +80,15 @@ function OptionRow({ active, label, price, saving, onPress }: OptionRowProps) {
       <View style={[styles.radio, { borderColor: active ? '#A78BFA' : theme.border }]}>
         {active && <View style={styles.radioDot} />}
       </View>
-      <ThemedText type="smallBold" style={styles.planDuration}>
-        {label}
-      </ThemedText>
-      {price}
-      {saving !== undefined && saving > 0 && (
-        <View style={styles.badge}>
-          <ThemedText style={styles.badgeText}>−{saving}%</ThemedText>
+      <View style={styles.planText}>
+        <View style={styles.planTop}>
+          <ThemedText type="smallBold" style={styles.planDuration}>
+            {label}
+          </ThemedText>
+          <ThemedText style={styles.billed}>{billed}</ThemedText>
         </View>
-      )}
+        {secondary}
+      </View>
     </Pressable>
   );
 }
@@ -95,25 +103,32 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   const t = useT();
   const setProStatus = useAppStore((state) => state.setProStatus);
   const trialUsed = useAppStore((state) => state.trialUsed);
+  const accountId = useAppStore((state) => state.accountId);
+  const startTrial = useAppStore((state) => state.startTrial);
+  const { height } = useWindowDimensions();
+  const compact = height <= 700;
 
   const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
-  const [previewPicked, setPreviewPicked] = useState<(typeof PREVIEW_PLANS)[number]['id']>('year1');
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [purchaseFailed, setPurchaseFailed] = useState(false);
+  const [trialFailed, setTrialFailed] = useState(false);
 
-  // Prices, durations and any free trial come from the store, already in the
-  // user's currency — nothing about them is hardcoded here.
+  
+  
   useEffect(() => {
     if (!visible) return;
     let alive = true;
-    setFailed(false);
+    setLoadFailed(false);
+    setPurchaseFailed(false);
+    setTrialFailed(false);
     fetchOffering()
       .then((offering) => {
         if (alive) setPackages(offering?.availablePackages ?? []);
       })
       .catch(() => {
-        if (alive) setFailed(true);
+        if (alive) setLoadFailed(true);
       });
     return () => {
       alive = false;
@@ -121,20 +136,26 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   }, [visible]);
 
   const monthly = packages?.find((pack) => pack.packageType === PACKAGE_TYPE.MONTHLY);
-  const selected =
-    packages?.find((pack) => pack.identifier === picked) ??
-    packages?.find((pack) => pack.packageType === PACKAGE_TYPE.ANNUAL) ??
-    packages?.[0] ??
-    null;
-  const trialDays = selected ? freeTrialDays(selected) : null;
-  // Before the App Store app exists there cannot be an Apple SDK key yet, but
-  // App Store Connect still asks for a screenshot of this screen. In that
-  // bootstrap state show the display-only plans in any build. Once the key is
-  // present, fallback remains development-only and production requires real
-  // products from RevenueCat.
-  const showPreview =
-    !purchasesSupported ||
-    (__DEV__ && (failed || (packages !== null && packages.length === 0)));
+  const trialPicked = picked === TRIAL_OPTION && !trialUsed;
+  const selected = trialPicked
+    ? null
+    : (packages?.find((pack) => pack.identifier === picked) ??
+      packages?.find((pack) => pack.packageType === PACKAGE_TYPE.ANNUAL) ??
+      packages?.[0] ??
+      null);
+  
+  
+  
+  const trialDays = selected && !trialUsed ? freeTrialDays(selected) : null;
+  
+  
+  
+  
+  
+  
+  
+  const plansSettled = packages !== null || loadFailed;
+  const hasPlans = packages !== null && packages.length > 0;
 
   const apply = useCallback(
     (entitlement: ProEntitlement) => {
@@ -148,47 +169,83 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   const buy = () => {
     if (busy || !selected) return;
     setBusy(true);
-    setFailed(false);
+    setPurchaseFailed(false);
     purchase(selected)
       .then((entitlement) => {
         if (apply(entitlement)) onClose();
       })
       .catch((error: unknown) => {
-        // Backing out of Apple's sheet is not a failure worth shouting about.
-        if (!(error instanceof PurchaseCancelledError)) setFailed(true);
+        
+        if (!(error instanceof PurchaseCancelledError)) setPurchaseFailed(true);
       })
+      .finally(() => setBusy(false));
+  };
+
+  
+  
+  
+  const storeOffersTrial = (packages ?? []).some((pack) => freeTrialDays(pack) !== null);
+  const canStartTrial = !trialUsed && !!accountId && !storeOffersTrial;
+
+  const beginTrial = () => {
+    if (busy) return;
+    setBusy(true);
+    setTrialFailed(false);
+    startTrial()
+      .then(() => onClose())
+      
+      
+      .catch(() => setTrialFailed(true))
       .finally(() => setBusy(false));
   };
 
   const restore = () => {
     if (busy) return;
     setBusy(true);
-    setFailed(false);
+    setPurchaseFailed(false);
     restorePurchases()
       .then((entitlement) => {
         if (apply(entitlement)) onClose();
-        else setFailed(true);
+        else setPurchaseFailed(true);
       })
-      .catch(() => setFailed(true))
+      .catch(() => setPurchaseFailed(true))
       .finally(() => setBusy(false));
   };
 
-  const priceFor = (pack: PurchasesPackage) => {
+  
+  const billedFor = (pack: PurchasesPackage) => pack.product.priceString;
+
+  const perMonthFor = (pack: PurchasesPackage) => {
     const months = MONTHS_IN[pack.packageType];
-    if (!months || months === 1) {
-      return <ThemedText type="smallBold">{pack.product.priceString}</ThemedText>;
-    }
-    // Same currency as priceString, so the symbol is taken from it.
-    const perMonth = (pack.product.price / months).toFixed(2);
+    if (!months || months === 1) return null;
+    
     const symbol = pack.product.priceString.replace(/[\d.,\s]/g, '');
+    return `${symbol}${(pack.product.price / months).toFixed(2)}${t('paywall.perMonth')}`;
+  };
+
+  const secondaryFor = (pack: PurchasesPackage) => {
+    const days = trialUsed ? null : freeTrialDays(pack);
+    const perMonth = perMonthFor(pack);
+    const saving = savingFor(pack);
+    if (!days && !perMonth && !saving) return undefined;
     return (
-      <ThemedText type="smallBold">
-        {symbol}
-        {perMonth}
-        <ThemedText type="small" themeColor="textSecondary">
-          {t('paywall.perMonth')}
-        </ThemedText>
-      </ThemedText>
+      <View style={styles.planSecondary}>
+        {!!days && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {t('paywall.freeDays', { days: String(days) })}
+          </ThemedText>
+        )}
+        {!!perMonth && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {perMonth}
+          </ThemedText>
+        )}
+        {saving !== undefined && saving > 0 && (
+          <View style={styles.badge}>
+            <ThemedText style={styles.badgeText}>−{saving}%</ThemedText>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -198,6 +255,17 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
     return Math.round((1 - pack.product.price / months / monthly.product.price) * 100);
   };
 
+  const trialRow = canStartTrial ? (
+    <OptionRow
+      key={TRIAL_OPTION}
+      active={trialPicked}
+      compact={compact}
+      label={t('paywall.trialOption')}
+      billed={`${packages?.[0]?.product.priceString.replace(/[\d.,\s]/g, '') || '$'}0`}
+      onPress={() => setPicked(TRIAL_OPTION)}
+    />
+  ) : null;
+
   const labelFor = (pack: PurchasesPackage) => {
     const key = DURATION_KEY[pack.packageType];
     return key ? t(key) : pack.product.title;
@@ -205,86 +273,73 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, compact && styles.backdropCompact]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
+        <ThemedView
+          type="backgroundElement"
+          style={[
+            styles.card,
+            compact && styles.cardCompact,
+            {
+              borderColor: theme.border,
+              maxHeight: height - (compact ? Spacing.two * 2 : Spacing.four * 2),
+            },
+          ]}>
           <Pressable onPress={onClose} hitSlop={12} style={styles.close}>
             <MaterialCommunityIcons name="close" size={24} color={theme.text} />
           </Pressable>
 
-          <MaterialCommunityIcons name="star-four-points" size={32} color="#C4B5FD" />
-          <ThemedText style={styles.title}>{t('paywall.title')}</ThemedText>
+          <MaterialCommunityIcons
+            name="star-four-points"
+            size={compact ? 24 : 32}
+            color="#C4B5FD"
+          />
+          <ThemedText style={[styles.title, compact && styles.titleCompact]}>
+            {t('paywall.title')}
+          </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
             {t('paywall.subtitle')}
           </ThemedText>
 
-          {packages === null && !failed && (
-            <ActivityIndicator style={styles.loader} color={theme.text} />
-          )}
+          {!plansSettled && <ActivityIndicator style={styles.loader} color={theme.text} />}
 
-          {packages !== null && packages.length > 0 && (
-            <View style={styles.plans}>
-              {packages.map((pack) => {
-                const days = freeTrialDays(pack);
-                return (
+          {plansSettled && (hasPlans || trialRow) && (
+            <ScrollView
+              style={styles.plansScroll}
+              contentContainerStyle={[styles.plans, compact && styles.plansCompact]}
+              bounces={false}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}>
+              {hasPlans &&
+                packages.map((pack) => (
                   <OptionRow
                     key={pack.identifier}
                     active={pack.identifier === selected?.identifier}
-                    label={
-                      days
-                        ? `${labelFor(pack)} · ${t('paywall.freeDays', { days: String(days) })}`
-                        : labelFor(pack)
-                    }
-                    price={priceFor(pack)}
-                    saving={savingFor(pack)}
+                    compact={compact}
+                    label={labelFor(pack)}
+                    billed={billedFor(pack)}
+                    secondary={secondaryFor(pack)}
                     onPress={() => setPicked(pack.identifier)}
                   />
-                );
-              })}
-            </View>
+                ))}
+              {trialRow}
+            </ScrollView>
           )}
 
-          {showPreview && (
-            <View style={styles.plans}>
-              {PREVIEW_PLANS.map((plan) => (
-                <OptionRow
-                  key={plan.id}
-                  active={plan.id === previewPicked}
-                  label={t(plan.durationKey)}
-                  price={
-                    <ThemedText type="smallBold">
-                      ${plan.pricePerMonth.toFixed(2)}
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {t('paywall.perMonth')}
-                      </ThemedText>
-                    </ThemedText>
-                  }
-                  saving={
-                    plan.id === 'month1'
-                      ? undefined
-                      : Math.round(
-                          (1 - plan.pricePerMonth / PREVIEW_PLANS[0].pricePerMonth) * 100,
-                        )
-                  }
-                  onPress={() => setPreviewPicked(plan.id)}
-                />
-              ))}
-            </View>
-          )}
-
-          {!showPreview && (failed || (packages !== null && packages.length === 0)) && (
+          {plansSettled && !hasPlans && (
             <ThemedText type="small" themeColor="danger" style={styles.note}>
               {t(purchasesSupported ? 'paywall.error' : 'paywall.unavailable')}
             </ThemedText>
           )}
 
           <Pressable
-            disabled={busy || (!selected && !showPreview)}
-            onPress={buy}
+            disabled={busy || (!trialPicked && !selected)}
+            onPress={trialPicked ? beginTrial : buy}
             style={({ pressed }) => [
               styles.cta,
+              compact && styles.ctaCompact,
               pressed && styles.pressed,
-              (busy || (!selected && !showPreview)) && styles.disabled,
+              busy || (!trialPicked && !selected) ? styles.disabled : null,
             ]}>
             <LinearGradient
               colors={['#4C1D95', '#7C3AED', '#C026D3']}
@@ -296,18 +351,31 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <ThemedText style={styles.ctaText}>
-                {t(trialDays ? 'paywall.startTrial' : 'paywall.startPlan')}
+                {t(trialPicked || trialDays ? 'paywall.startTrial' : 'paywall.startPlan')}
               </ThemedText>
             )}
           </Pressable>
 
-          {/* Guideline 3.1.2 asks for the renewal terms and a way to restore a
-              purchase, both on the purchase screen itself. */}
-          <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-            {trialDays
-              ? t('paywall.trialTerms', { days: String(trialDays) })
-              : t('paywall.renewalTerms')}
-          </ThemedText>
+          {purchaseFailed && (
+            <ThemedText type="small" themeColor="danger" style={styles.note}>
+              {t('paywall.purchaseError')}
+            </ThemedText>
+          )}
+
+          {trialFailed && (
+            <ThemedText type="small" themeColor="danger" style={styles.note}>
+              {t('paywall.trialError')}
+            </ThemedText>
+          )}
+
+          
+          {!trialPicked && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+              {trialDays
+                ? t('paywall.trialTerms', { days: String(trialDays) })
+                : t('paywall.renewalTerms')}
+            </ThemedText>
+          )}
 
           <Pressable disabled={busy} onPress={restore} hitSlop={8}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.legalLink}>
@@ -345,6 +413,9 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
+  backdropCompact: {
+    padding: Spacing.two,
+  },
   card: {
     width: '100%',
     maxWidth: 400,
@@ -353,6 +424,10 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.four,
     borderWidth: 1,
     padding: Spacing.four,
+  },
+  cardCompact: {
+    gap: Spacing.one,
+    padding: Spacing.three,
   },
   close: {
     position: 'absolute',
@@ -366,6 +441,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.one,
   },
+  titleCompact: {
+    fontSize: 18,
+    lineHeight: 22,
+    marginTop: 0,
+  },
   subtitle: {
     textAlign: 'center',
   },
@@ -373,10 +453,16 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.four,
   },
   plans: {
-    alignSelf: 'stretch',
-    // Wide enough for the discount badges to sit between the rows.
     gap: Spacing.three,
     marginTop: Spacing.three,
+  },
+  plansScroll: {
+    alignSelf: 'stretch',
+    flexShrink: 1,
+  },
+  plansCompact: {
+    gap: Spacing.two,
+    marginTop: Spacing.two,
   },
   plan: {
     flexDirection: 'row',
@@ -387,11 +473,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
   },
-  // Sits on the row's top border, breaking it the way a notch label does.
+  planCompact: {
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+  },
+  planText: {
+    flex: 1,
+    gap: Spacing.one,
+  },
+  planTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  billed: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  planSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
   badge: {
-    position: 'absolute',
-    top: -9,
-    right: Spacing.three,
     borderRadius: 999,
     paddingHorizontal: Spacing.two,
     paddingVertical: 1,
@@ -428,6 +535,10 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     overflow: 'hidden',
     marginTop: Spacing.three,
+  },
+  ctaCompact: {
+    minHeight: 46,
+    marginTop: Spacing.two,
   },
   ctaText: {
     color: '#FFFFFF',
