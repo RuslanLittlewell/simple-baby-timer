@@ -20,7 +20,8 @@ import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
 import {
-  EVENT_DURATION_MS,
+  eventDurationMs,
+  type EventKind,
   type ProDetails,
   type SessionKind,
 } from '@/lib/activity-store';
@@ -143,7 +144,7 @@ export function AddActivityModal({
     }
     const start = combineDayTime(startDayMs, startTime);
     const end = eventKind
-      ? start + EVENT_DURATION_MS
+      ? start + eventDurationMs(kind as EventKind)
       : combineDayTime(endDayMs, endTime);
     if (end <= start) {
       setError(t('editor.errEndAfterStart'));

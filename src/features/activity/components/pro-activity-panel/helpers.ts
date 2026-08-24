@@ -22,6 +22,11 @@ const pad2 = (value: number) => String(value).padStart(2, "0");
 export const formatClock = (date: Date) =>
   `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 
+export const isNightWakingTime = (date = new Date()) => {
+  const hour = date.getHours();
+  return hour >= 22 || hour < 7;
+};
+
 export function parseVolumeMl(value: string) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;

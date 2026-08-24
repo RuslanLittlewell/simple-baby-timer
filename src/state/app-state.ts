@@ -12,10 +12,10 @@ import {
   type TranslateParams,
 } from '@/i18n';
 import {
-  EVENT_DURATION_MS,
   claimUnownedSessions,
   deleteAllSessions,
   saveSession,
+  eventDurationMs,
   type ActivitySession,
   type EventKind,
   type ProDetails,
@@ -35,6 +35,7 @@ import {
   enqueueSessionUpsert,
   pushLiveSession,
   startTrial as startTrialOnAccount,
+  syncChildProfile,
   syncChildToCloud,
   updateLiveSessionDetails,
   type LiveTrack,
@@ -113,6 +114,7 @@ const sanitizeChildren = (value: unknown): Child[] => {
       birthday: typeof item.birthday === 'number' ? item.birthday : undefined,
       proEnabled: item.proEnabled === true,
       remoteId: typeof item.remoteId === 'string' ? item.remoteId : undefined,
+      isOwner: item.isOwner === true,
     }))
     .slice(0, MAX_CHILDREN);
 };
@@ -196,6 +198,12 @@ type AppStore = PersistedState & {
   setThemeMode: (mode: ThemeMode) => void;
   setOnboardingComplete: (complete: boolean) => void;
   addChild: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
+  updateChild: (
+    id: string,
+    name: string,
+    gradientKey: ChildGradientKey,
+    birthday: number,
+  ) => void;
   addSharedChild: (child: RemoteChild) => Child | null;
   upsertRemoteChildren: (remote: RemoteChild[]) => void;
   setChildRemoteId: (id: string, remoteId: string) => void;
@@ -495,16 +503,7 @@ export const useAppStore = create<AppStore>()(
         const track = trackOf(kind);
         const current = get()[track];
         if (current?.kind !== kind) return;
-        if (enabled) {
-          startLiveActivity(
-            track,
-            kind,
-            current.startedAt,
-            liveActivityLabels(get().language, kind),
-          );
-          return;
-        }
-        stopLiveActivity(track);
+        if (enabled) return;
         if (current.reminderId) {
           cancelReminder(current.reminderId);
           const updated = { ...current, reminderId: null };
@@ -531,7 +530,7 @@ export const useAppStore = create<AppStore>()(
         const trimmed = name.trim();
         const state = get();
         if (!trimmed || state.children.length >= MAX_CHILDREN) return;
-        const child: Child = { id: `${Date.now()}`, name: trimmed, gradientKey, birthday };
+        const child: Child = { id: `${Date.now()}`, name: trimmed, gradientKey, birthday, isOwner: true };
         const isFirst = state.children.length === 0;
         set({ children: [...state.children, child], activeChildId: child.id });
         const claim = isFirst ? claimUnownedSessions(child.id) : Promise.resolve();
@@ -539,6 +538,20 @@ export const useAppStore = create<AppStore>()(
           .then(() => syncChildToCloud(child))
           .then((remoteId) => get().setChildRemoteId(child.id, remoteId))
           .catch(() => {});
+      },
+
+      updateChild: (id, name, gradientKey, birthday) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((state) => ({
+          children: state.children.map((child) =>
+            child.id === id && (!child.remoteId || child.isOwner === true)
+              ? { ...child, name: trimmed, gradientKey, birthday }
+              : child,
+          ),
+        }));
+        const child = get().children.find((item) => item.id === id);
+        if (child) syncChildProfile(child).catch(() => {});
       },
 
       addSharedChild: (remote) => {
@@ -565,6 +578,7 @@ export const useAppStore = create<AppStore>()(
           birthday: remote.birthday,
           proEnabled: remote.proEnabled,
           remoteId: remote.remoteId,
+          isOwner: remote.isOwner,
         };
         set({ children: [...state.children, child], activeChildId: child.id, removedRemoteIds });
         return child;
@@ -580,8 +594,22 @@ export const useAppStore = create<AppStore>()(
               (child) => child.remoteId === item.remoteId,
             );
             if (existingIndex >= 0) {
-              if (item.proEnabled && !children[existingIndex].proEnabled) {
-                children[existingIndex] = { ...children[existingIndex], proEnabled: true };
+              const existing = children[existingIndex];
+              if (
+                existing.name !== item.name ||
+                existing.birthday !== item.birthday ||
+                existing.gradientKey !== item.gradientKey ||
+                existing.proEnabled !== item.proEnabled ||
+                existing.isOwner !== item.isOwner
+              ) {
+                children[existingIndex] = {
+                  ...existing,
+                  name: item.name,
+                  birthday: item.birthday,
+                  gradientKey: isChildGradientKey(item.gradientKey) ? item.gradientKey : 'sky',
+                  proEnabled: item.proEnabled,
+                  isOwner: item.isOwner,
+                };
                 changed = true;
               }
               continue;
@@ -594,6 +622,7 @@ export const useAppStore = create<AppStore>()(
               birthday: item.birthday,
               proEnabled: item.proEnabled,
               remoteId: item.remoteId,
+              isOwner: item.isOwner,
             });
             changed = true;
           }
@@ -607,7 +636,7 @@ export const useAppStore = create<AppStore>()(
       setChildRemoteId: (id, remoteId) =>
         set((state) => ({
           children: state.children.map((child) =>
-            child.id === id ? { ...child, remoteId } : child,
+            child.id === id ? { ...child, remoteId, isOwner: true } : child,
           ),
         })),
 
@@ -749,14 +778,12 @@ export const useAppStore = create<AppStore>()(
                 ? settlingNotificationsEnabled
                 : false;
 
-        if (notificationsEnabled) {
-          startLiveActivity(
-            track,
-            kind,
-            startedAt,
-            liveActivityLabels(language, kind),
-          );
-        }
+        startLiveActivity(
+          track,
+          kind,
+          startedAt,
+          liveActivityLabels(language, kind),
+        );
 
         const started = {
           kind,
@@ -829,7 +856,7 @@ export const useAppStore = create<AppStore>()(
           id: `${start}-${kind}`,
           kind,
           start,
-          end: start + EVENT_DURATION_MS,
+          end: start + eventDurationMs(kind),
           childId: get().activeChildId ?? undefined,
         };
         await saveSession(session);

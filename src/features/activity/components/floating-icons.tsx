@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -68,6 +69,7 @@ function FloatingIcon({ spec, icon, color }: FloatingIconProps) {
       -1,
       false,
     );
+    return () => cancelAnimation(progress);
   }, [progress, spec.duration]);
 
   const style = useAnimatedStyle(() => {

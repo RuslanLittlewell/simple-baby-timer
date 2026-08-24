@@ -100,7 +100,3 @@ export function averageOf(items: DayPoint[], key: AverageKey) {
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : null;
 }
-
-export function percentageChange(current: number, previous: number) {
-  return Math.round(((current - previous) / previous) * 100);
-}

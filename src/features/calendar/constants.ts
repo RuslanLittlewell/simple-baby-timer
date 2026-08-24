@@ -43,6 +43,7 @@ export const LANES: Record<SessionKind, number> = {
   feeding: 1,
   poop: 2,
   diaper: 3,
+  nightWaking: 4,
 };
 
 export const MIN_EVENT_HEIGHT = 10;
@@ -64,4 +65,5 @@ export const KIND_META: Record<SessionKind, KindMeta> = {
   awake: { gradKey: 'awake', icon: 'white-balance-sunny' },
   poop: { gradKey: 'poop', icon: 'emoticon-poop' },
   diaper: { gradKey: 'diaper', icon: 'diaper-outline' },
+  nightWaking: { gradKey: 'nightWaking', icon: 'power-sleep' },
 };

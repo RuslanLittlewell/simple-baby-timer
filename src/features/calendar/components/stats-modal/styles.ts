@@ -27,6 +27,7 @@ export const styles = StyleSheet.create({
   navLabel: { fontVariant: ["tabular-nums"] },
   body: { flex: 1 },
   bodyContent: { gap: Spacing.three, paddingBottom: Spacing.two },
+  dayStats: { gap: Spacing.two },
   periodRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -37,7 +38,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    minHeight: 40,
+    minHeight: 36,
   },
   statLabel: { flex: 1 },
   statSpacer: { flex: 1 },

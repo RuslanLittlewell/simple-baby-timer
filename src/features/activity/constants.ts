@@ -44,3 +44,9 @@ export const EVENTS: EventMeta[] = [
   { id: 'diaper', gradKey: 'diaper', icon: 'diaper-outline' },
   { id: 'poop', gradKey: 'poop', icon: 'emoticon-poop' },
 ];
+
+export const NIGHT_WAKING_EVENT: EventMeta = {
+  id: 'nightWaking',
+  gradKey: 'nightWaking',
+  icon: 'power-sleep',
+};

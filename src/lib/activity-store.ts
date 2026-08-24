@@ -2,9 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { type ActivityKind } from '@/lib/notifications';
 
-export type EventKind = 'poop' | 'diaper';
+export type EventKind = 'poop' | 'diaper' | 'nightWaking';
 
 export const EVENT_DURATION_MS = 10 * 60_000;
+export const NIGHT_WAKING_DURATION_MS = 15 * 60_000;
+
+export const eventDurationMs = (kind: EventKind) =>
+  kind === 'nightWaking' ? NIGHT_WAKING_DURATION_MS : EVENT_DURATION_MS;
 
 export type SessionKind = ActivityKind | EventKind;
 

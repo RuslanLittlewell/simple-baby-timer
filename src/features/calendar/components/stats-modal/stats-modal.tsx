@@ -10,10 +10,7 @@ import { WEEKDAYS_I18N } from '@/i18n';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { CHART_ZOOM_MIN } from '../../constants';
-import {
-  formatDuration,
-  startOfWeek,
-} from '../../helpers';
+import { formatDuration } from '../../helpers';
 import { modalStyles } from '../../modal-styles';
 import { LineChart, type ChartSeries } from '../line-chart';
 import { VerticalZoom } from '../vertical-zoom';
@@ -22,7 +19,6 @@ import {
   buildDayPoints,
   formatPeriodLabel,
   HOUR,
-  percentageChange,
   periodOf,
   previousPeriodOf,
   shiftCursor,
@@ -56,7 +52,10 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
     if (nextTab === tab) return;
     setCursor((current) => {
       if (nextTab === 'day') return new Date();
-      if (nextTab === 'week') return startOfWeek(current);
+      if (nextTab === 'week') {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+      }
       return current;
     });
     setTab(nextTab);
@@ -181,10 +180,10 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
           : item.unit === 'milk'
           ? `${Math.round(average)} ${t('unit.ml')}`
           : formatDuration(average, t('unit.hours'), t('unit.minutes')),
-      change:
+      difference:
         average === null || previousAverage === null
           ? null
-          : percentageChange(average, previousAverage),
+          : average - previousAverage,
     };
   });
 
@@ -268,7 +267,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
             nestedScrollEnabled
             showsVerticalScrollIndicator={false}>
           {tab === 'day' ? (
-            <>
+            <View style={styles.dayStats}>
               <View style={styles.statRow}>
                 <MaterialCommunityIcons
                   name="moon-waning-crescent"
@@ -279,6 +278,18 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
                 <ThemedText type="smallBold">
                   {formatDuration(dayStats?.sleepMs ?? 0, t('unit.hours'), t('unit.minutes'))}
                 </ThemedText>
+              </View>
+              <View
+                style={styles.statRow}
+                accessible
+                accessibilityLabel={`${t('kind.nightWaking')}: ${dayStats?.nightWakingCount ?? 0}`}>
+                <MaterialCommunityIcons
+                  name="power-sleep"
+                  size={24}
+                  color={accent.nightWaking}
+                />
+                <ThemedText style={styles.statLabel}>{t('kind.nightWaking')}</ThemedText>
+                <ThemedText type="smallBold">{dayStats?.nightWakingCount ?? 0}</ThemedText>
               </View>
               <View style={styles.statRow}>
                 <MaterialCommunityIcons
@@ -329,7 +340,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
                 <View style={styles.statSpacer} />
                 <ThemedText type="smallBold">{dayStats?.diaperCount ?? 0}</ThemedText>
               </View>
-            </>
+            </View>
           ) : (
             <View style={styles.periodRow}>
               <View
@@ -358,8 +369,20 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
           )}
           <View style={[styles.comparison, { backgroundColor: theme.backgroundElement }]}>
             {comparisons.map((item) => {
-              const positive = item.change !== null && item.change > 0;
-              const negative = item.change !== null && item.change < 0;
+              const positive = item.difference !== null && item.difference > 0;
+              const negative = item.difference !== null && item.difference < 0;
+              const difference =
+                item.difference === null
+                  ? '—'
+                  : `${item.difference > 0 ? '+' : item.difference < 0 ? '−' : ''}${
+                      item.unit === 'milk'
+                        ? `${Math.round(Math.abs(item.difference))} ${t('unit.ml')}`
+                        : formatDuration(
+                            Math.abs(item.difference),
+                            t('unit.hours'),
+                            t('unit.minutes'),
+                          )
+                    }`;
               return (
                 <View key={item.key} style={styles.comparisonRow}>
                   <View style={[styles.comparisonDot, { backgroundColor: item.color }]} />
@@ -376,9 +399,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
                           ? theme.danger
                           : theme.textSecondary,
                     }}>
-                    {item.change === null
-                      ? '—'
-                      : `${item.change > 0 ? '+' : ''}${item.change}%`}
+                    {difference}
                   </ThemedText>
                 </View>
               );

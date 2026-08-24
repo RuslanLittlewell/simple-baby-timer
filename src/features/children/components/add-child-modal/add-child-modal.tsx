@@ -14,7 +14,7 @@ import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
 import { WheelSheetHost } from '@/components/wheel-sheet';
 import { useTheme } from '@/hooks/use-theme';
-import { type ChildGradientKey } from '@/lib/children';
+import { type Child, type ChildGradientKey } from '@/lib/children';
 import { useT } from '@/state/app-state';
 
 import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../../constants';
@@ -25,11 +25,12 @@ import { styles } from './styles';
 
 interface AddChildModalProps {
   visible: boolean;
+  child?: Child | null;
   onClose: () => void;
   onSave: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
 }
 
-export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) {
+export function AddChildModal({ visible, child, onClose, onSave }: AddChildModalProps) {
   const theme = useTheme();
   const t = useT();
 
@@ -39,10 +40,10 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
 
   useEffect(() => {
     if (!visible) return;
-    setName('');
-    setBirthday('');
-    setGradientKey('sky');
-  }, [visible]);
+    setName(child?.name ?? '');
+    setBirthday(child?.birthday === undefined ? '' : formatBirthday(new Date(child.birthday)));
+    setGradientKey(child?.gradientKey ?? 'sky');
+  }, [visible, child]);
 
   const birthdayMs = parseBirthday(birthday);
   const canSave = name.trim().length > 0 && birthdayMs !== null;
@@ -63,7 +64,9 @@ export function AddChildModal({ visible, onClose, onSave }: AddChildModalProps) 
         />
         <Pressable style={styles.absoluteFill} onPress={onClose} />
         <View style={[styles.card, { backgroundColor: theme.background }]}>
-          <ThemedText style={styles.title}>{t('children.add')}</ThemedText>
+          <ThemedText style={styles.title}>
+            {t(child ? 'children.edit' : 'children.add')}
+          </ThemedText>
 
           <View style={styles.preview}>
             <LinearGradient

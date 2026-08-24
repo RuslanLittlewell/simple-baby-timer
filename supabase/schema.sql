@@ -176,7 +176,9 @@ create policy children_insert on public.children
 
 drop policy if exists children_update on public.children;
 create policy children_update on public.children
-  for update using (public.is_child_member(id));
+  for update
+  using (created_by = auth.uid())
+  with check (created_by = auth.uid());
 
 drop policy if exists members_select on public.child_members;
 create policy members_select on public.child_members
@@ -295,8 +297,10 @@ begin
   if not public.has_active_pro() then
     raise exception 'pro subscription required';
   end if;
-  if not public.is_child_member(cid) then
-    raise exception 'not a member';
+  if not exists (
+    select 1 from children c where c.id = cid and c.created_by = auth.uid()
+  ) then
+    raise exception 'only the child owner can create invites';
   end if;
   update children set pro_enabled = true where id = cid;
   for i in 1..8 loop
@@ -346,7 +350,8 @@ returns table (
   name text,
   gradient_key text,
   birthday_ms bigint,
-  pro_enabled boolean
+  pro_enabled boolean,
+  is_owner boolean
 )
 language plpgsql security definer set search_path = public as $$
 declare
@@ -361,6 +366,7 @@ begin
   values (inv.child_id, auth.uid())
   on conflict do nothing;
   return query
-    select c.id, c.name, c.gradient_key, c.birthday_ms, c.pro_enabled
+    select c.id, c.name, c.gradient_key, c.birthday_ms, c.pro_enabled,
+      c.created_by = auth.uid()
     from children c where c.id = inv.child_id;
 end $$;

@@ -6,7 +6,7 @@ import { type ActivityKind } from '@/lib/notifications';
 
 
 const ICONS: Record<ActivityKind, string> = {
-  settling: 'la-sleep',
+  settling: 'la-settling',
   sleep: 'la-sleep',
   feeding: 'la-feed',
   awake: 'la-awake',

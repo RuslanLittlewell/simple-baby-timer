@@ -10,12 +10,16 @@ import Purchases, {
 
 
 const IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '';
+const isTestStoreKey = IOS_API_KEY.startsWith('test_');
 
 
 
 const ENTITLEMENT = 'pro';
 
-export const purchasesSupported = Platform.OS === 'ios' && IOS_API_KEY.length > 0;
+export const purchasesSupported =
+  Platform.OS === 'ios' &&
+  IOS_API_KEY.length > 0 &&
+  (__DEV__ || !isTestStoreKey);
 
 let configured = false;
 

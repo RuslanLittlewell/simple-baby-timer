@@ -20,10 +20,11 @@ import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
 import {
-  EVENT_DURATION_MS,
+  eventDurationMs,
   deleteSession,
   updateSession,
   type ActivitySession,
+  type EventKind,
   type ProDetails,
 } from '@/lib/activity-store';
 import { enqueueSessionDelete, enqueueSessionUpsert } from '@/lib/sync';
@@ -174,7 +175,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
         startTime.hours, startTime.minutes,
       ).getTime();
       end = fixedDuration
-        ? start + EVENT_DURATION_MS
+        ? start + eventDurationMs(entry.kind as EventKind)
         : new Date(
             originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate(),
             endTime.hours, endTime.minutes,
