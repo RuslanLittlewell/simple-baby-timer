@@ -9,6 +9,7 @@ import {
 import { type Child, type ChildGradientKey } from '@/lib/children';
 import { type ActivityKind } from '@/lib/notifications';
 import { getUserId, requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { dispatchLiveActivityPush } from '@/lib/live-activity-sync';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
@@ -311,6 +312,10 @@ export async function pushLiveSession(
     pro_details: proDetails ?? null,
   });
   if (error) throw error;
+  dispatchLiveActivityPush('start', remoteChildId, track, {
+    kind,
+    startedAt: startedAtMs,
+  }).catch(() => {});
 }
 
 export async function updateLiveSessionDetails(
@@ -337,6 +342,7 @@ export async function clearLiveSession(remoteChildId: string, track: LiveTrack):
     .eq('child_id', remoteChildId)
     .eq('track', track);
   if (error) throw error;
+  dispatchLiveActivityPush('end', remoteChildId, track).catch(() => {});
 }
 
 export async function fetchLiveSessions(remoteChildIds: string[]): Promise<RemoteLiveRow[]> {

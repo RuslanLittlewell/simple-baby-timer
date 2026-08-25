@@ -35,6 +35,7 @@ import {
   type ProEntitlement,
 } from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
+import { subscribeToLiveActivityPushTokens } from '@/lib/live-activity-sync';
 
 type SyncOutcome = 'success' | 'unavailable' | 'auth-required' | 'failed';
 
@@ -260,7 +261,13 @@ function schedulePull(remoteId: string, localChildId: string) {
 
 export function useSync() {
   const children = useAppStore((state) => state.children);
+  const language = useAppStore((state) => state.language);
   const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (!authed) return;
+    return subscribeToLiveActivityPushTokens(language);
+  }, [authed, language]);
 
   
   useEffect(() => {
