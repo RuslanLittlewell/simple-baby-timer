@@ -76,6 +76,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
               style={({ pressed }) => [
                 styles.eventBlock,
                 s.kind === 'poop' && styles.poopEventBlock,
+                s.kind === 'nightWaking' && styles.nightWakingEventBlock,
                 { top, height: eventHeight, left: laneLeft(s.kind) },
                 pressed && styles.pressed,
               ]}>
@@ -97,7 +98,13 @@ export const TimelineBlocks = memo(function TimelineBlocks({
               <MaterialCommunityIcons
                 name={meta.icon}
                 size={17}
-                color={s.kind === 'poop' && themeMode === 'dark' ? '#FFFFFF' : '#000000'}
+                color={
+                  s.kind === 'nightWaking'
+                    ? fgColors[meta.gradKey]
+                    : s.kind === 'poop' && themeMode === 'dark'
+                      ? '#FFFFFF'
+                      : '#000000'
+                }
               />
             </Pressable>
           );
@@ -115,6 +122,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
             style={({ pressed }) => [
               styles.block,
               styles.completedBlock,
+              s.kind === 'feeding' && styles.feedingBlock,
               { top, height, left: laneLeft(s.kind) },
               pressed && styles.pressed,
             ]}>
@@ -178,6 +186,7 @@ export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
             style={[
               styles.block,
               styles.liveBlock,
+              block.kind === 'feeding' && styles.feedingBlock,
               {
                 top: block.top,
                 height: block.height,
@@ -225,6 +234,9 @@ const styles = StyleSheet.create({
   completedBlock: {
     zIndex: TIMELINE_Z_INDEX.completed,
   },
+  feedingBlock: {
+    zIndex: TIMELINE_Z_INDEX.event + 1,
+  },
   eventBlock: {
     position: 'absolute',
     right: Spacing.two,
@@ -235,6 +247,11 @@ const styles = StyleSheet.create({
     zIndex: TIMELINE_Z_INDEX.event,
   },
   poopEventBlock: {
+    justifyContent: 'flex-start',
+    paddingLeft: Spacing.two,
+    paddingRight: 0,
+  },
+  nightWakingEventBlock: {
     justifyContent: 'flex-start',
     paddingLeft: Spacing.two,
     paddingRight: 0,

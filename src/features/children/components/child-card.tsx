@@ -17,6 +17,9 @@ interface ChildCardProps {
   onPress: () => void;
   onShare: () => void;
   shareLabel: string;
+  onEdit: () => void;
+  editLabel: string;
+  canManage: boolean;
   onDelete: () => void;
   deleteLabel: string;
 }
@@ -27,6 +30,9 @@ export function ChildCard({
   onPress,
   onShare,
   shareLabel,
+  onEdit,
+  editLabel,
+  canManage,
   onDelete,
   deleteLabel,
 }: ChildCardProps) {
@@ -67,13 +73,24 @@ export function ChildCard({
           <ThemedText style={[styles.name, { color: fg }]} numberOfLines={1}>
             {child.name}
           </ThemedText>
-          <Pressable
-            accessibilityLabel={shareLabel}
-            onPress={onShare}
-            hitSlop={8}
-            style={({ pressed }) => pressed && styles.pressed}>
-            <MaterialCommunityIcons name="share-variant" size={22} color={fg} />
-          </Pressable>
+          {canManage && (
+            <>
+              <Pressable
+                accessibilityLabel={editLabel}
+                onPress={onEdit}
+                hitSlop={8}
+                style={({ pressed }) => pressed && styles.pressed}>
+                <MaterialCommunityIcons name="pencil-outline" size={22} color={fg} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel={shareLabel}
+                onPress={onShare}
+                hitSlop={8}
+                style={({ pressed }) => pressed && styles.pressed}>
+                <MaterialCommunityIcons name="share-variant" size={22} color={fg} />
+              </Pressable>
+            </>
+          )}
           <MaterialCommunityIcons
             name={isActive ? 'check-circle' : 'chevron-right'}
             size={26}

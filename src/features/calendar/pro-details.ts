@@ -45,7 +45,7 @@ export function proDetailsIcon(details?: ProDetails): IconName | null {
   if (!details) return null;
   if (details.type === 'settling') return 'plus';
   if (details.type === 'sleep') return SLEEP_ICONS[details.place];
-  return details.mode === 'breast' ? 'mother-heart' : 'baby-bottle-outline';
+  return details.mode === 'breast' ? 'mother-heart' : 'baby-bottle';
 }
 
 export function proDetailsLabels(details: ProDetails, t: Translate): string[] {

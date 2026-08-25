@@ -16,6 +16,8 @@ export interface Child {
   proEnabled?: boolean;
   
   remoteId?: string;
+  /** True only when the current account created the cloud profile. */
+  isOwner?: boolean;
 }
 
 export const isChildGradientKey = (value: unknown): value is ChildGradientKey =>

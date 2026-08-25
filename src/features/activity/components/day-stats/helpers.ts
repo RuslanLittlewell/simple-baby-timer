@@ -30,9 +30,15 @@ export function nextMetricIndex(
 
 function formatDateTime(timestamp: number) {
   const date = new Date(timestamp);
+  const today = new Date();
+  const isToday =
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+  if (isToday) return fmtTime(timestamp);
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}.${month} ${fmtTime(timestamp)}`;
+  return `${day}.${month} / ${fmtTime(timestamp)}`;
 }
 
 export function withAlpha(hex: string, alpha: number) {
@@ -51,7 +57,7 @@ export function getSleepMetrics(
   return [
     {
       color: accent.sleep,
-      value: stats.lastSleepAt === null ? "—" : fmtTime(stats.lastSleepAt),
+      value: stats.lastSleepAt === null ? "—" : formatDateTime(stats.lastSleepAt),
       label: t("kind.lastSleep"),
     },
     {
@@ -75,7 +81,7 @@ export function getFeedingMetrics(
   return [
     {
       color: accent.feed,
-      value: stats.lastFeedingAt === null ? "—" : fmtTime(stats.lastFeedingAt),
+      value: stats.lastFeedingAt === null ? "—" : formatDateTime(stats.lastFeedingAt),
       label: t("stats.lastFeeding"),
     },
     {
@@ -99,7 +105,7 @@ export function getDiaperMetrics(
   return [
     {
       color: accent.diaper,
-      value: stats.lastDiaperAt === null ? "—" : fmtTime(stats.lastDiaperAt),
+      value: stats.lastDiaperAt === null ? "—" : formatDateTime(stats.lastDiaperAt),
       label: t("stats.lastDiaper"),
     },
     {

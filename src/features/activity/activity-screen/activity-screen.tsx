@@ -2,13 +2,12 @@ import { useIsFocused } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,11 +24,10 @@ import {
   CHILD_GRADIENTS,
 } from "@/features/children/constants";
 import { useActivityColors } from "@/hooks/use-activity-colors";
-import { useProPaywall } from "@/hooks/use-pro-paywall";
 import { useTheme } from "@/hooks/use-theme";
 import { formatHm } from "@/i18n";
 import {
-  getSessionsForDay,
+  getAllSessionsForChild,
   type ActivitySession,
   type EventKind,
   type ProDetails,
@@ -46,7 +44,7 @@ import { StartTimePicker } from "../components/start-time-picker";
 import { StatusCard } from "../components/status-card";
 import { ACTIVITIES, EVENTS, FEEDING, MAIN_ACTIVITIES } from "../constants";
 import { useDenseActivityLayout } from "../use-compact-activity-layout";
-import { PANEL_GAP, styles } from "./styles";
+import { styles } from "./styles";
 
 
 
@@ -90,25 +88,25 @@ export default function ActivityScreen() {
   const proAccess = proActive || activeChild?.proEnabled === true;
   const t = useT();
   const focused = useIsFocused();
-  const openPaywall = useProPaywall();
   const { float } = useActivityColors();
   const dense = useDenseActivityLayout();
   const [nowTs, setNowTs] = useState(Date.now());
-  const [panelWidth, setPanelWidth] = useState(1);
-  const [panelIndex, setPanelIndex] = useState(proAccess ? 1 : 0);
   const [proExpanded, setProExpanded] = useState(false);
   const [proDismissSignal, setProDismissSignal] = useState(0);
-  const [todaySessions, setTodaySessions] = useState<ActivitySession[]>([]);
+  const [childSessions, setChildSessions] = useState<ActivitySession[]>([]);
   const [pendingStart, setPendingStart] = useState<PendingStart | null>(null);
-  const pagerRef = useRef<ScrollView>(null);
   
   
   const pendingStartResolve = useRef<((started: boolean) => void) | null>(null);
 
   useEffect(() => {
     let alive = true;
-    getSessionsForDay(new Date(), activeChildId).then((list) => {
-      if (alive) setTodaySessions(list);
+    if (!activeChildId) {
+      setChildSessions([]);
+      return;
+    }
+    getAllSessionsForChild(activeChildId).then((list) => {
+      if (alive) setChildSessions(list);
     });
     return () => {
       alive = false;
@@ -158,44 +156,19 @@ export default function ActivityScreen() {
     else router.replace("/children");
   }, [focused, activeChild, children, selectChild, router]);
 
-  const backToBasicPanel = useCallback(() => {
-    setPanelIndex(0);
-    pagerRef.current?.scrollTo({ x: 0, animated: true });
-  }, []);
-
-  
-  
-  
-  
-  useEffect(() => {
-    if (!focused || proAccess || panelIndex !== 1) return;
-    openPaywall((unlocked) => {
-      if (!unlocked) backToBasicPanel();
-    });
-  }, [focused, panelIndex, proAccess, openPaywall, backToBasicPanel]);
-
-  useEffect(() => {
-    if (panelWidth <= 1) return;
-    const targetIndex = proAccess ? 1 : 0;
-    setPanelIndex(targetIndex);
-    pagerRef.current?.scrollTo({
-      x: targetIndex * (panelWidth + PANEL_GAP),
-      animated: false,
-    });
-  }, [panelWidth, proAccess]);
-
   const secondsSince = (from: number) =>
     Math.max(0, Math.floor((nowTs - from) / 1000));
 
   const todayStartMs = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
   const todayEndMs = todayStartMs + 24 * 60 * 60 * 1000;
   const dayStats = computeDayStats(
-    todaySessions,
+    childSessions,
     session,
     nowTs,
     todayStartMs,
     todayEndMs,
     feedingSession?.startedAt,
+    true,
   );
 
   const primary = mainSession ?? feedingSession;
@@ -333,7 +306,7 @@ export default function ActivityScreen() {
                 style={[styles.childChip, dense && styles.childChipDense]}
               >
                 <BabySvg
-                  size={24}
+                  size={20}
                   faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
                   featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
                 />
@@ -346,13 +319,16 @@ export default function ActivityScreen() {
                       { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
                     ]}
                   >
-                    {activeChild.name}
+                    {activeChild.name}{childAge ? " |" : ""}
                   </ThemedText>
                   {childAge && (
                     <ThemedText
                       type="small"
                       numberOfLines={1}
-                      style={{ color: CHILD_GRADIENT_FG[activeChild.gradientKey] }}
+                      style={[
+                        styles.childAge,
+                        { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
+                      ]}
                     >
                       {childAge}
                     </ThemedText>
@@ -381,32 +357,27 @@ export default function ActivityScreen() {
             feedingActive={concurrentFeeding}
           />
 
-          <View
-            style={styles.pager}
-            onLayout={(event) => setPanelWidth(event.nativeEvent.layout.width)}
-          >
-            <ScrollView
-              ref={pagerRef}
-              horizontal
-              contentContainerStyle={styles.pagerContent}
-              decelerationRate="fast"
-              disableIntervalMomentum
-              snapToAlignment="start"
-              snapToInterval={panelWidth + PANEL_GAP}
-              bounces={false}
-              keyboardDismissMode="interactive"
-              keyboardShouldPersistTaps="handled"
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(event) =>
-                setPanelIndex(
-                  Math.round(
-                    event.nativeEvent.contentOffset.x /
-                      (panelWidth + PANEL_GAP),
-                  ),
-                )
-              }
-            >
-              <View style={[styles.list, { width: panelWidth }]}>
+          {proAccess ? (
+            <View style={styles.list}>
+              <ProActivityPanel
+                feedingActive={!!feedingSession}
+                settlingActive={mainSession?.kind === "settling"}
+                sleepActive={mainSession?.kind === "sleep"}
+                awakeActive={mainSession?.kind === "awake"}
+                dismissSignal={proDismissSignal}
+                onExpandedChange={setProExpanded}
+                onDetailsChange={setActiveProDetails}
+                onLogEvent={handleLogEvent}
+                onLogBottleFeeding={handleLogBottleFeeding}
+                onSaveMainActivity={handleSaveMainActivity}
+                onToggleFeeding={handleToggleFeeding}
+                onToggleSettling={handleToggleSettling}
+                onToggleSleep={handleToggleSleep}
+                onToggleAwake={handleToggleAwake}
+              />
+            </View>
+          ) : (
+            <View style={styles.list}>
                 {MAIN_ACTIVITIES.map((activity) => {
                   const isActive = mainSession?.kind === activity.id;
                   return (
@@ -448,43 +419,8 @@ export default function ActivityScreen() {
                     />
                   </View>
                 </View>
-              </View>
-
-              <View
-                pointerEvents={proAccess ? "auto" : "none"}
-                style={[styles.list, { width: panelWidth }]}
-              >
-                <ProActivityPanel
-                  feedingActive={!!feedingSession}
-                  settlingActive={mainSession?.kind === "settling"}
-                  sleepActive={mainSession?.kind === "sleep"}
-                  awakeActive={mainSession?.kind === "awake"}
-                  dismissSignal={proDismissSignal}
-                  onExpandedChange={setProExpanded}
-                  onDetailsChange={setActiveProDetails}
-                  onLogEvent={logEvent}
-                  onLogBottleFeeding={handleLogBottleFeeding}
-                  onSaveMainActivity={handleSaveMainActivity}
-                  onToggleFeeding={handleToggleFeeding}
-                  onToggleSettling={handleToggleSettling}
-                  onToggleSleep={handleToggleSleep}
-                  onToggleAwake={handleToggleAwake}
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.pageIndicator}>
-              {[0, 1].map((index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.pageDot,
-                    panelIndex === index && styles.pageDotActive,
-                  ]}
-                />
-              ))}
             </View>
-          </View>
+          )}
         </KeyboardAvoidingView>
       </SafeAreaView>
       {pendingStart && (

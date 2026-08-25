@@ -91,13 +91,14 @@ function AuroraBlob({ spec, running }: AuroraBlobProps) {
       
       
       cancelAnimation(progress);
-      return;
+      return () => cancelAnimation(progress);
     }
     progress.value = withRepeat(
       withTiming(1, { duration: spec.duration, easing: Easing.inOut(Easing.sin) }),
       -1,
       true,
     );
+    return () => cancelAnimation(progress);
   }, [progress, running, spec.duration]);
 
   const drift = useAnimatedStyle(() => ({

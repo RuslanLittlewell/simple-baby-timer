@@ -8,7 +8,8 @@ import {
 } from '@/lib/activity-store';
 import { type Child, type ChildGradientKey } from '@/lib/children';
 import { type ActivityKind } from '@/lib/notifications';
-import { requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { getUserId, requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { dispatchLiveActivityPush } from '@/lib/live-activity-sync';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
@@ -198,6 +199,7 @@ export async function syncChildToCloud(child: Child): Promise<string> {
 }
 
 export async function shareChild(child: Child): Promise<string> {
+  if (child.remoteId && child.isOwner !== true) throw new Error('only the child owner can share');
   if (child.remoteId) return child.remoteId;
   const remoteId = await syncChildToCloud(child);
   return remoteId;
@@ -211,7 +213,7 @@ export async function createInviteCode(remoteId: string): Promise<string> {
 }
 
 export async function syncChildProfile(child: Child): Promise<void> {
-  if (!child.remoteId) return;
+  if (!child.remoteId || child.isOwner !== true) return;
   await requireSession();
   const profile: {
     name: string;
@@ -235,6 +237,7 @@ export interface RemoteChild {
   gradientKey: ChildGradientKey;
   birthday?: number;
   proEnabled?: boolean;
+  isOwner: boolean;
 }
 
 const birthdayFromRow = (value: unknown): number | undefined =>
@@ -248,11 +251,12 @@ const isMissingBirthdayColumn = (error: { code?: string; message?: string }): bo
 export async function fetchRemoteChildren(): Promise<RemoteChild[]> {
   if (!isSupabaseConfigured) return [];
   await requireSession();
+  const userId = await getUserId();
   let result = await supabase
     .from('children')
-    .select('id, name, gradient_key, birthday_ms, pro_enabled');
+    .select('id, name, gradient_key, birthday_ms, pro_enabled, created_by');
   if (result.error && isMissingBirthdayColumn(result.error)) {
-    result = await supabase.from('children').select('id, name, gradient_key');
+    result = await supabase.from('children').select('id, name, gradient_key, created_by');
   }
   if (result.error) throw result.error;
   return (result.data ?? []).map((row) => ({
@@ -261,6 +265,7 @@ export async function fetchRemoteChildren(): Promise<RemoteChild[]> {
     gradientKey: row.gradient_key as ChildGradientKey,
     birthday: birthdayFromRow('birthday_ms' in row ? row.birthday_ms : undefined),
     proEnabled: row.pro_enabled === true,
+    isOwner: row.created_by === userId,
   }));
 }
 
@@ -276,6 +281,7 @@ export async function redeemInvite(code: string): Promise<RemoteChild> {
     gradientKey: row.gradient_key as ChildGradientKey,
     birthday: birthdayFromRow(row.birthday_ms),
     proEnabled: row.pro_enabled === true,
+    isOwner: row.is_owner === true,
   };
 }
 
@@ -306,6 +312,10 @@ export async function pushLiveSession(
     pro_details: proDetails ?? null,
   });
   if (error) throw error;
+  dispatchLiveActivityPush('start', remoteChildId, track, {
+    kind,
+    startedAt: startedAtMs,
+  }).catch(() => {});
 }
 
 export async function updateLiveSessionDetails(
@@ -332,6 +342,7 @@ export async function clearLiveSession(remoteChildId: string, track: LiveTrack):
     .eq('child_id', remoteChildId)
     .eq('track', track);
   if (error) throw error;
+  dispatchLiveActivityPush('end', remoteChildId, track).catch(() => {});
 }
 
 export async function fetchLiveSessions(remoteChildIds: string[]): Promise<RemoteLiveRow[]> {

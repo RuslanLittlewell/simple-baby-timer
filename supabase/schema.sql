@@ -86,6 +86,28 @@ create table if not exists public.live_sessions (
 
 alter table public.live_sessions add column if not exists pro_details jsonb;
 
+create table if not exists public.live_activity_devices (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  installation_id text not null,
+  push_to_start_token text not null,
+  locale text not null default 'en',
+  updated_at timestamptz not null default now(),
+  primary key (user_id, installation_id)
+);
+
+create table if not exists public.live_activity_instances (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  installation_id text not null,
+  child_id uuid not null references public.children (id) on delete cascade,
+  track text not null check (track in ('session', 'feeding')),
+  activity_id text not null,
+  update_token text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, installation_id, child_id, track),
+  foreign key (user_id, installation_id)
+    references public.live_activity_devices (user_id, installation_id) on delete cascade
+);
+
 create table if not exists public.invites (
   code text primary key,
   child_id uuid not null references public.children (id) on delete cascade,
@@ -160,6 +182,8 @@ alter table public.children enable row level security;
 alter table public.child_members enable row level security;
 alter table public.sessions enable row level security;
 alter table public.live_sessions enable row level security;
+alter table public.live_activity_devices enable row level security;
+alter table public.live_activity_instances enable row level security;
 alter table public.invites enable row level security;
 
 drop policy if exists profiles_select_own on public.profiles;
@@ -176,7 +200,9 @@ create policy children_insert on public.children
 
 drop policy if exists children_update on public.children;
 create policy children_update on public.children
-  for update using (public.is_child_member(id));
+  for update
+  using (created_by = auth.uid())
+  with check (created_by = auth.uid());
 
 drop policy if exists members_select on public.child_members;
 create policy members_select on public.child_members
@@ -202,6 +228,24 @@ drop policy if exists live_sessions_all on public.live_sessions;
 create policy live_sessions_all on public.live_sessions
   for all using (public.is_child_member(child_id))
   with check (public.is_child_member(child_id));
+
+drop policy if exists live_activity_devices_own on public.live_activity_devices;
+create policy live_activity_devices_own on public.live_activity_devices
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists live_activity_instances_own on public.live_activity_instances;
+create policy live_activity_instances_own on public.live_activity_instances
+  for all using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and public.is_child_member(child_id)
+    and exists (
+      select 1 from public.live_activity_devices d
+      where d.user_id = auth.uid()
+        and d.installation_id = live_activity_instances.installation_id
+    )
+  );
 
 drop policy if exists invites_select on public.invites;
 create policy invites_select on public.invites
@@ -295,8 +339,10 @@ begin
   if not public.has_active_pro() then
     raise exception 'pro subscription required';
   end if;
-  if not public.is_child_member(cid) then
-    raise exception 'not a member';
+  if not exists (
+    select 1 from children c where c.id = cid and c.created_by = auth.uid()
+  ) then
+    raise exception 'only the child owner can create invites';
   end if;
   update children set pro_enabled = true where id = cid;
   for i in 1..8 loop
@@ -346,7 +392,8 @@ returns table (
   name text,
   gradient_key text,
   birthday_ms bigint,
-  pro_enabled boolean
+  pro_enabled boolean,
+  is_owner boolean
 )
 language plpgsql security definer set search_path = public as $$
 declare
@@ -361,6 +408,7 @@ begin
   values (inv.child_id, auth.uid())
   on conflict do nothing;
   return query
-    select c.id, c.name, c.gradient_key, c.birthday_ms, c.pro_enabled
+    select c.id, c.name, c.gradient_key, c.birthday_ms, c.pro_enabled,
+      c.created_by = auth.uid()
     from children c where c.id = inv.child_id;
 end $$;

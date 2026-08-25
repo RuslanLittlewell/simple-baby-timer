@@ -10,6 +10,10 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import Animated, {
+  cancelAnimation,
+  FadeInRight,
+  FadeOutRight,
+  LinearTransition,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -28,6 +32,7 @@ import {
   AWAKE_ACTIVITY,
   CARD_HEIGHT,
   EVENTS,
+  NIGHT_WAKING_EVENT,
   SLEEP_ACTIVITY,
 } from "../../constants";
 import { ActivityRow } from "../activity-row";
@@ -35,6 +40,7 @@ import { EventTile } from "../event-tile";
 import {
   buildProDetails,
   formatClock,
+  isNightWakingTime,
   parseVolumeMl,
   SETTLING_METHODS,
   toggleInSettlingMethods,
@@ -101,8 +107,13 @@ export function ProActivityPanel({
   onExpandedChange,
 }: ProActivityPanelProps) {
   const t = useT();
-  const { gradients, fg: fgColors } = useActivityColors();
+  const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
+  const cardRadius = 20;
   const [expandedKind, setExpandedKind] = useState<ProKind | null>(null);
+  const [nightWakingVisible, setNightWakingVisible] = useState(
+    isNightWakingTime,
+  );
+  const [layoutAnimationsReady, setLayoutAnimationsReady] = useState(false);
   
   const [mode, setMode] = useState<FeedingMode | null>(null);
   const [side, setSide] = useState<BreastSide | null>(null);
@@ -114,6 +125,7 @@ export function ProActivityPanel({
   const [saving, setSaving] = useState(false);
   const [panelSize, setPanelSize] = useState({ width: 1, height: 1 });
   const [rects, setRects] = useState<Partial<Record<ProKind, Rect>>>({});
+  const [sleepRowTop, setSleepRowTop] = useState(0);
   const [eventRowTop, setEventRowTop] = useState(0);
   const expansion = useSharedValue(0);
   
@@ -137,6 +149,22 @@ export function ProActivityPanel({
   
   
   const stopping = timerRunning && !(isFeeding && mode === "bottle");
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setLayoutAnimationsReady(true));
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimation(expansion);
+      cancelAnimation(lift);
+    };
+  }, [expansion, lift]);
+
+  useEffect(() => {
+    const updateVisibility = () => setNightWakingVisible(isNightWakingTime());
+    updateVisibility();
+    const interval = setInterval(updateVisibility, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const captureRect = (kind: ProKind) => (event: LayoutChangeEvent) => {
     const { x, y, width, height } = event.nativeEvent.layout;
@@ -309,6 +337,8 @@ export function ProActivityPanel({
   const originRect = measuredRect
     ? expandedKind === "feeding"
       ? { ...measuredRect, y: measuredRect.y + eventRowTop }
+      : expandedKind === "sleep"
+        ? { ...measuredRect, y: measuredRect.y + sleepRowTop }
       : measuredRect
     : undefined;
 
@@ -332,10 +362,10 @@ export function ProActivityPanel({
         [0, 1],
         [origin.height, panelSize.height],
       ),
-      borderRadius: Spacing.four,
+      borderRadius: cardRadius,
       transform: [{ translateY: -lift.value }],
     };
-  }, [originRect, panelSize]);
+  }, [cardRadius, originRect, panelSize]);
 
   const detailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(expansion.value, [0.88, 0.995], [0, 1], "clamp"),
@@ -356,16 +386,74 @@ export function ProActivityPanel({
           onPress={() => open("settling")}
         />
       </View>
-      <View onLayout={captureRect("sleep")}>
-        <ActivityRow
-          icon={SLEEP_ACTIVITY.icon}
-          gradKey={SLEEP_ACTIVITY.gradKey}
-          label={t("kind.sleep")}
-          isActive={sleepActive}
-          onStop={() => void onToggleSleep()}
-          onPress={() => open("sleep")}
-        />
-      </View>
+      <Animated.View
+        style={styles.sleepActionRow}
+        layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
+        onLayout={(event) => setSleepRowTop(event.nativeEvent.layout.y)}
+      >
+        <Animated.View
+          style={styles.sleepActionMain}
+          layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
+          onLayout={captureRect("sleep")}
+        >
+          <ActivityRow
+            icon={SLEEP_ACTIVITY.icon}
+            gradKey={SLEEP_ACTIVITY.gradKey}
+            label={t("kind.sleep")}
+            isActive={sleepActive}
+            onStop={() => void onToggleSleep()}
+            onPress={() => open("sleep")}
+          />
+        </Animated.View>
+        {nightWakingVisible && (
+          <Animated.View
+            entering={layoutAnimationsReady ? FadeInRight.duration(240) : undefined}
+            exiting={layoutAnimationsReady ? FadeOutRight.duration(200) : undefined}
+            layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
+            style={styles.nightWakingSlot}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("kind.nightWaking")}
+              onPress={() => void onLogEvent(NIGHT_WAKING_EVENT.id)}
+              style={({ pressed }) => [
+                styles.nightWakingPressable,
+                pressed && styles.pressed,
+              ]}
+            >
+              <LinearGradient
+                colors={gradients[NIGHT_WAKING_EVENT.gradKey]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.nightWakingButton,
+                  {
+                    borderColor: withAlpha(
+                      accentColors[NIGHT_WAKING_EVENT.gradKey],
+                      0.68,
+                    ),
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={NIGHT_WAKING_EVENT.icon}
+                  size={24}
+                  color={fgColors[NIGHT_WAKING_EVENT.gradKey]}
+                />
+                <ThemedText
+                  numberOfLines={2}
+                  style={[
+                    styles.nightWakingLabel,
+                    { color: fgColors[NIGHT_WAKING_EVENT.gradKey] },
+                  ]}
+                >
+                  {t("kind.nightWaking")}
+                </ThemedText>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+        )}
+      </Animated.View>
       <ActivityRow
         icon={AWAKE_ACTIVITY.icon}
         gradKey={AWAKE_ACTIVITY.gradKey}
@@ -415,7 +503,13 @@ export function ProActivityPanel({
             colors={gradients[expandedGradKey]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.card}
+            style={[
+              styles.card,
+              {
+                borderColor: withAlpha(accentColors[expandedGradKey], 0.68),
+                borderRadius: cardRadius,
+              },
+            ]}
           >
             <Pressable onPress={() => close(false)} style={styles.header}>
               <MaterialCommunityIcons
@@ -444,12 +538,25 @@ export function ProActivityPanel({
                 accessibilityLabel={t("editor.cancel")}
                 hitSlop={10}
                 onPress={handleClosePress}
+                style={[
+                  styles.closeButton,
+                  {
+                    borderColor: withAlpha(fg, 0.34),
+                    backgroundColor: withAlpha(fg, 0.14),
+                  },
+                ]}
               >
                 <MaterialCommunityIcons name="close" size={26} color={fg} />
               </Pressable>
             </Pressable>
 
-            <Animated.View style={[styles.details, detailsStyle]}>
+            <Animated.ScrollView
+              style={[styles.details, detailsStyle]}
+              contentContainerStyle={styles.detailsContent}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+            >
               {isSettling ? (
                 <View style={styles.sleepOptions}>
                   {SETTLING_METHODS.map((row, rowIndex) => (
@@ -528,7 +635,7 @@ export function ProActivityPanel({
                     onPress={() => chooseMode("breast")}
                   />
                   <Choice
-                    icon="baby-bottle-outline"
+                    icon="baby-bottle"
                     label={t("pro.bottle")}
                     selected={false}
                     onPress={() => chooseMode("bottle")}
@@ -558,7 +665,7 @@ export function ProActivityPanel({
                 </View>
               ) : (
                 <View style={styles.bottle}>
-                  <View style={styles.step}>
+                  <View style={[styles.step, styles.bottleField]}>
                     <WheelField
                       mode="time"
                       value={bottleStart}
@@ -566,7 +673,13 @@ export function ProActivityPanel({
                       openOnMount
                       displayText={`${t("editor.start")} · ${formatClock(bottleStart)}`}
                       onChange={setBottleStart}
-                      style={styles.wheel}
+                      style={[
+                        styles.wheel,
+                        {
+                          borderColor: withAlpha(fg, 0.34),
+                          backgroundColor: withAlpha(fg, 0.1),
+                        },
+                      ]}
                       textStyle={[styles.wheelText, { color: fg }]}
                     />
                   </View>
@@ -579,7 +692,14 @@ export function ProActivityPanel({
                     keyboardType="number-pad"
                     placeholder={t("pro.volume")}
                     placeholderTextColor="rgba(62,45,25,0.58)"
-                    style={[styles.volume, { color: fg }]}
+                    style={[
+                      styles.volume,
+                      {
+                        color: fg,
+                        borderColor: withAlpha(fg, 0.34),
+                        backgroundColor: withAlpha(fg, 0.1),
+                      },
+                    ]}
                   />
                   <View style={[styles.step, styles.bottleChoiceRow]}>
                     <Choice
@@ -595,7 +715,7 @@ export function ProActivityPanel({
                   </View>
                 </View>
               )}
-            </Animated.View>
+            </Animated.ScrollView>
 
             {(!isFeeding || mode !== null || timerRunning) && (
               <Animated.View style={[styles.footer, detailsStyle]}>
@@ -605,6 +725,10 @@ export function ProActivityPanel({
                     onPress={back}
                     style={({ pressed }) => [
                       styles.back,
+                      {
+                        borderColor: withAlpha(fg, 0.34),
+                        backgroundColor: withAlpha(fg, 0.1),
+                      },
                       pressed && styles.pressed,
                     ]}
                   >
@@ -623,6 +747,10 @@ export function ProActivityPanel({
                   onPress={() => void handlePrimaryPress()}
                   style={({ pressed }) => [
                     styles.save,
+                    {
+                      borderColor: "rgba(255,255,255,0.82)",
+                      backgroundColor: "#FFFFFF",
+                    },
                     (saving || (!stopping && formSaveDisabled)) &&
                       styles.saveDisabled,
                     pressed && styles.pressed,

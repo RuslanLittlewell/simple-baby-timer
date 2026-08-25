@@ -14,6 +14,14 @@ import { useActivityColors } from '@/hooks/use-activity-colors';
 import { CARD_HEIGHT, COMPACT_CARD_HEIGHT, DENSE_CARD_HEIGHT, type GradKey, type IconName } from '../constants';
 import { useCompactActivityLayout, useDenseActivityLayout } from '../use-compact-activity-layout';
 
+const withAlpha = (hex: string, alpha: number) => {
+  const value = hex.replace('#', '');
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${red},${green},${blue},${alpha})`;
+};
+
 interface EventTileProps {
   icon: IconName;
   gradKey: GradKey;
@@ -24,7 +32,7 @@ interface EventTileProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventTileProps) {
-  const { gradients, fg } = useActivityColors();
+  const { gradients, fg, accent } = useActivityColors();
   const compact = useCompactActivityLayout();
   const dense = useDenseActivityLayout();
   const scale = useSharedValue(1);
@@ -51,8 +59,22 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
         colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={[styles.tile, compact && styles.tileCompact, dense && styles.tileDense]}>
-        <MaterialCommunityIcons name={icon} size={dense ? 22 : compact ? 24 : 26} color={fg[gradKey]} />
+        style={[
+          styles.tile,
+          {
+            borderColor:
+              gradKey === 'diaper'
+                ? 'rgba(105,112,124,0.82)'
+                : withAlpha(accent[gradKey], 0.68),
+          },
+          compact && styles.tileCompact,
+          dense && styles.tileDense,
+        ]}>
+        <MaterialCommunityIcons
+          name={icon}
+          size={dense ? 22 : compact ? 24 : 26}
+          color={fg[gradKey]}
+        />
       </LinearGradient>
     </AnimatedPressable>
   );
@@ -67,7 +89,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: CARD_HEIGHT,
     paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    borderRadius: 20,
+    borderWidth: 2,
+    overflow: 'hidden',
   },
   tileCompact: {
     minHeight: COMPACT_CARD_HEIGHT,
@@ -76,6 +100,6 @@ const styles = StyleSheet.create({
   tileDense: {
     minHeight: DENSE_CARD_HEIGHT,
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
+    borderRadius: 20,
   },
 });

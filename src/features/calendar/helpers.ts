@@ -70,13 +70,15 @@ export const parseTime = (value: string) => {
 };
 
 export const isEvent = (kind: SessionKind) =>
-  kind === "poop" || kind === "diaper";
+  kind === "poop" || kind === "diaper" || kind === "nightWaking";
 
 const TRACK_WIDTH = SCREEN_WIDTH - GUTTER - Spacing.two;
 const trackLeft = (share: number) => GUTTER + TRACK_WIDTH * (1 - share);
 
 export const laneLeft = (kind: SessionKind) =>
-  kind === "poop"
+  kind === "nightWaking"
+    ? trackLeft(0.7)
+    : kind === "poop"
     ? trackLeft(0.29095)
     : kind === "diaper"
       ? trackLeft(0.2)
@@ -108,6 +110,7 @@ export interface DayStats {
   lastPoopAt: number | null;
   diaperCount: number;
   lastDiaperAt: number | null;
+  nightWakingCount: number;
 }
 
 export function computeDayStats(
@@ -117,6 +120,7 @@ export function computeDayStats(
   dayStartMs: number,
   dayEndMs: number,
   liveFeedingStartedAt?: number,
+  latestAcrossDays = false,
 ): DayStats {
   const durationInDay = (start: number, end: number) =>
     Math.max(0, Math.min(end, dayEndMs) - Math.max(start, dayStartMs));
@@ -138,11 +142,14 @@ export function computeDayStats(
       item.start >= dayStartMs &&
       item.start < dayEndMs,
   );
-  const feedingStarts = feedingSessions.map((item) => item.start);
+  const feedingStarts = (latestAcrossDays
+    ? sessions.filter((item) => item.kind === "feeding")
+    : feedingSessions
+  ).map((item) => item.start);
   if (
     liveFeedingStartedAt !== undefined &&
-    liveFeedingStartedAt >= dayStartMs &&
-    liveFeedingStartedAt < dayEndMs
+    (latestAcrossDays ||
+      (liveFeedingStartedAt >= dayStartMs && liveFeedingStartedAt < dayEndMs))
   ) {
     feedingStarts.push(liveFeedingStartedAt);
   }
@@ -151,11 +158,12 @@ export function computeDayStats(
       completedSleepMs + (liveSession?.kind === "sleep" ? liveMainMs : 0),
     lastSleepAt:
       sessions
-        .filter(
-          (item) =>
-            item.kind === "sleep" &&
-            item.end >= dayStartMs &&
-            item.end < dayEndMs,
+        .filter((item) =>
+          latestAcrossDays
+            ? item.kind === "sleep"
+            : item.kind === "sleep" &&
+              item.end >= dayStartMs &&
+              item.end < dayEndMs,
         )
         .map((item) => item.end)
         .reduce((max, end) => Math.max(max, end), 0) || null,
@@ -174,11 +182,12 @@ export function computeDayStats(
     ).length,
     lastPoopAt:
       sessions
-        .filter(
-          (item) =>
-            item.kind === "poop" &&
-            item.start >= dayStartMs &&
-            item.start < dayEndMs,
+        .filter((item) =>
+          latestAcrossDays
+            ? item.kind === "poop"
+            : item.kind === "poop" &&
+              item.start >= dayStartMs &&
+              item.start < dayEndMs,
         )
         .map((item) => item.start)
         .reduce((max, start) => Math.max(max, start), 0) || null,
@@ -190,13 +199,20 @@ export function computeDayStats(
     ).length,
     lastDiaperAt:
       sessions
-        .filter(
-          (item) =>
-            item.kind === "diaper" &&
-            item.start >= dayStartMs &&
-            item.start < dayEndMs,
+        .filter((item) =>
+          latestAcrossDays
+            ? item.kind === "diaper"
+            : item.kind === "diaper" &&
+              item.start >= dayStartMs &&
+              item.start < dayEndMs,
         )
         .map((item) => item.start)
         .reduce((max, start) => Math.max(max, start), 0) || null,
+    nightWakingCount: sessions.filter(
+      (item) =>
+        item.kind === "nightWaking" &&
+        item.start >= dayStartMs &&
+        item.start < dayEndMs,
+    ).length,
   };
 }

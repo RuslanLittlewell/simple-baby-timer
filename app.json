@@ -43,7 +43,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-live-activity",
+      [
+        "expo-live-activity",
+        {
+          "enablePushNotifications": true,
+          "silentOnUnsupportedOS": true
+        }
+      ],
       "expo-apple-authentication",
       "@react-native-community/datetimepicker"
     ],

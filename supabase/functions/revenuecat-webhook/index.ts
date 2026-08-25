@@ -26,6 +26,8 @@ interface RevenueCatEvent {
 
 
 const ENDING = new Set(['EXPIRATION', 'REFUND', 'SUBSCRIPTION_PAUSED']);
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return new Response('method not allowed', { status: 405 });
@@ -43,10 +45,17 @@ Deno.serve(async (request) => {
   }
   if (!event?.app_user_id) return new Response('no app_user_id', { status: 400 });
 
+  if (event.type === 'TEST') {
+    return new Response('ok: test', { status: 200 });
+  }
+
   
   
   if (event.app_user_id.startsWith('$RCAnonymousID:')) {
     return new Response('ignored: anonymous', { status: 200 });
+  }
+  if (!UUID_PATTERN.test(event.app_user_id)) {
+    return new Response('ignored: unmapped app user', { status: 200 });
   }
 
   const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;

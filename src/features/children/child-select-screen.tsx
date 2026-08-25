@@ -35,14 +35,17 @@ export default function ChildSelectScreen() {
   const activeChildId = useAppStore((state) => state.activeChildId);
   const selectChild = useAppStore((state) => state.selectChild);
   const addChild = useAppStore((state) => state.addChild);
+  const updateChild = useAppStore((state) => state.updateChild);
   const proActive = useAppStore((state) => state.proActive);
   const openPaywall = useProPaywall();
   const [adding, setAdding] = useState(false);
   const [enteringCode, setEnteringCode] = useState(false);
   const [sharingChildId, setSharingChildId] = useState<string | null>(null);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const sharingChild = children.find((child) => child.id === sharingChildId) ?? null;
+  const editingChild = children.find((child) => child.id === editingChildId) ?? null;
 
   const runAction = (action: PendingAction) => {
     if (action.type === 'share') setSharingChildId(action.childId);
@@ -124,6 +127,9 @@ export default function ChildSelectScreen() {
                 onPress={() => pickChild(child)}
                 onShare={() => requestAction({ type: 'share', childId: child.id })}
                 shareLabel={t('children.share')}
+                onEdit={() => setEditingChildId(child.id)}
+                editLabel={t('children.edit')}
+                canManage={!child.remoteId || child.isOwner === true}
                 onDelete={() => confirmDelete(child)}
                 deleteLabel={t('editor.delete')}
               />
@@ -160,6 +166,16 @@ export default function ChildSelectScreen() {
           visible={adding}
           onClose={() => setAdding(false)}
           onSave={saveChild}
+        />
+        <AddChildModal
+          visible={!!editingChild}
+          child={editingChild}
+          onClose={() => setEditingChildId(null)}
+          onSave={(name, gradientKey, birthday) => {
+            if (!editingChild) return;
+            updateChild(editingChild.id, name, gradientKey, birthday);
+            setEditingChildId(null);
+          }}
         />
         <EnterCodeModal
           visible={enteringCode}

@@ -6,7 +6,7 @@ export const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignSelf: "stretch",
-    gap: Spacing.two,
+    gap: Spacing.one,
   },
   card: {
     flex: 1,
