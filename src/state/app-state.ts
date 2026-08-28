@@ -179,6 +179,7 @@ type AppStore = PersistedState & {
   activitySyncStatus: 'syncing' | 'ready';
   activitySyncGeneration: number;
   beginActivitySync: (generation: number) => void;
+  prepareActivitySync: (generation: number, gated: boolean) => void;
   finishActivitySync: (generation: number) => void;
   mainTransitionPending: boolean;
   reconcileRemoteLive: (list: RemoteLive[], requestedAt?: number) => void;
@@ -348,6 +349,14 @@ export const useAppStore = create<AppStore>()(
       beginActivitySync: (generation) => {
         if (generation < get().activitySyncGeneration) return;
         set({ activitySyncStatus: 'syncing', activitySyncGeneration: generation });
+      },
+
+      prepareActivitySync: (generation, gated) => {
+        if (generation < get().activitySyncGeneration) return;
+        set({
+          activitySyncStatus: gated ? 'syncing' : 'ready',
+          activitySyncGeneration: generation,
+        });
       },
 
       finishActivitySync: (generation) => {

@@ -193,7 +193,7 @@ export default function ChildSelectScreen() {
             const action = pendingAction;
             setPendingAction(null);
             
-            await syncNow();
+            await syncNow({ fresh: true, force: true });
             if (!action) return;
             if (action.type === 'enterCode' || useAppStore.getState().proActive) {
               runAction(action);

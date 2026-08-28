@@ -11,24 +11,31 @@ import { type ActivityKind } from '@/lib/notifications';
 import { getUserId, requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { dispatchLiveActivityPush } from '@/lib/live-activity-sync';
 import {
-  calendarMonthOf,
-  calendarMonthsInRange,
+  calendarWeekOf,
+  calendarWeeksInRange,
   compoundCursorFilter,
-  LoadedMonthRegistry,
-  MonthLoadCoordinator,
+  LoadedWeekRegistry,
+  WeekFreshnessRegistry,
+  WeekLoadCoordinator,
   paginateCompound,
   partitionDeletedRows,
-  type CalendarMonth,
+  type CalendarWeek,
 } from '@/lib/activity-history-loading';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
-const LOADED_MONTHS_PREFIX = 'babytimer.sync.loaded-months.v1.';
-const loadedMonthsKey = (remoteId: string) => `${LOADED_MONTHS_PREFIX}${remoteId}`;
+const LEGACY_LOADED_MONTHS_PREFIX = 'babytimer.sync.loaded-months.v1.';
+const legacyLoadedMonthsKey = (remoteId: string) => `${LEGACY_LOADED_MONTHS_PREFIX}${remoteId}`;
+const LOADED_WEEKS_PREFIX = 'babytimer.sync.loaded-weeks.v1.';
+const loadedWeeksKey = (remoteId: string) => `${LOADED_WEEKS_PREFIX}${remoteId}`;
+const WEEK_FRESHNESS_PREFIX = 'babytimer.sync.week-freshness.v1.';
+const weekFreshnessKey = (remoteId: string) => `${WEEK_FRESHNESS_PREFIX}${remoteId}`;
+export const CURRENT_WEEK_FRESHNESS_MS = 60_000;
 const UPSERT_CHUNK = 500;
 const HISTORY_PAGE_SIZE = 1000;
-const monthLoads = new MonthLoadCoordinator();
-const loadedMonths = new LoadedMonthRegistry(AsyncStorage, loadedMonthsKey);
+const weekLoads = new WeekLoadCoordinator();
+const loadedWeeks = new LoadedWeekRegistry(AsyncStorage, loadedWeeksKey);
+const weekFreshness = new WeekFreshnessRegistry(AsyncStorage, weekFreshnessKey);
 
 export interface SessionRow {
   child_id: string;
@@ -126,11 +133,13 @@ async function enqueue(op: QueuedOp): Promise<void> {
 
 export async function clearSyncState(): Promise<void> {
   const keys = await AsyncStorage.getAllKeys();
-  monthLoads.clear();
+  weekLoads.clear();
   await AsyncStorage.multiRemove([
     QUEUE_KEY,
     ...keys.filter((key) => key.startsWith('babytimer.sync.cursor.')),
-    ...keys.filter((key) => key.startsWith(LOADED_MONTHS_PREFIX)),
+    ...keys.filter((key) => key.startsWith(LEGACY_LOADED_MONTHS_PREFIX)),
+    ...keys.filter((key) => key.startsWith(LOADED_WEEKS_PREFIX)),
+    ...keys.filter((key) => key.startsWith(WEEK_FRESHNESS_PREFIX)),
   ]);
 }
 
@@ -291,10 +300,10 @@ const isMissingBirthdayColumn = (error: { code?: string; message?: string }): bo
   error.code === 'PGRST204' ||
   error.message?.includes('birthday_ms') === true;
 
-export async function fetchRemoteChildren(): Promise<RemoteChild[]> {
+export async function fetchRemoteChildren(knownUserId?: string | null): Promise<RemoteChild[]> {
   if (!isSupabaseConfigured) return [];
   await requireSession();
-  const userId = await getUserId();
+  const userId = knownUserId === undefined ? await getUserId() : knownUserId;
   let result = await supabase
     .from('children')
     .select('id, name, gradient_key, birthday_ms, pro_enabled, created_by');
@@ -411,15 +420,20 @@ export async function leaveChild(remoteId: string): Promise<void> {
   await requireSession();
   const { error } = await supabase.rpc('leave_child', { cid: remoteId });
   if (error) throw error;
-  await AsyncStorage.multiRemove([cursorKey(remoteId), loadedMonthsKey(remoteId)]);
+  await AsyncStorage.multiRemove([
+    cursorKey(remoteId),
+    legacyLoadedMonthsKey(remoteId),
+    loadedWeeksKey(remoteId),
+    weekFreshnessKey(remoteId),
+  ]);
   const queue = await readQueue();
   await writeQueue(queue.filter((op) => op.remoteChildId !== remoteId));
 }
 
-async function fetchMonthPages(
+async function fetchWeekPages(
   remoteId: string,
   localChildId: string,
-  month: CalendarMonth,
+  week: CalendarWeek,
 ): Promise<number> {
   await requireSession();
   return paginateCompound(
@@ -429,8 +443,8 @@ async function fetchMonthPages(
         .from('sessions')
         .select('*')
         .eq('child_id', remoteId)
-        .lt('start_ms', month.endMs)
-        .gt('end_ms', month.startMs)
+        .lt('start_ms', week.endMs)
+        .gt('end_ms', week.startMs)
         .order('start_ms', { ascending: true })
         .order('id', { ascending: true })
         .limit(HISTORY_PAGE_SIZE);
@@ -447,20 +461,33 @@ async function fetchMonthPages(
   );
 }
 
-export async function loadChildHistoryMonth(
+export async function loadChildHistoryWeek(
   remoteId: string,
   localChildId: string,
-  month: CalendarMonth,
+  week: CalendarWeek,
   { refresh = false }: { refresh?: boolean } = {},
 ): Promise<number> {
   if (!isSupabaseConfigured) return 0;
-  const requestKey = `${remoteId}/${month.key}`;
-  return monthLoads.run(requestKey, async () => {
-    if (!refresh && (await loadedMonths.has(remoteId, month.key))) return 0;
-    const applied = await fetchMonthPages(remoteId, localChildId, month);
-    await loadedMonths.mark(remoteId, month.key);
+  const requestKey = `${remoteId}/${week.key}`;
+  return weekLoads.run(requestKey, async () => {
+    if (!refresh && (await loadedWeeks.has(remoteId, week.key))) return 0;
+    const applied = await fetchWeekPages(remoteId, localChildId, week);
+    await loadedWeeks.mark(remoteId, week.key);
+    await weekFreshness.mark(remoteId, week.key);
     return applied;
   });
+}
+
+export async function isChildCurrentWeekFresh(
+  remoteId: string,
+  maxAgeMs = CURRENT_WEEK_FRESHNESS_MS,
+): Promise<boolean> {
+  const week = calendarWeekOf(new Date());
+  const [loaded, fresh] = await Promise.all([
+    loadedWeeks.has(remoteId, week.key),
+    weekFreshness.isFresh(remoteId, week.key, maxAgeMs),
+  ]);
+  return loaded && fresh;
 }
 
 export async function loadChildHistoryRange(
@@ -471,17 +498,17 @@ export async function loadChildHistoryRange(
   options: { refresh?: boolean } = {},
 ): Promise<number> {
   const counts = await Promise.all(
-    calendarMonthsInRange(startMs, endMs).map((month) =>
-      loadChildHistoryMonth(remoteId, localChildId, month, options),
+    calendarWeeksInRange(startMs, endMs).map((week) =>
+      loadChildHistoryWeek(remoteId, localChildId, week, options),
     ),
   );
   return counts.reduce((sum, count) => sum + count, 0);
 }
 
-export function loadChildCurrentMonth(
+export function loadChildCurrentWeek(
   remoteId: string,
   localChildId: string,
   options: { refresh?: boolean } = {},
 ): Promise<number> {
-  return loadChildHistoryMonth(remoteId, localChildId, calendarMonthOf(new Date()), options);
+  return loadChildHistoryWeek(remoteId, localChildId, calendarWeekOf(new Date()), options);
 }

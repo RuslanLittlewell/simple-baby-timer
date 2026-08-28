@@ -2,20 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  calendarMonthOf,
-  calendarMonthsInRange,
+  calendarWeekOf,
+  calendarWeeksInRange,
   compoundCursorFilter,
-  LoadedMonthRegistry,
-  MonthLoadCoordinator,
+  LoadedWeekRegistry,
+  WeekFreshnessRegistry,
+  WeekLoadCoordinator,
   paginateCompound,
   partitionDeletedRows,
 } from '../src/lib/activity-history-loading.ts';
 
-test('calendar month uses local calendar boundaries', () => {
-  const month = calendarMonthOf(new Date(2026, 1, 18, 12));
-  assert.equal(month.key, '2026-02');
-  assert.equal(month.startMs, new Date(2026, 1, 1).getTime());
-  assert.equal(month.endMs, new Date(2026, 2, 1).getTime());
+test('calendar week uses local Monday boundaries', () => {
+  const week = calendarWeekOf(new Date(2026, 1, 18, 12));
+  assert.equal(week.key, '2026-02-16');
+  assert.equal(week.startMs, new Date(2026, 1, 16).getTime());
+  assert.equal(week.endMs, new Date(2026, 1, 23).getTime());
 });
 
 test('deletion tombstones are separated from active range rows', () => {
@@ -45,31 +46,57 @@ test('compound pagination does not skip rows sharing a page-boundary timestamp',
   assert.deepEqual(received, source);
 });
 
-test('loaded month registry is durable and preserves concurrent month marks', async () => {
+test('loaded week registry is durable and preserves concurrent week marks', async () => {
   const values = new Map();
   const storage = {
     async getItem(key) { return values.get(key) ?? null; },
     async setItem(key, value) { values.set(key, value); },
   };
-  const registry = new LoadedMonthRegistry(storage, (childId) => `loaded/${childId}`);
+  const registry = new LoadedWeekRegistry(storage, (childId) => `loaded/${childId}`);
   await Promise.all([
-    registry.mark('child', '2026-01'),
-    registry.mark('child', '2026-02'),
+    registry.mark('child', '2026-01-05'),
+    registry.mark('child', '2026-01-12'),
   ]);
-  const afterRestart = new LoadedMonthRegistry(storage, (childId) => `loaded/${childId}`);
-  assert.equal(await afterRestart.has('child', '2026-01'), true);
-  assert.equal(await afterRestart.has('child', '2026-02'), true);
-  assert.equal(await afterRestart.has('other-child', '2026-01'), false);
+  const afterRestart = new LoadedWeekRegistry(storage, (childId) => `loaded/${childId}`);
+  assert.equal(await afterRestart.has('child', '2026-01-05'), true);
+  assert.equal(await afterRestart.has('child', '2026-01-12'), true);
+  assert.equal(await afterRestart.has('other-child', '2026-01-05'), false);
 });
 
-test('range includes every intersecting month and excludes exact end boundary', () => {
+test('week freshness uses a strict TTL and survives a registry restart', async () => {
+  const values = new Map();
+  const storage = {
+    async getItem(key) { return values.get(key) ?? null; },
+    async setItem(key, value) { values.set(key, value); },
+  };
+  const keyForChild = (childId) => `fresh/${childId}`;
+  const registry = new WeekFreshnessRegistry(storage, keyForChild);
+  await registry.mark('child', '2026-02-16', 1_000);
+
+  const afterRestart = new WeekFreshnessRegistry(storage, keyForChild);
+  assert.equal(await afterRestart.isFresh('child', '2026-02-16', 60_000, 60_999), true);
+  assert.equal(await afterRestart.isFresh('child', '2026-02-16', 60_000, 61_000), false);
+  assert.equal(await afterRestart.isFresh('child', 'missing', 60_000, 1_001), false);
+});
+
+test('failed freshness persistence never reports a week as fresh', async () => {
+  const storage = {
+    async getItem() { return null; },
+    async setItem() { throw new Error('storage unavailable'); },
+  };
+  const registry = new WeekFreshnessRegistry(storage, (childId) => `fresh/${childId}`);
+  await assert.rejects(registry.mark('child', '2026-02-16', 1_000));
+  assert.equal(await registry.isFresh('child', '2026-02-16', 60_000, 1_001), false);
+});
+
+test('range includes every intersecting week and excludes exact end boundary', () => {
   const start = new Date(2026, 0, 31, 23).getTime();
-  const end = new Date(2026, 2, 1).getTime();
-  assert.deepEqual(calendarMonthsInRange(start, end).map(({ key }) => key), [
-    '2026-01',
-    '2026-02',
+  const end = new Date(2026, 1, 9).getTime();
+  assert.deepEqual(calendarWeeksInRange(start, end).map(({ key }) => key), [
+    '2026-01-26',
+    '2026-02-02',
   ]);
-  assert.deepEqual(calendarMonthsInRange(end, end), []);
+  assert.deepEqual(calendarWeeksInRange(end, end), []);
 });
 
 test('compound cursor has a unique id tie-breaker', () => {
@@ -79,8 +106,8 @@ test('compound cursor has a unique id tie-breaker', () => {
   );
 });
 
-test('concurrent month loads share one promise and failed loads remain retryable', async () => {
-  const coordinator = new MonthLoadCoordinator();
+test('concurrent week loads share one promise and failed loads remain retryable', async () => {
+  const coordinator = new WeekLoadCoordinator();
   let calls = 0;
   let release;
   const blocked = new Promise((resolve) => { release = resolve; });
@@ -89,8 +116,8 @@ test('concurrent month loads share one promise and failed loads remain retryable
     await blocked;
     return 7;
   };
-  const first = coordinator.run('child/month', load);
-  const second = coordinator.run('child/month', load);
+  const first = coordinator.run('child/week', load);
+  const second = coordinator.run('child/week', load);
   assert.equal(first, second);
   release();
   assert.deepEqual(await Promise.all([first, second]), [7, 7]);
