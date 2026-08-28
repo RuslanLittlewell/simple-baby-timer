@@ -17,6 +17,7 @@ import { WheelField } from '@/components/wheel-field';
 import { WheelSheetHost } from '@/components/wheel-sheet';
 import { WheelSelect } from '@/components/wheel-select';
 import { NunitoSans, Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
 import {
@@ -28,6 +29,7 @@ import {
 import { useAppStore, useT } from '@/state/app-state';
 
 import { combineDayTime, fmtTime, isEvent, parseTime, startOfDayMs } from '../helpers';
+import { KIND_META } from '../constants';
 import { modalStyles } from '../modal-styles';
 import {
   BOTTLE_CONTENTS,
@@ -64,6 +66,7 @@ export function AddActivityModal({
   onSave,
 }: AddActivityModalProps) {
   const theme = useTheme();
+  const { accent } = useActivityColors();
   const t = useT();
   const language = useAppStore((state) => state.language);
   const WEEKDAYS = WEEKDAYS_I18N[language];
@@ -117,6 +120,7 @@ export function AddActivityModal({
 
   const parsedVolume = Number.parseInt(volume, 10);
   const eventKind = isEvent(kind);
+  const borderColor = accent[KIND_META[kind].gradKey];
   const bottleVolume =
     kind === 'feeding' && feedingMode === 'bottle' && Number.isFinite(parsedVolume) && parsedVolume > 0
       ? parsedVolume
@@ -179,7 +183,12 @@ export function AddActivityModal({
         style={modalStyles.backdrop}>
         <BlurView intensity={35} tint="dark" pointerEvents="none" style={modalStyles.blur} />
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[modalStyles.card, styles.card, { backgroundColor: theme.background }]}>
+        <View
+          style={[
+            modalStyles.card,
+            styles.card,
+            { backgroundColor: theme.background, borderColor },
+          ]}>
           <View style={modalStyles.header}>
             <ThemedText style={modalStyles.title}>{t('manual.title')}</ThemedText>
             <Pressable onPress={onClose} hitSlop={12}>

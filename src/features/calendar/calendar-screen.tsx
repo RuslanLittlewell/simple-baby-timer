@@ -10,6 +10,7 @@ import { Spacing } from '@/constants/theme';
 import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { getSessionsForDay, type ActivitySession } from '@/lib/activity-store';
+import { loadChildHistoryRange } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { EntryEditor } from './components/entry-editor';
@@ -48,6 +49,7 @@ export default function CalendarScreen() {
   const activeChild = children.find((child) => child.id === activeChildId);
   const proAccess = proActive || activeChild?.proEnabled === true;
   const addManualActivity = useAppStore((state) => state.addManualActivity);
+  const bumpDataVersion = useAppStore((state) => state.bumpDataVersion);
   const t = useT();
   const openPaywall = useProPaywall();
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
@@ -88,6 +90,47 @@ export default function CalendarScreen() {
       alive = false;
     };
   }, [shownDay, dataVersion, activeChildId]);
+
+  useEffect(() => {
+    if (!activeChild?.remoteId) return;
+    const startMs = new Date(
+      shownDay.getFullYear(),
+      shownDay.getMonth(),
+      shownDay.getDate(),
+    ).getTime();
+    const endMs = new Date(
+      shownDay.getFullYear(),
+      shownDay.getMonth(),
+      shownDay.getDate() + 1,
+    ).getTime();
+    void loadChildHistoryRange(activeChild.remoteId, activeChild.id, startMs, endMs)
+      .then((applied) => {
+        if (applied > 0) bumpDataVersion();
+      })
+      .catch(() => {});
+  }, [activeChild?.id, activeChild?.remoteId, shownDay, bumpDataVersion]);
+
+  useEffect(() => {
+    if (!activeChild?.remoteId || overlay === 'none') return;
+    const start = overlay === 'week'
+      ? weekStart
+      : new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
+    const end = overlay === 'week'
+      ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7)
+      : new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    void loadChildHistoryRange(activeChild.remoteId, activeChild.id, start.getTime(), end.getTime())
+      .then((applied) => {
+        if (applied > 0) bumpDataVersion();
+      })
+      .catch(() => {});
+  }, [
+    activeChild?.id,
+    activeChild?.remoteId,
+    overlay,
+    weekStart,
+    monthCursor,
+    bumpDataVersion,
+  ]);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await getSessionsForDay(shownDay, activeChildId));

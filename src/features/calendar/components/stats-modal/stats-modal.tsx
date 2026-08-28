@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
+import { loadChildHistoryRange } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { CHART_ZOOM_MIN } from '../../constants';
@@ -39,6 +40,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
   const t = useT();
   const language = useAppStore((state) => state.language);
   const activeChildId = useAppStore((state) => state.activeChildId);
+  const children = useAppStore((state) => state.children);
   const dataVersion = useAppStore((state) => state.dataVersion);
   const liveSession = useAppStore((state) => state.session);
   const [tab, setTab] = useState<StatsTab>('day');
@@ -47,6 +49,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
   const [previousPoints, setPreviousPoints] = useState<DayPoint[]>([]);
   const [zoom, setZoom] = useState(CHART_ZOOM_MIN);
   const [chartsHeight, setChartsHeight] = useState(0);
+  const activeChild = children.find((child) => child.id === activeChildId);
 
   const selectTab = (nextTab: StatsTab) => {
     if (nextTab === tab) return;
@@ -85,6 +88,17 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
   
   const load = useCallback(async () => {
     const now = Date.now();
+    if (activeChild?.remoteId) {
+      await Promise.all([
+        loadChildHistoryRange(activeChild.remoteId, activeChild.id, startMs, endMs),
+        loadChildHistoryRange(
+          activeChild.remoteId,
+          activeChild.id,
+          previousStartMs,
+          previousEndMs,
+        ),
+      ]).catch(() => {});
+    }
     return Promise.all([
       buildDayPoints(startMs, endMs, days, activeChildId, liveSession, now),
       buildDayPoints(
@@ -104,6 +118,8 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
     previousEndMs,
     previousPeriod.days,
     activeChildId,
+    activeChild?.id,
+    activeChild?.remoteId,
     liveSession,
   ]);
 

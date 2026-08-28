@@ -1,19 +1,8 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import {
-  Keyboard,
-  Pressable,
-  TextInput,
-  View,
-  type GestureResponderEvent,
-  type LayoutChangeEvent,
-} from "react-native";
+import { Keyboard, View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   cancelAnimation,
-  FadeInRight,
-  FadeOutRight,
-  LinearTransition,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -21,28 +10,19 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { ThemedText } from "@/components/themed-text";
-import { WheelField } from "@/components/wheel-field";
 import { Spacing } from "@/constants/theme";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { type EventKind, type ProDetails } from "@/lib/activity-store";
-import { useT } from "@/state/app-state";
 
-import {
-  AWAKE_ACTIVITY,
-  CARD_HEIGHT,
-  EVENTS,
-  NIGHT_WAKING_EVENT,
-  SLEEP_ACTIVITY,
-} from "../../constants";
-import { ActivityRow } from "../activity-row";
-import { EventTile } from "../event-tile";
+import { CARD_HEIGHT } from "../../constants";
+import { ExpandedDetails } from "./components/expanded-details";
+import { ExpandedFooter } from "./components/expanded-footer";
+import { ExpandedHeader } from "./components/expanded-header";
+import { PanelActions } from "./components/panel-actions";
 import {
   buildProDetails,
-  formatClock,
   isNightWakingTime,
   parseVolumeMl,
-  SETTLING_METHODS,
   toggleInSettlingMethods,
   withAlpha,
   type BottleContent,
@@ -65,6 +45,7 @@ interface Rect {
 }
 
 interface ProActivityPanelProps {
+  disabled?: boolean;
   feedingActive: boolean;
   settlingActive: boolean;
   sleepActive: boolean;
@@ -91,6 +72,7 @@ interface ProActivityPanelProps {
 }
 
 export function ProActivityPanel({
+  disabled = false,
   feedingActive,
   settlingActive,
   sleepActive,
@@ -106,7 +88,6 @@ export function ProActivityPanel({
   dismissSignal,
   onExpandedChange,
 }: ProActivityPanelProps) {
-  const t = useT();
   const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
   const cardRadius = 20;
   const [expandedKind, setExpandedKind] = useState<ProKind | null>(null);
@@ -301,11 +282,6 @@ export function ProActivityPanel({
     });
   };
 
-  const handleClosePress = (event: GestureResponderEvent) => {
-    event.stopPropagation();
-    close(false);
-  };
-
   const toggleSettlingMethod = (method: SettlingMethod) => {
     setSettlingMethods((current) =>
       toggleInSettlingMethods(current, method),
@@ -376,122 +352,24 @@ export function ProActivityPanel({
 
   return (
     <View style={styles.panel} onLayout={handlePanelLayout}>
-      <View onLayout={captureRect("settling")}>
-        <ActivityRow
-          icon="sleep"
-          gradKey="settling"
-          label={t("kind.settling")}
-          isActive={settlingActive}
-          onStop={() => void onToggleSettling()}
-          onPress={() => open("settling")}
-        />
-      </View>
-      <Animated.View
-        style={styles.sleepActionRow}
-        layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
-        onLayout={(event) => setSleepRowTop(event.nativeEvent.layout.y)}
-      >
-        <Animated.View
-          style={styles.sleepActionMain}
-          layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
-          onLayout={captureRect("sleep")}
-        >
-          <ActivityRow
-            icon={SLEEP_ACTIVITY.icon}
-            gradKey={SLEEP_ACTIVITY.gradKey}
-            label={t("kind.sleep")}
-            isActive={sleepActive}
-            onStop={() => void onToggleSleep()}
-            onPress={() => open("sleep")}
-          />
-        </Animated.View>
-        {nightWakingVisible && (
-          <Animated.View
-            entering={layoutAnimationsReady ? FadeInRight.duration(240) : undefined}
-            exiting={layoutAnimationsReady ? FadeOutRight.duration(200) : undefined}
-            layout={layoutAnimationsReady ? LinearTransition.duration(280) : undefined}
-            style={styles.nightWakingSlot}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("kind.nightWaking")}
-              onPress={() => void onLogEvent(NIGHT_WAKING_EVENT.id)}
-              style={({ pressed }) => [
-                styles.nightWakingPressable,
-                pressed && styles.pressed,
-              ]}
-            >
-              <LinearGradient
-                colors={gradients[NIGHT_WAKING_EVENT.gradKey]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[
-                  styles.nightWakingButton,
-                  {
-                    borderColor: withAlpha(
-                      accentColors[NIGHT_WAKING_EVENT.gradKey],
-                      0.68,
-                    ),
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={NIGHT_WAKING_EVENT.icon}
-                  size={24}
-                  color={fgColors[NIGHT_WAKING_EVENT.gradKey]}
-                />
-                <ThemedText
-                  numberOfLines={2}
-                  style={[
-                    styles.nightWakingLabel,
-                    { color: fgColors[NIGHT_WAKING_EVENT.gradKey] },
-                  ]}
-                >
-                  {t("kind.nightWaking")}
-                </ThemedText>
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-        )}
-      </Animated.View>
-      <ActivityRow
-        icon={AWAKE_ACTIVITY.icon}
-        gradKey={AWAKE_ACTIVITY.gradKey}
-        label={t("kind.awake")}
-        isActive={awakeActive}
-        onPress={() => void onToggleAwake()}
+      <PanelActions
+        awakeActive={awakeActive}
+        disabled={disabled}
+        feedingActive={feedingActive}
+        layoutAnimationsReady={layoutAnimationsReady}
+        nightWakingVisible={nightWakingVisible}
+        settlingActive={settlingActive}
+        sleepActive={sleepActive}
+        onCaptureRect={captureRect}
+        onEventRowTop={setEventRowTop}
+        onLogEvent={onLogEvent}
+        onOpen={open}
+        onSleepRowTop={setSleepRowTop}
+        onToggleAwake={onToggleAwake}
+        onToggleFeeding={onToggleFeeding}
+        onToggleSettling={onToggleSettling}
+        onToggleSleep={onToggleSleep}
       />
-      <View
-        style={styles.eventRow}
-        onLayout={(event) => setEventRowTop(event.nativeEvent.layout.y)}
-      >
-        <View style={styles.eventWide} onLayout={captureRect("feeding")}>
-          <ActivityRow
-            icon="baby-bottle-outline"
-            gradKey="feed"
-            label={t("pro.feeding")}
-            isActive={feedingActive}
-            onStop={() => void onToggleFeeding()}
-            onPress={() => open("feeding")}
-          />
-        </View>
-        <View style={styles.eventNarrow}>
-          <EventTile
-            icon={EVENTS[0].icon}
-            gradKey={EVENTS[0].gradKey}
-            accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
-            onPress={() => void onLogEvent(EVENTS[0].id)}
-          />
-        </View>
-        <View style={styles.eventNarrow}>
-          <EventTile
-            icon={EVENTS[1].icon}
-            gradKey={EVENTS[1].gradKey}
-            accessibilityLabel={t(`kind.${EVENTS[1].id}`)}
-            onPress={() => void onLogEvent(EVENTS[1].id)}
-          />
-        </View>
-      </View>
 
       {expanded && (
         <Animated.View
@@ -511,44 +389,7 @@ export function ProActivityPanel({
               },
             ]}
           >
-            <Pressable onPress={() => close(false)} style={styles.header}>
-              <MaterialCommunityIcons
-                name={
-                  isSettling
-                    ? "sleep"
-                    : isSleep
-                      ? "moon-waning-crescent"
-                      : "baby-bottle-outline"
-                }
-                size={26}
-                color={fg}
-              />
-              <ThemedText style={[styles.title, { color: fg }]}>
-                {t(
-                  isSettling
-                    ? "pro.settling"
-                    : isSleep
-                      ? "pro.sleep"
-                      : "pro.feeding",
-                )}
-              </ThemedText>
-              
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t("editor.cancel")}
-                hitSlop={10}
-                onPress={handleClosePress}
-                style={[
-                  styles.closeButton,
-                  {
-                    borderColor: withAlpha(fg, 0.34),
-                    backgroundColor: withAlpha(fg, 0.14),
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons name="close" size={26} color={fg} />
-              </Pressable>
-            </Pressable>
+            <ExpandedHeader color={fg} kind={expandedKind} onClose={() => close(false)} />
 
             <Animated.ScrollView
               style={[styles.details, detailsStyle]}
@@ -557,267 +398,42 @@ export function ProActivityPanel({
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
-              {isSettling ? (
-                <View style={styles.sleepOptions}>
-                  {SETTLING_METHODS.map((row, rowIndex) => (
-                    <View key={rowIndex} style={styles.options}>
-                      {row.map((method) => {
-                        const selected = settlingMethods.includes(method);
-                        return (
-                          <Choice
-                            key={method}
-                            tone="sleep"
-                            label={t(`pro.${method}`)}
-                            selected={selected}
-                            multiline
-                            onPress={() => toggleSettlingMethod(method)}
-                          />
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-              ) : isSleep ? (
-                <View style={styles.sleepOptions}>
-                  <View style={styles.options}>
-                    <Choice
-                      tone="sleep"
-                      icon="bed-single-outline"
-                      label={t("pro.crib")}
-                      selected={sleepPlace === "crib"}
-                      onPress={() => setSleepPlace("crib")}
-                    />
-                    <Choice
-                      tone="sleep"
-                      icon="baby-carriage"
-                      label={t("pro.stroller")}
-                      selected={sleepPlace === "stroller"}
-                      onPress={() => setSleepPlace("stroller")}
-                    />
-                    <Choice
-                      tone="sleep"
-                      icon="car-child-seat"
-                      label={t("pro.carSeat")}
-                      selected={sleepPlace === "carSeat"}
-                      onPress={() => setSleepPlace("carSeat")}
-                    />
-                  </View>
-                  <View style={styles.options}>
-                    <Choice
-                      tone="sleep"
-                      icon="bed-double-outline"
-                      label={t("pro.coSleeping")}
-                      selected={sleepPlace === "coSleeping"}
-                      onPress={() => setSleepPlace("coSleeping")}
-                    />
-                    <Choice
-                      tone="sleep"
-                      icon="kangaroo"
-                      label={t("pro.carrier")}
-                      selected={sleepPlace === "carrier"}
-                      onPress={() => setSleepPlace("carrier")}
-                    />
-                    <Choice
-                      tone="sleep"
-                      icon="mother-heart"
-                      label={t("pro.inArms")}
-                      selected={sleepPlace === "inArms"}
-                      onPress={() => setSleepPlace("inArms")}
-                    />
-                  </View>
-                </View>
-              ) : mode === null ? (
-                <View style={[styles.step, styles.stepFill]}>
-                  <Choice
-                    icon="mother-heart"
-                    label={t("pro.breast")}
-                    selected={false}
-                    onPress={() => chooseMode("breast")}
-                  />
-                  <Choice
-                    icon="baby-bottle"
-                    label={t("pro.bottle")}
-                    selected={false}
-                    onPress={() => chooseMode("bottle")}
-                  />
-                </View>
-              ) : mode === "breast" ? (
-                <View style={styles.breastSides}>
-                  <View style={[styles.step, styles.breastSidesTop]}>
-                    <Choice
-                      label={t("pro.left")}
-                      selected={side === "left"}
-                      onPress={() => setSide("left")}
-                    />
-                    <Choice
-                      label={t("pro.right")}
-                      selected={side === "right"}
-                      onPress={() => setSide("right")}
-                    />
-                  </View>
-                  <View style={[styles.step, styles.breastSidesBottom]}>
-                    <Choice
-                      label={t("pro.both")}
-                      selected={side === "both"}
-                      onPress={() => setSide("both")}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.bottle}>
-                  <View style={[styles.step, styles.bottleField]}>
-                    <WheelField
-                      mode="time"
-                      value={bottleStart}
-                      maximumDate={new Date()}
-                      openOnMount
-                      displayText={`${t("editor.start")} · ${formatClock(bottleStart)}`}
-                      onChange={setBottleStart}
-                      style={[
-                        styles.wheel,
-                        {
-                          borderColor: withAlpha(fg, 0.34),
-                          backgroundColor: withAlpha(fg, 0.1),
-                        },
-                      ]}
-                      textStyle={[styles.wheelText, { color: fg }]}
-                    />
-                  </View>
-                  <TextInput
-                    accessibilityLabel={t("pro.volume")}
-                    value={volume}
-                    onChangeText={(value) =>
-                      setVolume(value.replace(/\D/g, "").slice(0, 4))
-                    }
-                    keyboardType="number-pad"
-                    placeholder={t("pro.volume")}
-                    placeholderTextColor="rgba(62,45,25,0.58)"
-                    style={[
-                      styles.volume,
-                      {
-                        color: fg,
-                        borderColor: withAlpha(fg, 0.34),
-                        backgroundColor: withAlpha(fg, 0.1),
-                      },
-                    ]}
-                  />
-                  <View style={[styles.step, styles.bottleChoiceRow]}>
-                    <Choice
-                      label={t("pro.formula")}
-                      selected={content === "formula"}
-                      onPress={() => setContent("formula")}
-                    />
-                    <Choice
-                      label={t("pro.breastMilk")}
-                      selected={content === "breastMilk"}
-                      onPress={() => setContent("breastMilk")}
-                    />
-                  </View>
-                </View>
-              )}
+              <ExpandedDetails
+                bottleStart={bottleStart}
+                color={fg}
+                content={content}
+                kind={expandedKind}
+                mode={mode}
+                settlingMethods={settlingMethods}
+                side={side}
+                sleepPlace={sleepPlace}
+                volume={volume}
+                onBottleStartChange={setBottleStart}
+                onChooseMode={chooseMode}
+                onContentChange={setContent}
+                onSettlingMethodToggle={toggleSettlingMethod}
+                onSideChange={setSide}
+                onSleepPlaceChange={setSleepPlace}
+                onVolumeChange={setVolume}
+              />
             </Animated.ScrollView>
 
             {(!isFeeding || mode !== null || timerRunning) && (
-              <Animated.View style={[styles.footer, detailsStyle]}>
-                {isFeeding && mode !== null && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={back}
-                    style={({ pressed }) => [
-                      styles.back,
-                      {
-                        borderColor: withAlpha(fg, 0.34),
-                        backgroundColor: withAlpha(fg, 0.1),
-                      },
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <ThemedText style={[styles.backText, { color: fg }]}>
-                      {t("pro.back")}
-                    </ThemedText>
-                  </Pressable>
-                )}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    busy: saving,
-                    disabled: saving || (!stopping && formSaveDisabled),
-                  }}
-                  disabled={saving || (!stopping && formSaveDisabled)}
-                  onPress={() => void handlePrimaryPress()}
-                  style={({ pressed }) => [
-                    styles.save,
-                    {
-                      borderColor: "rgba(255,255,255,0.82)",
-                      backgroundColor: "#FFFFFF",
-                    },
-                    (saving || (!stopping && formSaveDisabled)) &&
-                      styles.saveDisabled,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <ThemedText style={styles.saveText}>
-                    {t(stopping ? "pro.stop" : "editor.save")}
-                  </ThemedText>
-                </Pressable>
-              </Animated.View>
+              <ExpandedFooter
+                animatedStyle={detailsStyle}
+                canSave={!formSaveDisabled}
+                color={fg}
+                disabled={disabled}
+                saving={saving}
+                showBack={isFeeding && mode !== null}
+                stopping={stopping}
+                onBack={back}
+                onPrimaryPress={() => void handlePrimaryPress()}
+              />
             )}
           </LinearGradient>
         </Animated.View>
       )}
     </View>
-  );
-}
-
-interface ChoiceProps {
-  tone?: "feed" | "sleep";
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
-  label: string;
-  selected: boolean;
-  multiline?: boolean;
-  onPress: () => void;
-}
-
-function Choice({
-  tone = "feed",
-  icon,
-  label,
-  selected,
-  multiline,
-  onPress,
-}: ChoiceProps) {
-  const { fg } = useActivityColors();
-  const sleep = tone === "sleep";
-  const ink = fg.sleep;
-  const contentColor = !sleep || selected ? "#3E2D19" : ink;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.choice,
-        sleep && [
-          styles.choiceSleep,
-          {
-            borderColor: withAlpha(ink, 0.62),
-            backgroundColor: withAlpha(ink, 0.14),
-          },
-        ],
-        selected &&
-          (sleep
-            ? [styles.choiceSleepSelected, { borderColor: ink }]
-            : styles.choiceSelected),
-        pressed && styles.pressed,
-      ]}
-    >
-      {icon && (
-        <MaterialCommunityIcons name={icon} size={20} color={contentColor} />
-      )}
-      <ThemedText
-        style={[styles.choiceText, { color: contentColor }]}
-        numberOfLines={multiline ? 2 : 1}
-      >
-        {label}
-      </ThemedText>
-    </Pressable>
   );
 }

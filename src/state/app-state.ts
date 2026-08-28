@@ -368,7 +368,7 @@ export const useAppStore = create<AppStore>()(
               item.startedAt === current.startedAt,
           );
           if (stillLive) continue;
-          stopLiveActivity(track);
+          stopLiveActivity(track, remoteIdOfChild(current.childId) ?? current.childId);
           cancelReminder(current.reminderId);
           set(track === 'feeding' ? { feeding: null } : { session: null });
         }
@@ -673,7 +673,7 @@ export const useAppStore = create<AppStore>()(
         for (const track of ['session', 'feeding'] as const) {
           const current = get()[track];
           if (!current) continue;
-          stopLiveActivity(track);
+          stopLiveActivity(track, remoteIdOfChild(current.childId) ?? current.childId);
           cancelReminder(current.reminderId);
         }
         set({
@@ -751,7 +751,7 @@ export const useAppStore = create<AppStore>()(
         const prev = get()[track];
         let startedAt = Math.min(startedAtInput ?? Date.now(), Date.now());
         if (prev) {
-          stopLiveActivity(track);
+          stopLiveActivity(track, remoteIdOfChild(prev.childId) ?? prev.childId);
           await cancelReminder(prev.reminderId);
           startedAt = await finalizeSession(
             prev,
@@ -783,6 +783,7 @@ export const useAppStore = create<AppStore>()(
           kind,
           startedAt,
           liveActivityLabels(language, kind),
+          remoteIdOfChild(get().activeChildId ?? undefined) ?? get().activeChildId ?? 'current',
         );
 
         const started = {
@@ -838,7 +839,7 @@ export const useAppStore = create<AppStore>()(
 
         set(track === 'feeding' ? { feeding: null } : { session: null });
 
-        stopLiveActivity(track);
+        stopLiveActivity(track, remoteIdOfChild(current.childId) ?? current.childId);
         const continuesAsAwake = kind === 'sleep' || kind === 'settling';
         if (!continuesAsAwake) await clearLiveIfShared(current, track);
         await cancelReminder(current.reminderId);

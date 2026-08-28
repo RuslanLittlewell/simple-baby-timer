@@ -144,6 +144,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
   },
   saveDisabled: { opacity: 0.45 },
+  disabled: { opacity: 0.45 },
   saveText: { color: "#3E2D19", fontSize: 15, fontWeight: "700" },
   pressed: { opacity: 0.7 },
 });

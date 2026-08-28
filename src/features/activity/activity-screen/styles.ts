@@ -70,6 +70,9 @@ export const styles = StyleSheet.create({
   centerDense: {
     gap: Spacing.three,
   },
+  activityActionsRegion: {
+    position: "relative",
+  },
   list: {
     gap: Spacing.one,
   },
@@ -86,26 +89,5 @@ export const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
-  },
-  syncOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 100,
-  },
-  syncBlur: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  syncLoader: {
-    alignItems: "center",
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.four,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
 });

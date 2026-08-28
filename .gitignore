@@ -39,6 +39,7 @@ yarn-error.*
 CLAUDE.md
 AGENTS.md
 
+
 # typescript
 *.tsbuildinfo
 

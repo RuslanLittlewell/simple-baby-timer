@@ -14,7 +14,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { NunitoSans, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { pullChildSessions, redeemInvite } from '@/lib/sync';
+import { loadChildCurrentMonth, redeemInvite } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 interface EnterCodeModalProps {
@@ -48,7 +48,7 @@ export function EnterCodeModal({ visible, onClose, onJoined }: EnterCodeModalPro
       const redeemed = await redeemInvite(code);
       const child = addSharedChild(redeemed);
       if (!child) throw new Error('limit');
-      await pullChildSessions(redeemed.remoteId, child.id);
+      await loadChildCurrentMonth(redeemed.remoteId, child.id, { refresh: true });
       bumpDataVersion();
       onJoined();
     } catch {

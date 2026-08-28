@@ -1,15 +1,8 @@
 import { useIsFocused } from "@react-navigation/native";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuroraBackground } from "@/components/aurora-background";
@@ -24,7 +17,6 @@ import {
   CHILD_GRADIENTS,
 } from "@/features/children/constants";
 import { useActivityColors } from "@/hooks/use-activity-colors";
-import { useTheme } from "@/hooks/use-theme";
 import { formatHm } from "@/i18n";
 import {
   getAllSessionsForChild,
@@ -35,6 +27,8 @@ import {
 import { formatAge } from "@/lib/children";
 import { useAppStore, useT } from "@/state/app-state";
 
+import { activitySyncPresentation } from "../activity-sync-presentation";
+import { ActivityActionsSyncLoader } from "../components/activity-sync-loader/activity-actions-sync-loader";
 import { ActivityRow } from "../components/activity-row";
 import { DayStatsRow } from "../components/day-stats/day-stats-row";
 import { EventTile } from "../components/event-tile";
@@ -54,7 +48,6 @@ interface PendingStart {
 }
 
 export default function ActivityScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
@@ -66,7 +59,7 @@ export default function ActivityScreen() {
   const activitySyncing = useAppStore(
     (state) => state.activitySyncStatus === "syncing",
   );
-  const themeMode = useAppStore((state) => state.themeMode);
+  const syncPresentation = activitySyncPresentation(activitySyncing);
   const sleepMinutes = useAppStore((state) => state.sleepMinutes);
   const awakeMinutes = useAppStore((state) => state.awakeMinutes);
   const sleepNotificationsEnabled = useAppStore(
@@ -357,9 +350,15 @@ export default function ActivityScreen() {
             feedingActive={concurrentFeeding}
           />
 
-          {proAccess ? (
-            <View style={styles.list}>
+          <View style={styles.activityActionsRegion}>
+            <ActivityActionsSyncLoader
+              accessibilityLabel={t("activity.syncing")}
+              visible={syncPresentation.showHeaderIndicator}
+            />
+            {proAccess ? (
+              <View style={styles.list}>
               <ProActivityPanel
+                disabled={syncPresentation.activityActionsDisabled}
                 feedingActive={!!feedingSession}
                 settlingActive={mainSession?.kind === "settling"}
                 sleepActive={mainSession?.kind === "sleep"}
@@ -375,13 +374,14 @@ export default function ActivityScreen() {
                 onToggleSleep={handleToggleSleep}
                 onToggleAwake={handleToggleAwake}
               />
-            </View>
-          ) : (
-            <View style={styles.list}>
+              </View>
+            ) : (
+              <View style={styles.list}>
                 {MAIN_ACTIVITIES.map((activity) => {
                   const isActive = mainSession?.kind === activity.id;
                   return (
                     <ActivityRow
+                      disabled={syncPresentation.activityActionsDisabled}
                       key={activity.id}
                       icon={activity.icon}
                       gradKey={activity.gradKey}
@@ -395,6 +395,7 @@ export default function ActivityScreen() {
                 <View style={styles.eventRow}>
                   <View style={styles.eventWide}>
                     <ActivityRow
+                      disabled={syncPresentation.activityActionsDisabled}
                       icon={FEEDING.icon}
                       gradKey={FEEDING.gradKey}
                       label={t("kind.feeding")}
@@ -404,6 +405,7 @@ export default function ActivityScreen() {
                   </View>
                   <View style={styles.eventNarrow}>
                     <EventTile
+                      disabled={syncPresentation.activityActionsDisabled}
                       icon={EVENTS[0].icon}
                       gradKey={EVENTS[0].gradKey}
                       accessibilityLabel={t(`kind.${EVENTS[0].id}`)}
@@ -412,6 +414,7 @@ export default function ActivityScreen() {
                   </View>
                   <View style={styles.eventNarrow}>
                     <EventTile
+                      disabled={syncPresentation.activityActionsDisabled}
                       icon={EVENTS[1].icon}
                       gradKey={EVENTS[1].gradKey}
                       accessibilityLabel={t(`kind.${EVENTS[1].id}`)}
@@ -419,8 +422,9 @@ export default function ActivityScreen() {
                     />
                   </View>
                 </View>
-            </View>
-          )}
+              </View>
+            )}
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
       {pendingStart && (
@@ -429,45 +433,6 @@ export default function ActivityScreen() {
           onConfirm={(startedAt) => void confirmPendingStart(startedAt)}
           onDismiss={dismissPendingStart}
         />
-      )}
-      {activitySyncing && (
-        <View
-          accessible
-          accessibilityRole="progressbar"
-          accessibilityLabel={t("activity.syncing")}
-          accessibilityState={{ busy: true }}
-          style={styles.syncOverlay}
-        >
-          <BlurView
-            experimentalBlurMethod="dimezisBlurView"
-            intensity={45}
-            tint={themeMode === "dark" ? "dark" : "light"}
-            pointerEvents="none"
-            style={[
-              styles.syncBlur,
-              {
-                backgroundColor:
-                  themeMode === "dark"
-                    ? "rgba(11,18,32,0.28)"
-                    : "rgba(245,247,251,0.24)",
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.syncLoader,
-              {
-                backgroundColor:
-                  themeMode === "dark"
-                    ? "rgba(21,30,43,0.78)"
-                    : "rgba(255,255,255,0.76)",
-              },
-            ]}
-          >
-            <ActivityIndicator size="large" color={theme.text} />
-            <ThemedText>{t("activity.syncing")}</ThemedText>
-          </View>
-        </View>
       )}
     </ThemedView>
   );
