@@ -24,9 +24,11 @@ import {
   fetchAccountProStatus,
   fetchRemoteChildren,
   flushQueue,
-  isChildCurrentWeekFresh,
+  isChildCurrentDayFresh,
   leaveChild,
+  loadChildCurrentDay,
   loadChildCurrentWeek,
+  loadChildCurrentWeekRemainder,
   mergeRemoteSessionRows,
   type SessionRow,
   syncChildToCloud,
@@ -123,7 +125,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     const refreshCritical = criticalRefreshes.get(generation) ?? true;
     const [historyResult] = await Promise.allSettled([
       activeChild?.remoteId && refreshCritical
-        ? loadChildCurrentWeek(activeChild.remoteId, activeChild.id, { refresh: true })
+        ? loadChildCurrentDay(activeChild.remoteId, activeChild.id)
         : Promise.resolve(0),
       refreshLive(),
     ]);
@@ -132,6 +134,13 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       useAppStore.getState().bumpDataVersion();
     }
     finishActivityGate(generation);
+
+    const activeWeekCompletion = activeChild?.remoteId
+      ? (historyResult.status === 'fulfilled'
+          ? loadChildCurrentWeekRemainder(activeChild.remoteId, activeChild.id)
+          : loadChildCurrentWeek(activeChild.remoteId, activeChild.id, { refresh: true }))
+        .catch(() => 0)
+      : Promise.resolve(0);
 
     if (userId) await identifyPurchaser(userId);
     if (!isCurrentAuth()) return 'unavailable';
@@ -178,11 +187,12 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     }
 
     const { children, bumpDataVersion } = useAppStore.getState();
-    const backgroundResults = await Promise.allSettled(
-      children
+    const backgroundResults = await Promise.allSettled([
+      activeWeekCompletion,
+      ...children
         .filter((child) => child.remoteId && child.id !== activeChild?.id)
         .map((child) => loadChildCurrentWeek(child.remoteId!, child.id, { refresh: true })),
-    );
+    ]);
     if (!isCurrentAuth()) return 'unavailable';
     const applied = backgroundResults.reduce(
       (total, result) => total + (result.status === 'fulfilled' ? result.value : 0),
@@ -214,7 +224,7 @@ export async function syncNow(
   const state = useAppStore.getState();
   const activeChild = state.children.find((child) => child.id === state.activeChildId);
   const locallyFresh =
-    !force && !!activeChild?.remoteId && await isChildCurrentWeekFresh(activeChild.remoteId);
+    !force && !!activeChild?.remoteId && await isChildCurrentDayFresh(activeChild.remoteId);
   return syncCoordinator.request(fresh, (generation) => {
     const gated = !locallyFresh;
     logAuthDiagnostic('sync-request', { fresh, syncGeneration: generation });

@@ -5,11 +5,11 @@ Defines when activity controls become ready and how remote history is fetched in
 ## ADDED Requirements
 
 ### Requirement: Critical activity readiness
-The system SHALL keep activity controls gated only while loading the active child's current calendar week and current live activity state.
+The system SHALL keep activity controls gated only while loading the active child's current local day and current live activity state.
 
 #### Scenario: Critical data loads successfully
 - **WHEN** synchronization starts for an authenticated account with an active child
-- **THEN** the system loads that child's current calendar week and live activity state
+- **THEN** the system loads that child's current local day and live activity state
 - **AND** enables activity controls as soon as both loads settle successfully
 
 #### Scenario: Critical load reaches its safety timeout
@@ -20,13 +20,13 @@ The system SHALL keep activity controls gated only while loading the active chil
 - **WHEN** locally cached activity data is available before remote refresh completes
 - **THEN** the system continues presenting that cached data during synchronization
 
-#### Scenario: Current week cache is fresh
-- **WHEN** the active child's current week is locally available and was refreshed less than 60 seconds ago
+#### Scenario: Current day cache is fresh
+- **WHEN** the active child's current local day is available on the device and was refreshed less than 60 seconds ago
 - **THEN** the system keeps activity controls enabled without displaying the activity loader
-- **AND** does not issue a redundant foreground history request for that week
+- **AND** does not issue a redundant foreground history request for that day
 
-#### Scenario: Current week cache is stale
-- **WHEN** the active child's current week is missing or its last successful refresh is at least 60 seconds old
+#### Scenario: Current day cache is stale
+- **WHEN** the active child's current local day is missing or its last successful refresh is at least 60 seconds old
 - **THEN** the system displays the activity loader while refreshing the critical activity data
 
 #### Scenario: Forced synchronization
@@ -42,7 +42,7 @@ The system SHALL continue non-critical synchronization without extending the act
 - **AND** remaining synchronization continues in the background
 
 #### Scenario: App returns to foreground with fresh local data
-- **WHEN** the app returns to the foreground while the active child's critical cache is fresh
+- **WHEN** the app returns to the foreground while the active child's current-day cache is fresh
 - **THEN** background synchronization can continue without starting the activity gate
 
 ### Requirement: Deduplicated synchronization requests
@@ -61,7 +61,13 @@ The system SHALL request remote activity history by local calendar-week ranges a
 
 #### Scenario: Initial history load
 - **WHEN** the app performs the initial activity synchronization
-- **THEN** it requests only the active child's current calendar week as foreground history
+- **THEN** it requests only the active child's current local day as foreground history
+- **AND** requests the remainder of the current week only after the activity gate is released
+
+#### Scenario: Background current-week completion
+- **WHEN** the active child's current day becomes ready
+- **THEN** the system loads any missing remainder of the current week in the background
+- **AND** that background request does not display or extend the activity loader
 
 #### Scenario: User navigates to older history
 - **WHEN** the user opens a date whose calendar week has not been loaded

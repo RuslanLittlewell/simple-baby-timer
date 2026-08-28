@@ -4,6 +4,22 @@ export type CalendarWeek = {
   endMs: number;
 };
 
+export type CalendarDay = {
+  key: string;
+  startMs: number;
+  endMs: number;
+};
+
+export function calendarDayOf(date: Date): CalendarDay {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+  return {
+    key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    startMs: start.getTime(),
+    endMs: end.getTime(),
+  };
+}
+
 export function calendarWeekOf(date: Date): CalendarWeek {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const daysSinceMonday = (start.getDay() + 6) % 7;
@@ -127,7 +143,7 @@ export class LoadedWeekRegistry {
   }
 }
 
-export class WeekFreshnessRegistry {
+export class DayFreshnessRegistry {
   private readonly storage: StringStorage;
   private readonly keyForChild: (remoteChildId: string) => string;
 
@@ -157,17 +173,17 @@ export class WeekFreshnessRegistry {
 
   async isFresh(
     remoteChildId: string,
-    weekKey: string,
+    dayKey: string,
     maxAgeMs: number,
     now = Date.now(),
   ): Promise<boolean> {
-    const refreshedAt = (await this.read(remoteChildId))[weekKey];
+    const refreshedAt = (await this.read(remoteChildId))[dayKey];
     return refreshedAt !== undefined && now >= refreshedAt && now - refreshedAt < maxAgeMs;
   }
 
-  async mark(remoteChildId: string, weekKey: string, refreshedAt = Date.now()): Promise<void> {
+  async mark(remoteChildId: string, dayKey: string, refreshedAt = Date.now()): Promise<void> {
     const timestamps = await this.read(remoteChildId);
-    timestamps[weekKey] = refreshedAt;
+    timestamps[dayKey] = refreshedAt;
     await this.storage.setItem(this.keyForChild(remoteChildId), JSON.stringify(timestamps));
   }
 }

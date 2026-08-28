@@ -23,3 +23,12 @@
 - [x] 4.4 Reuse the resolved user identity and avoid the second remote-child fetch unless a new remote child mapping was created
 - [x] 4.5 Add tests for fresh-cache loader suppression, stale/forced gating, timestamp failure handling, and remote-request deduplication
 - [x] 4.6 Run focused tests, TypeScript validation, lint, and OpenSpec strict validation
+
+## 5. Current-Day Critical Loading
+
+- [x] 5.1 Add exact local-day range helpers and day-scoped freshness persistence for the active child
+- [x] 5.2 Replace current-week critical loading and gate preflight with current-day loading and freshness checks
+- [x] 5.3 Move the remainder of the active child's current week behind the activity-ready boundary
+- [x] 5.4 Remove or migrate obsolete week-freshness metadata while retaining weekly lazy-history markers
+- [x] 5.5 Add tests for exact day boundaries, day-only gating, and background completion of the current week
+- [x] 5.6 Run focused tests, TypeScript validation, lint, and OpenSpec strict validation

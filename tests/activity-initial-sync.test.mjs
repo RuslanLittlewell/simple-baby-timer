@@ -7,14 +7,14 @@ const syncSource = readFileSync(
   'utf8',
 );
 
-test('critical activity work loads only the active child week alongside live state', () => {
+test('critical activity work loads only the active child day alongside live state', () => {
   assert.match(
     syncSource,
     /const activeChild = criticalState\.children\.find\([\s\S]*?child\.id === criticalState\.activeChildId/,
   );
   assert.match(
     syncSource,
-    /Promise\.allSettled\(\[[\s\S]*?loadChildCurrentWeek\(activeChild\.remoteId, activeChild\.id, \{ refresh: true \}\)[\s\S]*?refreshLive\(\)/,
+    /Promise\.allSettled\(\[[\s\S]*?loadChildCurrentDay\(activeChild\.remoteId, activeChild\.id\)[\s\S]*?refreshLive\(\)/,
   );
 });
 
@@ -37,6 +37,13 @@ test('other children load in the background without extending the gate', () => {
   );
 });
 
+test('the active child current-week remainder starts only after the gate releases', () => {
+  const criticalRelease = syncSource.indexOf('finishActivityGate(generation);');
+  const remainderLoad = syncSource.indexOf('loadChildCurrentWeekRemainder(', criticalRelease);
+  assert.ok(criticalRelease > 0);
+  assert.ok(remainderLoad > criticalRelease);
+});
+
 test('activity gate keeps the timeout fallback and generation-safe store finish', () => {
   assert.match(syncSource, /const ACTIVITY_SYNC_TIMEOUT_MS = 15_000/);
   assert.match(
@@ -52,7 +59,7 @@ test('activity gate keeps the timeout fallback and generation-safe store finish'
 test('fresh local history keeps controls ready before network synchronization', () => {
   assert.match(
     syncSource,
-    /const locallyFresh =[\s\S]*?isChildCurrentWeekFresh\(activeChild\.remoteId\)/,
+    /const locallyFresh =[\s\S]*?isChildCurrentDayFresh\(activeChild\.remoteId\)/,
   );
   assert.match(
     syncSource,
@@ -61,7 +68,7 @@ test('fresh local history keeps controls ready before network synchronization', 
   assert.match(syncSource, /if \(!gated\) return;/);
   assert.match(
     syncSource,
-    /activeChild\?\.remoteId && refreshCritical[\s\S]*?loadChildCurrentWeek/,
+    /activeChild\?\.remoteId && refreshCritical[\s\S]*?loadChildCurrentDay/,
   );
 });
 

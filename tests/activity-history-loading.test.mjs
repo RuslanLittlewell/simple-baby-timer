@@ -2,15 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  calendarDayOf,
   calendarWeekOf,
   calendarWeeksInRange,
   compoundCursorFilter,
   LoadedWeekRegistry,
-  WeekFreshnessRegistry,
+  DayFreshnessRegistry,
   WeekLoadCoordinator,
   paginateCompound,
   partitionDeletedRows,
 } from '../src/lib/activity-history-loading.ts';
+
+test('calendar day uses exact local midnight boundaries', () => {
+  const day = calendarDayOf(new Date(2026, 1, 18, 12, 34));
+  assert.equal(day.key, '2026-02-18');
+  assert.equal(day.startMs, new Date(2026, 1, 18).getTime());
+  assert.equal(day.endMs, new Date(2026, 1, 19).getTime());
+});
 
 test('calendar week uses local Monday boundaries', () => {
   const week = calendarWeekOf(new Date(2026, 1, 18, 12));
@@ -63,30 +71,30 @@ test('loaded week registry is durable and preserves concurrent week marks', asyn
   assert.equal(await afterRestart.has('other-child', '2026-01-05'), false);
 });
 
-test('week freshness uses a strict TTL and survives a registry restart', async () => {
+test('day freshness uses a strict TTL and survives a registry restart', async () => {
   const values = new Map();
   const storage = {
     async getItem(key) { return values.get(key) ?? null; },
     async setItem(key, value) { values.set(key, value); },
   };
   const keyForChild = (childId) => `fresh/${childId}`;
-  const registry = new WeekFreshnessRegistry(storage, keyForChild);
-  await registry.mark('child', '2026-02-16', 1_000);
+  const registry = new DayFreshnessRegistry(storage, keyForChild);
+  await registry.mark('child', '2026-02-18', 1_000);
 
-  const afterRestart = new WeekFreshnessRegistry(storage, keyForChild);
-  assert.equal(await afterRestart.isFresh('child', '2026-02-16', 60_000, 60_999), true);
-  assert.equal(await afterRestart.isFresh('child', '2026-02-16', 60_000, 61_000), false);
+  const afterRestart = new DayFreshnessRegistry(storage, keyForChild);
+  assert.equal(await afterRestart.isFresh('child', '2026-02-18', 60_000, 60_999), true);
+  assert.equal(await afterRestart.isFresh('child', '2026-02-18', 60_000, 61_000), false);
   assert.equal(await afterRestart.isFresh('child', 'missing', 60_000, 1_001), false);
 });
 
-test('failed freshness persistence never reports a week as fresh', async () => {
+test('failed freshness persistence never reports a day as fresh', async () => {
   const storage = {
     async getItem() { return null; },
     async setItem() { throw new Error('storage unavailable'); },
   };
-  const registry = new WeekFreshnessRegistry(storage, (childId) => `fresh/${childId}`);
-  await assert.rejects(registry.mark('child', '2026-02-16', 1_000));
-  assert.equal(await registry.isFresh('child', '2026-02-16', 60_000, 1_001), false);
+  const registry = new DayFreshnessRegistry(storage, (childId) => `fresh/${childId}`);
+  await assert.rejects(registry.mark('child', '2026-02-18', 1_000));
+  assert.equal(await registry.isFresh('child', '2026-02-18', 60_000, 1_001), false);
 });
 
 test('range includes every intersecting week and excludes exact end boundary', () => {
