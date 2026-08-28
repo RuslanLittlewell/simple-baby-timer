@@ -17,6 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
 import { WheelSheetHost } from '@/components/wheel-sheet';
 import { NunitoSans, Spacing } from '@/constants/theme';
+import { useActivityColors } from '@/hooks/use-activity-colors';
 import { useTheme } from '@/hooks/use-theme';
 import { WEEKDAYS_I18N } from '@/i18n';
 import {
@@ -31,6 +32,7 @@ import { enqueueSessionDelete, enqueueSessionUpsert } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { combineDayTime, fmtTime, isEvent, parseTime, startOfDayMs } from '../helpers';
+import { KIND_META } from '../constants';
 import { modalStyles } from '../modal-styles';
 import {
   BOTTLE_CONTENTS,
@@ -54,6 +56,7 @@ interface EntryEditorProps {
 
 export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEditorProps) {
   const theme = useTheme();
+  const { accent } = useActivityColors();
   const t = useT();
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
@@ -125,6 +128,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
   };
 
   const editingEvent = entry ? isEvent(entry.kind) : false;
+  const borderColor = entry ? accent[KIND_META[entry.kind].gradKey] : theme.border;
   const editingDay = entry
     ? entry.kind === 'settling' || entry.kind === 'sleep' || entry.kind === 'awake'
     : false;
@@ -220,7 +224,7 @@ export function EntryEditor({ entry, proActive, onClose, onChanged }: EntryEdito
           style={modalStyles.blur}
         />
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[modalStyles.card, { backgroundColor: theme.background }]}>
+        <View style={[modalStyles.card, { backgroundColor: theme.background, borderColor }]}>
           <View style={modalStyles.header}>
             <ThemedText style={modalStyles.title}>
               {entry ? t(`kind.${entry.kind}`) : t('activity.title')}

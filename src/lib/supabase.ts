@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, isAuthRetryableFetchError } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 
 import { logAuthDiagnostic } from '@/lib/auth-diagnostics';
 import { authGeneration } from '@/lib/auth-generation';
@@ -22,12 +23,13 @@ const anonKey =
   '';
 
 export const isSupabaseConfigured = url.length > 0 && anonKey.length > 0;
+const isServerRendering = Platform.OS === 'web' && typeof window === 'undefined';
 
 export const supabase = createClient(url || 'https://placeholder.supabase.co', anonKey || 'anon', {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage: isServerRendering ? undefined : AsyncStorage,
+    autoRefreshToken: !isServerRendering,
+    persistSession: !isServerRendering,
     detectSessionInUrl: false,
     flowType: 'pkce',
   },

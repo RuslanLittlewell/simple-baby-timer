@@ -1,9 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LiveActivity from 'expo-live-activity';
-import { Platform } from 'react-native';
 
 import { type LanguageCode } from '@/i18n';
 import { getUserId, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import {
+  forgetLiveActivity,
+  liveActivitySupported,
+  rememberRemoteLiveActivity,
+} from '@/lib/live-activity';
 
 const INSTALLATION_KEY = 'babytimer.live-activity.installation.v1';
 const ACTIVITY_NAME_PREFIX = 'babytimer';
@@ -80,7 +84,7 @@ async function registerActivityToken(
 }
 
 export function subscribeToLiveActivityPushTokens(locale: LanguageCode) {
-  if (Platform.OS !== 'ios' || !isSupabaseConfigured) return () => {};
+  if (!liveActivitySupported || !isSupabaseConfigured) return () => {};
 
   const startSubscription = LiveActivity.addActivityPushToStartTokenListener(
     ({ activityPushToStartToken }) => {
@@ -92,6 +96,8 @@ export function subscribeToLiveActivityPushTokens(locale: LanguageCode) {
   );
   const updateSubscription = LiveActivity.addActivityTokenListener(
     ({ activityID, activityName, activityPushToken }) => {
+      const parsed = parseActivityName(activityName);
+      if (parsed) rememberRemoteLiveActivity(parsed.childId, parsed.track, activityID);
       const register = async () => {
         if (deviceRegistration) await deviceRegistration.catch(() => {});
         else await new Promise((resolve) => setTimeout(resolve, 750));
@@ -100,10 +106,16 @@ export function subscribeToLiveActivityPushTokens(locale: LanguageCode) {
       register().catch(() => {});
     },
   );
+  const stateSubscription = LiveActivity.addActivityUpdatesListener(
+    ({ activityID, activityState }) => {
+      if (activityState === 'ended' || activityState === 'dismissed') forgetLiveActivity(activityID);
+    },
+  );
 
   return () => {
     startSubscription?.remove();
     updateSubscription?.remove();
+    stateSubscription?.remove();
   };
 }
 
@@ -113,7 +125,7 @@ export async function dispatchLiveActivityPush(
   track: 'session' | 'feeding',
   payload?: { kind: string; startedAt: number },
 ) {
-  if (Platform.OS !== 'ios' || !isSupabaseConfigured) return;
+  if (!liveActivitySupported || !isSupabaseConfigured) return;
   const installationId = await getLiveActivityInstallationId();
   const { error } = await supabase.functions.invoke('live-activity-push', {
     body: { action, childId, track, installationId, ...payload },

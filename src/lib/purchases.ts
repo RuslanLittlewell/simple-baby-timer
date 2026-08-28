@@ -1,10 +1,14 @@
+import { isRunningInExpoGo } from 'expo';
 import { Platform } from 'react-native';
 import Purchases, {
+  PACKAGE_TYPE,
   PURCHASES_ERROR_CODE,
   type CustomerInfo,
   type PurchasesOffering,
   type PurchasesPackage,
 } from 'react-native-purchases';
+
+export { PACKAGE_TYPE };
 
 
 
@@ -17,6 +21,7 @@ const isTestStoreKey = IOS_API_KEY.startsWith('test_');
 const ENTITLEMENT = 'pro';
 
 export const purchasesSupported =
+  !isRunningInExpoGo() &&
   Platform.OS === 'ios' &&
   IOS_API_KEY.length > 0 &&
   (__DEV__ || !isTestStoreKey);

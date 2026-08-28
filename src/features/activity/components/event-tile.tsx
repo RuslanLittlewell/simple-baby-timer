@@ -26,12 +26,19 @@ interface EventTileProps {
   icon: IconName;
   gradKey: GradKey;
   accessibilityLabel: string;
+  disabled?: boolean;
   onPress: () => void;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventTileProps) {
+export function EventTile({
+  icon,
+  gradKey,
+  accessibilityLabel,
+  disabled = false,
+  onPress,
+}: EventTileProps) {
   const { gradients, fg, accent } = useActivityColors();
   const compact = useCompactActivityLayout();
   const dense = useDenseActivityLayout();
@@ -51,10 +58,13 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
   return (
     <AnimatedPressable
       accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      style={[styles.wrap, animatedStyle]}>
+      style={[styles.wrap, disabled && styles.disabled, animatedStyle]}>
       <LinearGradient
         colors={gradients[gradKey]}
         start={{ x: 0, y: 0 }}
@@ -83,6 +93,9 @@ export function EventTile({ icon, gradKey, accessibilityLabel, onPress }: EventT
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
+  },
+  disabled: {
+    opacity: 0.45,
   },
   tile: {
     alignItems: 'center',

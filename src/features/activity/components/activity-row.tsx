@@ -46,6 +46,7 @@ interface ActivityRowProps {
   label: string;
   isActive: boolean;
   dimmed?: boolean;
+  disabled?: boolean;
   onPress: () => void;
   onStop?: () => void;
 }
@@ -56,6 +57,7 @@ export function ActivityRow({
   label,
   isActive,
   dimmed,
+  disabled = false,
   onPress,
   onStop,
 }: ActivityRowProps) {
@@ -92,6 +94,9 @@ export function ActivityRow({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => pressed && styles.pressed}
     >
@@ -104,7 +109,7 @@ export function ActivityRow({
           { borderColor: withAlpha(accent, 0.68) },
           compact && styles.rowCompact,
           dense && styles.rowDense,
-          dimmed && styles.rowDimmed,
+          (dimmed || disabled) && styles.rowDimmed,
         ]}
       >
         {isActive && (
@@ -134,7 +139,8 @@ export function ActivityRow({
         </ThemedText>
         <Pressable
           accessibilityRole="button"
-          disabled={!isActive || !onStop}
+          accessibilityState={{ disabled: disabled || !isActive || !onStop }}
+          disabled={disabled || !isActive || !onStop}
           hitSlop={isActive && onStop ? 10 : undefined}
           onPress={handleStopPress}
           style={styles.toggleButton}

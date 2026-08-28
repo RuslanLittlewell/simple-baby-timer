@@ -2,6 +2,7 @@ import { type RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { translate } from '@/i18n';
 import {
   checkAccount,
   getUserId,
@@ -24,7 +25,9 @@ import {
   fetchRemoteChildren,
   flushQueue,
   leaveChild,
-  pullChildSessions,
+  loadChildCurrentMonth,
+  mergeRemoteSessionRows,
+  type SessionRow,
   syncChildToCloud,
   syncChildProfile,
 } from '@/lib/sync';
@@ -36,6 +39,10 @@ import {
 } from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 import { subscribeToLiveActivityPushTokens } from '@/lib/live-activity-sync';
+import {
+  reconcileLiveActivities,
+  type DesiredLiveActivity,
+} from '@/lib/live-activity';
 
 type SyncOutcome = 'success' | 'unavailable' | 'auth-required' | 'failed';
 
@@ -147,7 +154,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     let applied = 0;
     for (const child of children) {
       if (!child.remoteId) continue;
-      applied += await pullChildSessions(child.remoteId, child.id);
+      applied += await loadChildCurrentMonth(child.remoteId, child.id, { refresh: true });
       if (!isCurrentAuth()) return 'unavailable';
     }
     if (applied > 0) bumpDataVersion();
@@ -195,6 +202,7 @@ async function refreshLivePass(): Promise<void> {
   const shared = children.filter((child) => child.remoteId);
   if (!shared.length) {
     reconcileRemoteLive([]);
+    await reconcileCurrentLiveActivities([]);
     return;
   }
   await retryPendingLive();
@@ -215,6 +223,38 @@ async function refreshLivePass(): Promise<void> {
     }
   }
   reconcileRemoteLive(mapped, requestedAt);
+  await reconcileCurrentLiveActivities(rows);
+}
+
+async function reconcileCurrentLiveActivities(
+  rows: Awaited<ReturnType<typeof fetchLiveSessions>>,
+) {
+  const state = useAppStore.getState();
+  const desired = new Map<string, DesiredLiveActivity>();
+  for (const row of rows) {
+    const item: DesiredLiveActivity = {
+      ownerId: row.remoteChildId,
+      slot: row.track,
+      kind: row.kind,
+      startedAt: row.startedAt,
+      labels: { title: translate(state.language, `kind.${row.kind}`) },
+    };
+    desired.set(`${item.ownerId}|${item.slot}`, item);
+  }
+  for (const slot of ['session', 'feeding'] as const) {
+    const current = state[slot];
+    if (!current) continue;
+    const child = state.children.find((item) => item.id === current.childId);
+    const item: DesiredLiveActivity = {
+      ownerId: child?.remoteId ?? current.childId ?? 'current',
+      slot,
+      kind: current.kind,
+      startedAt: current.startedAt,
+      labels: { title: translate(state.language, `kind.${current.kind}`) },
+    };
+    desired.set(`${item.ownerId}|${item.slot}`, item);
+  }
+  await reconcileLiveActivities([...desired.values()]);
 }
 
 
@@ -239,22 +279,10 @@ function scheduleLiveRefresh() {
 
 
 
-const pullTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function schedulePull(remoteId: string, localChildId: string) {
-  const pending = pullTimers.get(remoteId);
-  if (pending) clearTimeout(pending);
-  pullTimers.set(
-    remoteId,
-    setTimeout(async () => {
-      pullTimers.delete(remoteId);
-      try {
-        const applied = await pullChildSessions(remoteId, localChildId);
-        if (applied > 0) useAppStore.getState().bumpDataVersion();
-      } catch {
-      }
-    }, 300),
-  );
+async function applyRealtimeSessionRow(row: Record<string, unknown>, localChildId: string) {
+  if (typeof row.id !== 'string' || typeof row.kind !== 'string') return;
+  await mergeRemoteSessionRows([row as unknown as SessionRow], localChildId);
+  useAppStore.getState().bumpDataVersion();
 }
 
 
@@ -397,7 +425,10 @@ export function useSync() {
               table: 'sessions',
               filter: `child_id=eq.${remoteId}`,
             },
-            () => schedulePull(remoteId, localChildId),
+            (payload) => {
+              const row = payload.new as Record<string, unknown>;
+              void applyRealtimeSessionRow(row, localChildId).catch(() => {});
+            },
           )
           .on(
             'postgres_changes',

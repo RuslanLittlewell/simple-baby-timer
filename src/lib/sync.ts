@@ -10,12 +10,27 @@ import { type Child, type ChildGradientKey } from '@/lib/children';
 import { type ActivityKind } from '@/lib/notifications';
 import { getUserId, requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { dispatchLiveActivityPush } from '@/lib/live-activity-sync';
+import {
+  calendarMonthOf,
+  calendarMonthsInRange,
+  compoundCursorFilter,
+  LoadedMonthRegistry,
+  MonthLoadCoordinator,
+  paginateCompound,
+  partitionDeletedRows,
+  type CalendarMonth,
+} from '@/lib/activity-history-loading';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
+const LOADED_MONTHS_PREFIX = 'babytimer.sync.loaded-months.v1.';
+const loadedMonthsKey = (remoteId: string) => `${LOADED_MONTHS_PREFIX}${remoteId}`;
 const UPSERT_CHUNK = 500;
+const HISTORY_PAGE_SIZE = 1000;
+const monthLoads = new MonthLoadCoordinator();
+const loadedMonths = new LoadedMonthRegistry(AsyncStorage, loadedMonthsKey);
 
-interface SessionRow {
+export interface SessionRow {
   child_id: string;
   id: string;
   kind: string;
@@ -25,6 +40,32 @@ interface SessionRow {
   pro_details: ActivitySession['proDetails'] | null;
   deleted: boolean;
   updated_at: string;
+}
+
+function rowsToLocalChanges(rows: SessionRow[], localChildId: string) {
+  const { activeRows, deletedIds } = partitionDeletedRows(rows);
+  const upserts: ActivitySession[] = activeRows
+    .map((row) => ({
+      id: row.id,
+      kind: row.kind as SessionKind,
+      start: Number(row.start_ms),
+      end: Number(row.end_ms),
+      milkMl: row.milk_ml ?? undefined,
+      proDetails: row.pro_details ?? undefined,
+      childId: localChildId,
+    }));
+  return {
+    upserts,
+    deletedIds,
+  };
+}
+
+export async function mergeRemoteSessionRows(
+  rows: SessionRow[],
+  localChildId: string,
+): Promise<void> {
+  const { upserts, deletedIds } = rowsToLocalChanges(rows, localChildId);
+  await mergeRemoteSessions(upserts, deletedIds);
 }
 
 interface QueuedOp {
@@ -85,9 +126,11 @@ async function enqueue(op: QueuedOp): Promise<void> {
 
 export async function clearSyncState(): Promise<void> {
   const keys = await AsyncStorage.getAllKeys();
+  monthLoads.clear();
   await AsyncStorage.multiRemove([
     QUEUE_KEY,
     ...keys.filter((key) => key.startsWith('babytimer.sync.cursor.')),
+    ...keys.filter((key) => key.startsWith(LOADED_MONTHS_PREFIX)),
   ]);
 }
 
@@ -368,50 +411,77 @@ export async function leaveChild(remoteId: string): Promise<void> {
   await requireSession();
   const { error } = await supabase.rpc('leave_child', { cid: remoteId });
   if (error) throw error;
-  await AsyncStorage.removeItem(cursorKey(remoteId));
+  await AsyncStorage.multiRemove([cursorKey(remoteId), loadedMonthsKey(remoteId)]);
   const queue = await readQueue();
   await writeQueue(queue.filter((op) => op.remoteChildId !== remoteId));
 }
 
-export async function pullChildSessions(
+async function fetchMonthPages(
   remoteId: string,
   localChildId: string,
+  month: CalendarMonth,
+): Promise<number> {
+  await requireSession();
+  return paginateCompound(
+    HISTORY_PAGE_SIZE,
+    async (cursor) => {
+      let query = supabase
+        .from('sessions')
+        .select('*')
+        .eq('child_id', remoteId)
+        .lt('start_ms', month.endMs)
+        .gt('end_ms', month.startMs)
+        .order('start_ms', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(HISTORY_PAGE_SIZE);
+      if (cursor) query = query.or(compoundCursorFilter(cursor.startMs, cursor.id));
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return ((data ?? []) as SessionRow[]).map((row) => ({
+        ...row,
+        startMs: Number(row.start_ms),
+      }));
+    },
+    (rows) => mergeRemoteSessionRows(rows, localChildId),
+  );
+}
+
+export async function loadChildHistoryMonth(
+  remoteId: string,
+  localChildId: string,
+  month: CalendarMonth,
+  { refresh = false }: { refresh?: boolean } = {},
 ): Promise<number> {
   if (!isSupabaseConfigured) return 0;
-  await requireSession();
-  let applied = 0;
+  const requestKey = `${remoteId}/${month.key}`;
+  return monthLoads.run(requestKey, async () => {
+    if (!refresh && (await loadedMonths.has(remoteId, month.key))) return 0;
+    const applied = await fetchMonthPages(remoteId, localChildId, month);
+    await loadedMonths.mark(remoteId, month.key);
+    return applied;
+  });
+}
 
-  for (;;) {
-    const cursor = await AsyncStorage.getItem(cursorKey(remoteId));
-    let query = supabase
-      .from('sessions')
-      .select('*')
-      .eq('child_id', remoteId)
-      .order('updated_at', { ascending: true })
-      .limit(1000);
-    if (cursor) query = query.gt('updated_at', cursor);
+export async function loadChildHistoryRange(
+  remoteId: string,
+  localChildId: string,
+  startMs: number,
+  endMs: number,
+  options: { refresh?: boolean } = {},
+): Promise<number> {
+  const counts = await Promise.all(
+    calendarMonthsInRange(startMs, endMs).map((month) =>
+      loadChildHistoryMonth(remoteId, localChildId, month, options),
+    ),
+  );
+  return counts.reduce((sum, count) => sum + count, 0);
+}
 
-    const { data, error } = await query;
-    if (error) throw error;
-    const rows = (data ?? []) as SessionRow[];
-    if (!rows.length) return applied;
-
-    const upserts: ActivitySession[] = rows
-      .filter((row) => !row.deleted)
-      .map((row) => ({
-        id: row.id,
-        kind: row.kind as SessionKind,
-        start: Number(row.start_ms),
-        end: Number(row.end_ms),
-        milkMl: row.milk_ml ?? undefined,
-        proDetails: row.pro_details ?? undefined,
-        childId: localChildId,
-      }));
-    const deletedIds = rows.filter((row) => row.deleted).map((row) => row.id);
-
-    await mergeRemoteSessions(upserts, deletedIds);
-    await AsyncStorage.setItem(cursorKey(remoteId), rows[rows.length - 1].updated_at);
-    applied += rows.length;
-    if (rows.length < 1000) return applied;
-  }
+export function loadChildCurrentMonth(
+  remoteId: string,
+  localChildId: string,
+  options: { refresh?: boolean } = {},
+): Promise<number> {
+  return loadChildHistoryMonth(remoteId, localChildId, calendarMonthOf(new Date()), options);
 }

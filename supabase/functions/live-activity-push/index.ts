@@ -60,6 +60,22 @@ async function sendApns(token: string, payload: unknown) {
   return { ok: response.ok, status: response.status, body: await response.text() };
 }
 
+const isPermanentTokenFailure = (status: number, body: string) => {
+  if (status === 410) return true;
+  if (status !== 400) return false;
+  try {
+    const reason = (JSON.parse(body) as { reason?: string }).reason;
+    return [
+      'BadDeviceToken',
+      'DeviceTokenNotForTopic',
+      'MissingDeviceToken',
+      'Unregistered',
+    ].includes(reason ?? '');
+  } catch {
+    return false;
+  }
+};
+
 const stateFor = (kind: string, startedAt: number, locale: string) => ({
   title: titles[locale]?.[kind] ?? titles.en[kind] ?? kind,
   subtitle: null,
@@ -107,16 +123,21 @@ Deno.serve(async (request) => {
       .neq('installation_id', body.installationId);
 
     const results: unknown[] = [];
+    const blockedInstallations = new Set<string>();
     for (const instance of instances ?? []) {
       const result = await sendApns(instance.update_token, {
         aps: { event: 'end', timestamp, 'dismissal-date': timestamp },
       });
       results.push(result);
-    }
-    if ((instances ?? []).length) {
-      await admin.from('live_activity_instances')
-        .delete().eq('child_id', body.childId).eq('track', body.track)
-        .neq('installation_id', body.installationId);
+      if (result.ok || isPermanentTokenFailure(result.status, result.body)) {
+        await admin.from('live_activity_instances')
+          .delete()
+          .eq('child_id', body.childId)
+          .eq('track', body.track)
+          .eq('installation_id', instance.installation_id);
+      } else {
+        blockedInstallations.add(instance.installation_id);
+      }
     }
 
     if (body.action === 'start') {
@@ -128,10 +149,11 @@ Deno.serve(async (request) => {
       if (memberIds.length) {
         const { data: devices } = await admin
           .from('live_activity_devices')
-          .select('installation_id, push_to_start_token, locale')
+          .select('user_id, installation_id, push_to_start_token, locale')
           .in('user_id', memberIds)
           .neq('installation_id', body.installationId);
         for (const device of devices ?? []) {
+          if (blockedInstallations.has(device.installation_id)) continue;
           const state = stateFor(body.kind, body.startedAt!, device.locale);
           const result = await sendApns(device.push_to_start_token, {
             aps: {
@@ -156,6 +178,12 @@ Deno.serve(async (request) => {
             },
           });
           results.push(result);
+          if (isPermanentTokenFailure(result.status, result.body)) {
+            await admin.from('live_activity_devices')
+              .delete()
+              .eq('user_id', device.user_id)
+              .eq('installation_id', device.installation_id);
+          }
         }
       }
     }
