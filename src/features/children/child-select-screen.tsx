@@ -14,18 +14,16 @@ import { useTheme } from '@/hooks/use-theme';
 import { MAX_CHILDREN, type Child, type ChildGradientKey } from '@/lib/children';
 import { useAppStore, useT } from '@/state/app-state';
 
-import { syncNow } from '@/hooks/use-sync';
 import { deleteSessionsForChild } from '@/lib/activity-store';
 import { getIsSignedIn } from '@/lib/supabase';
 import { leaveChild } from '@/lib/sync';
 
 import { AddChildModal } from './components/add-child-modal/add-child-modal';
-import { AuthModal } from './components/auth-modal';
 import { ChildCard } from './components/child-card';
 import { EnterCodeModal } from './components/enter-code-modal';
 import { ShareChildModal } from './components/share-child-modal';
 
-type PendingAction = { type: 'share'; childId: string } | { type: 'enterCode' };
+type ChildAction = { type: 'share'; childId: string } | { type: 'enterCode' };
 
 export default function ChildSelectScreen() {
   const theme = useTheme();
@@ -42,27 +40,26 @@ export default function ChildSelectScreen() {
   const [enteringCode, setEnteringCode] = useState(false);
   const [sharingChildId, setSharingChildId] = useState<string | null>(null);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const sharingChild = children.find((child) => child.id === sharingChildId) ?? null;
   const editingChild = children.find((child) => child.id === editingChildId) ?? null;
 
-  const runAction = (action: PendingAction) => {
+  const runAction = (action: ChildAction) => {
     if (action.type === 'share') setSharingChildId(action.childId);
     else setEnteringCode(true);
   };
 
   
   
-  const requestPro = (action: PendingAction) =>
+  const requestPro = (action: ChildAction) =>
     openPaywall((unlocked) => {
       if (unlocked) runAction(action);
     });
 
   
-  const requestAction = async (action: PendingAction) => {
+  const requestAction = async (action: ChildAction) => {
     if (!(await getIsSignedIn())) {
-      setPendingAction(action);
+      useAppStore.getState().setAuthRequired(true);
       return;
     }
     if (action.type === 'share' && !proActive) {
@@ -186,22 +183,6 @@ export default function ChildSelectScreen() {
           }}
         />
         <ShareChildModal child={sharingChild} onClose={() => setSharingChildId(null)} />
-        <AuthModal
-          visible={!!pendingAction}
-          onClose={() => setPendingAction(null)}
-          onSignedIn={async () => {
-            const action = pendingAction;
-            setPendingAction(null);
-            
-            await syncNow();
-            if (!action) return;
-            if (action.type === 'enterCode' || useAppStore.getState().proActive) {
-              runAction(action);
-            } else {
-              requestPro(action);
-            }
-          }}
-        />
       </SafeAreaView>
     </ThemedView>
   );

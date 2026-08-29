@@ -19,6 +19,7 @@ import { RegimeCycle } from './components/regime-cycle';
 import { RegimeNoteModal } from './components/regime-note-modal';
 import { RegimeSummaryCard } from './components/regime-summary';
 import { RegimeTimeline } from './components/regime-timeline';
+import { resolveDevelopmentalGameGroups } from './developmental-games';
 import { localizeRegimes } from './localize';
 import { type RegimeStep } from './types';
 
@@ -122,7 +123,15 @@ export default function RegimesScreen() {
             )}
 
             {regime.timed ? (
-              <RegimeTimeline variant={variant} onSelect={setSelectedStep} />
+              <RegimeTimeline
+                variant={variant}
+                developmentalGameGroups={resolveDevelopmentalGameGroups(
+                  variant.developmentalGameGroups,
+                  regime.developmentalGameGroups,
+                )}
+                developmentalGamesGuidance={regime.developmentalGamesGuidance}
+                onSelect={setSelectedStep}
+              />
             ) : (
               <RegimeCycle variant={variant} onSelect={setSelectedStep} />
             )}

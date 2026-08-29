@@ -12,6 +12,7 @@ import {
   authStatusClass,
   classifyAuthFailure,
   classifySessionRecovery,
+  requiresSessionRefresh,
   type AccountCheckOutcome,
 } from '@/lib/auth-lifecycle';
 
@@ -92,16 +93,49 @@ export async function checkAccount(): Promise<AccountCheckOutcome> {
     logAuthDiagnostic('account-check', { outcome: 'ok', statusClass: 'none' });
     return 'ok';
   }
-  const outcome = classifyAuthFailure({
+  const failure = {
     status: error.status,
     code: error.code,
     retryable: isAuthRetryableFetchError(error),
-  });
+  };
+  if (requiresSessionRefresh(failure)) {
+    const outcome = await recoverSessionByRefresh();
+    logAuthDiagnostic('account-check', {
+      outcome: outcome.result,
+      statusClass: authStatusClass(outcome.status),
+    });
+    return outcome.result;
+  }
+  const outcome = classifyAuthFailure(failure);
   logAuthDiagnostic('account-check', {
     outcome,
     statusClass: authStatusClass(error.status),
   });
   return outcome;
+}
+
+interface SessionRecovery {
+  result: AccountCheckOutcome;
+  status?: number;
+}
+
+/**
+ * Spends the refresh token to settle whether the rejected access token was
+ * stale or the account is gone. A renewed session is proof the credentials
+ * still hold; otherwise the refresh failure itself carries the verdict.
+ */
+async function recoverSessionByRefresh(): Promise<SessionRecovery> {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (data.session && !error) return { result: 'ok' };
+  if (!error) return { result: 'definitive-auth-loss' };
+  return {
+    result: classifyAuthFailure({
+      status: error.status,
+      code: error.code,
+      retryable: isAuthRetryableFetchError(error),
+    }),
+    status: error.status,
+  };
 }
 
 

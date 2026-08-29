@@ -1,5 +1,9 @@
 
+import { type DevelopmentalGame } from './developmental-games';
+
 export type RegimeKind = 'sleep' | 'milk' | 'meal' | 'ritual' | 'wake' | 'play' | 'other';
+
+export type { DevelopmentalGame } from './developmental-games';
 
 export interface RegimeStep {
   time: string; 
@@ -8,11 +12,14 @@ export interface RegimeStep {
   action: string;
   note: string; 
   kind: RegimeKind;
+  games?: DevelopmentalGame[];
+  developmentalGamesGuidance?: string;
 }
 
 export interface RegimeVariant {
   name: string; 
   steps: RegimeStep[];
+  developmentalGameGroups?: DevelopmentalGame[][];
 }
 
 export interface RegimeSummary {
@@ -30,4 +37,6 @@ export interface RegimeAge {
   summary: RegimeSummary | null;
   source: string;
   variants: RegimeVariant[];
+  developmentalGameGroups?: DevelopmentalGame[][];
+  developmentalGamesGuidance?: string;
 }

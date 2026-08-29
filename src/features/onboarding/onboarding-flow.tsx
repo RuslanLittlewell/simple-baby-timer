@@ -28,7 +28,7 @@ export function OnboardingFlow() {
   
   
   const afterSignIn = async () => {
-    await syncNow();
+    await syncNow({ fresh: true, force: true });
     if (useAppStore.getState().children.length > 0) finish(false);
     else setStep('childSetup');
   };

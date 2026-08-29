@@ -2,7 +2,7 @@
   "expo": {
     "name": "Baby Tracker",
     "slug": "BabyTimer",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "babytimer",
@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.littlewell.babylifetracker",
-      "buildNumber": "25",
+      "buildNumber": "29",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true

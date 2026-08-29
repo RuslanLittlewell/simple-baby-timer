@@ -1,6 +1,21 @@
 
 
 import { type RegimeAge } from './types';
+import {
+  FIVE_TO_SIX_MONTH_GAME_GROUPS,
+  SEVEN_TO_NINE_MONTH_THREE_NAP_GAME_GROUPS,
+  SEVEN_TO_NINE_MONTH_TWO_NAP_GAME_GROUPS,
+  SIX_TO_TWELVE_WEEK_GAME_GROUPS,
+  TEN_TO_TWELVE_MONTH_GAME_GROUPS,
+  TEN_TO_TWELVE_MONTH_GUIDANCE_KEY,
+  TWELVE_TO_FIFTEEN_MONTH_GAME_GROUPS,
+  TWELVE_TO_FIFTEEN_MONTH_GUIDANCE_KEY,
+  FIFTEEN_TO_EIGHTEEN_MONTH_GAME_GROUPS,
+  FIFTEEN_TO_EIGHTEEN_MONTH_GUIDANCE_KEY,
+  EIGHTEEN_TO_TWENTY_FOUR_MONTH_GAME_GROUPS,
+  EIGHTEEN_TO_TWENTY_FOUR_MONTH_GUIDANCE_KEY,
+  THREE_TO_FOUR_MONTH_GAME_GROUPS,
+} from './developmental-games';
 
 export const REGIMES: RegimeAge[] = [
   {
@@ -66,6 +81,7 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.1.age",
     "timed": true,
+    "developmentalGameGroups": SIX_TO_TWELVE_WEEK_GAME_GROUPS,
     "summary": {
       "sleep24": "regime.1.summary.sleep24",
       "naps": "regime.1.summary.naps",
@@ -190,6 +206,7 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.2.age",
     "timed": true,
+    "developmentalGameGroups": THREE_TO_FOUR_MONTH_GAME_GROUPS,
     "summary": {
       "sleep24": "regime.2.summary.sleep24",
       "naps": "regime.2.summary.naps",
@@ -298,6 +315,7 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.3.age",
     "timed": true,
+    "developmentalGameGroups": FIVE_TO_SIX_MONTH_GAME_GROUPS,
     "summary": {
       "sleep24": "regime.3.summary.sleep24",
       "naps": "regime.3.summary.naps",
@@ -418,6 +436,7 @@ export const REGIMES: RegimeAge[] = [
     "variants": [
       {
         "name": "regime.4.variant.0.name",
+        "developmentalGameGroups": SEVEN_TO_NINE_MONTH_TWO_NAP_GAME_GROUPS,
         "steps": [
           {
             "time": "regime.4.variant.0.step.0.time",
@@ -511,6 +530,7 @@ export const REGIMES: RegimeAge[] = [
       },
       {
         "name": "regime.4.variant.1.name",
+        "developmentalGameGroups": SEVEN_TO_NINE_MONTH_THREE_NAP_GAME_GROUPS,
         "steps": [
           {
             "time": "regime.4.variant.1.step.0.time",
@@ -559,6 +579,8 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.5.age",
     "timed": true,
+    "developmentalGameGroups": TEN_TO_TWELVE_MONTH_GAME_GROUPS,
+    "developmentalGamesGuidance": TEN_TO_TWELVE_MONTH_GUIDANCE_KEY,
     "summary": {
       "sleep24": "regime.5.summary.sleep24",
       "naps": "regime.5.summary.naps",
@@ -667,6 +689,8 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.6.age",
     "timed": true,
+    "developmentalGameGroups": TWELVE_TO_FIFTEEN_MONTH_GAME_GROUPS,
+    "developmentalGamesGuidance": TWELVE_TO_FIFTEEN_MONTH_GUIDANCE_KEY,
     "summary": {
       "sleep24": "regime.6.summary.sleep24",
       "naps": "regime.6.summary.naps",
@@ -844,6 +868,8 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.7.age",
     "timed": true,
+    "developmentalGameGroups": FIFTEEN_TO_EIGHTEEN_MONTH_GAME_GROUPS,
+    "developmentalGamesGuidance": FIFTEEN_TO_EIGHTEEN_MONTH_GUIDANCE_KEY,
     "summary": {
       "sleep24": "regime.7.summary.sleep24",
       "naps": "regime.7.summary.naps",
@@ -952,6 +978,8 @@ export const REGIMES: RegimeAge[] = [
   {
     "age": "regime.8.age",
     "timed": true,
+    "developmentalGameGroups": EIGHTEEN_TO_TWENTY_FOUR_MONTH_GAME_GROUPS,
+    "developmentalGamesGuidance": EIGHTEEN_TO_TWENTY_FOUR_MONTH_GUIDANCE_KEY,
     "summary": {
       "sleep24": "regime.8.summary.sleep24",
       "naps": "regime.8.summary.naps",

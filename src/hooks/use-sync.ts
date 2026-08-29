@@ -24,8 +24,11 @@ import {
   fetchAccountProStatus,
   fetchRemoteChildren,
   flushQueue,
+  isChildCurrentDayFresh,
   leaveChild,
-  loadChildCurrentMonth,
+  loadChildCurrentDay,
+  loadChildCurrentWeek,
+  loadChildCurrentWeekRemainder,
   mergeRemoteSessionRows,
   type SessionRow,
   syncChildToCloud,
@@ -48,7 +51,14 @@ type SyncOutcome = 'success' | 'unavailable' | 'auth-required' | 'failed';
 
 const ACTIVITY_SYNC_TIMEOUT_MS = 15_000;
 const gateTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const criticalRefreshes = new Map<number, boolean>();
 
+function finishActivityGate(generation: number) {
+  const timer = gateTimers.get(generation);
+  if (timer) clearTimeout(timer);
+  gateTimers.delete(generation);
+  useAppStore.getState().finishActivitySync(generation);
+}
 
 
 async function performSyncPass(generation: number): Promise<SyncOutcome> {
@@ -104,29 +114,51 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     
     
     if (userId) useAppStore.getState().setAccountId(userId);
-    
+    const remote = await fetchRemoteChildren(userId);
+    if (!isCurrentAuth()) return 'unavailable';
+    useAppStore.getState().upsertRemoteChildren(remote);
+
+    const criticalState = useAppStore.getState();
+    const activeChild = criticalState.children.find(
+      (child) => child.id === criticalState.activeChildId,
+    );
+    const refreshCritical = criticalRefreshes.get(generation) ?? true;
+    const [historyResult] = await Promise.allSettled([
+      activeChild?.remoteId && refreshCritical
+        ? loadChildCurrentDay(activeChild.remoteId, activeChild.id)
+        : Promise.resolve(0),
+      refreshLive(),
+    ]);
+    if (!isCurrentAuth()) return 'unavailable';
+    if (historyResult.status === 'fulfilled' && historyResult.value > 0) {
+      useAppStore.getState().bumpDataVersion();
+    }
+    finishActivityGate(generation);
+
+    const activeWeekCompletion = activeChild?.remoteId
+      ? (historyResult.status === 'fulfilled'
+          ? loadChildCurrentWeekRemainder(activeChild.remoteId, activeChild.id)
+          : loadChildCurrentWeek(activeChild.remoteId, activeChild.id, { refresh: true }))
+        .catch(() => 0)
+      : Promise.resolve(0);
+
     if (userId) await identifyPurchaser(userId);
     if (!isCurrentAuth()) return 'unavailable';
 
     await flushQueue();
     if (!isCurrentAuth()) return 'unavailable';
 
-    
-    
-    
-    
-    
-    const pro = await fetchAccountProStatus();
-    const receipt = await fetchEntitlement().catch(() => ({ active: false }) as ProEntitlement);
+    const [pro, receipt] = await Promise.all([
+      fetchAccountProStatus(),
+      fetchEntitlement().catch(() => ({ active: false }) as ProEntitlement),
+    ]);
     if (!isCurrentAuth()) return 'unavailable';
-    useAppStore
-      .getState()
-      .setProStatus(
-        pro.active || receipt.active,
-        pro.expiresAt ?? receipt.expiresAt,
-        pro.renewsAt ?? receipt.renewsAt,
-        pro.trialUsed,
-      );
+    useAppStore.getState().setProStatus(
+      pro.active || receipt.active,
+      pro.expiresAt ?? receipt.expiresAt,
+      pro.renewsAt ?? receipt.renewsAt,
+      pro.trialUsed,
+    );
 
     const { removedRemoteIds, clearRemovedRemoteId } = useAppStore.getState();
     for (const remoteId of removedRemoteIds) {
@@ -135,6 +167,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       clearRemovedRemoteId(remoteId);
     }
 
+    let createdRemoteChild = false;
     for (const child of useAppStore.getState().children) {
       if (child.remoteId) {
         await syncChildProfile(child);
@@ -144,19 +177,27 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       const remoteId = await syncChildToCloud(child);
       if (!isCurrentAuth()) return 'unavailable';
       useAppStore.getState().setChildRemoteId(child.id, remoteId);
+      createdRemoteChild = true;
     }
 
-    const remote = await fetchRemoteChildren();
-    if (!isCurrentAuth()) return 'unavailable';
-    useAppStore.getState().upsertRemoteChildren(remote);
+    if (createdRemoteChild) {
+      const refreshedRemote = await fetchRemoteChildren(userId);
+      if (!isCurrentAuth()) return 'unavailable';
+      useAppStore.getState().upsertRemoteChildren(refreshedRemote);
+    }
 
     const { children, bumpDataVersion } = useAppStore.getState();
-    let applied = 0;
-    for (const child of children) {
-      if (!child.remoteId) continue;
-      applied += await loadChildCurrentMonth(child.remoteId, child.id, { refresh: true });
-      if (!isCurrentAuth()) return 'unavailable';
-    }
+    const backgroundResults = await Promise.allSettled([
+      activeWeekCompletion,
+      ...children
+        .filter((child) => child.remoteId && child.id !== activeChild?.id)
+        .map((child) => loadChildCurrentWeek(child.remoteId!, child.id, { refresh: true })),
+    ]);
+    if (!isCurrentAuth()) return 'unavailable';
+    const applied = backgroundResults.reduce(
+      (total, result) => total + (result.status === 'fulfilled' ? result.value : 0),
+      0,
+    );
     if (applied > 0) bumpDataVersion();
     await refreshLive();
     if (!isCurrentAuth()) return 'unavailable';
@@ -169,27 +210,31 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
 
 const syncCoordinator = new SingleFlightCoordinator(async (generation) => {
   const outcome = await performSyncPass(generation);
+  criticalRefreshes.delete(generation);
   logAuthDiagnostic('sync-result', { outcome, syncGeneration: generation });
-  const timer = gateTimers.get(generation);
-  if (timer) clearTimeout(timer);
-  gateTimers.delete(generation);
-  useAppStore.getState().finishActivitySync(generation);
+  finishActivityGate(generation);
 });
 
 
 
 
-export function syncNow({ fresh = false }: { fresh?: boolean } = {}): Promise<void> {
+export async function syncNow(
+  { fresh = false, force = false }: { fresh?: boolean; force?: boolean } = {},
+): Promise<void> {
+  const state = useAppStore.getState();
+  const activeChild = state.children.find((child) => child.id === state.activeChildId);
+  const locallyFresh =
+    !force && !!activeChild?.remoteId && await isChildCurrentDayFresh(activeChild.remoteId);
   return syncCoordinator.request(fresh, (generation) => {
+    const gated = !locallyFresh;
     logAuthDiagnostic('sync-request', { fresh, syncGeneration: generation });
-    useAppStore.getState().beginActivitySync(generation);
+    criticalRefreshes.set(generation, gated);
+    useAppStore.getState().prepareActivitySync(generation, gated);
+    if (!gated) return;
     gateTimers.set(
       generation,
       setTimeout(() => {
-        gateTimers.delete(generation);
-        
-        
-        useAppStore.getState().finishActivitySync(generation);
+        finishActivityGate(generation);
       }, ACTIVITY_SYNC_TIMEOUT_MS),
     );
   });
@@ -320,7 +365,8 @@ export function useSync() {
             authGeneration: verified.generation,
             hasSession: true,
           });
-          void syncNow({ fresh: true });
+          const accountChanged = useAppStore.getState().accountId !== session.user.id;
+          void syncNow({ fresh: true, force: accountChanged });
         }
         return;
       }

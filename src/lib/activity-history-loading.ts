@@ -1,31 +1,48 @@
-export type CalendarMonth = {
+export type CalendarWeek = {
   key: string;
   startMs: number;
   endMs: number;
 };
 
-export function calendarMonthOf(date: Date): CalendarMonth {
-  const year = date.getFullYear();
-  const month = date.getMonth();
+export type CalendarDay = {
+  key: string;
+  startMs: number;
+  endMs: number;
+};
+
+export function calendarDayOf(date: Date): CalendarDay {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
   return {
-    key: `${year}-${String(month + 1).padStart(2, '0')}`,
-    startMs: new Date(year, month, 1).getTime(),
-    endMs: new Date(year, month + 1, 1).getTime(),
+    key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    startMs: start.getTime(),
+    endMs: end.getTime(),
   };
 }
 
-export function calendarMonthsInRange(startMs: number, endMs: number): CalendarMonth[] {
+export function calendarWeekOf(date: Date): CalendarWeek {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+  return {
+    key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+    startMs: start.getTime(),
+    endMs: end.getTime(),
+  };
+}
+
+export function calendarWeeksInRange(startMs: number, endMs: number): CalendarWeek[] {
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return [];
-  const first = new Date(startMs);
-  const last = new Date(endMs - 1);
-  const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
-  const finalStart = new Date(last.getFullYear(), last.getMonth(), 1).getTime();
-  const months: CalendarMonth[] = [];
+  const first = calendarWeekOf(new Date(startMs));
+  const finalStart = calendarWeekOf(new Date(endMs - 1)).startMs;
+  const cursor = new Date(first.startMs);
+  const weeks: CalendarWeek[] = [];
   while (cursor.getTime() <= finalStart) {
-    months.push(calendarMonthOf(cursor));
-    cursor.setMonth(cursor.getMonth() + 1, 1);
+    weeks.push(calendarWeekOf(cursor));
+    cursor.setDate(cursor.getDate() + 7);
   }
-  return months;
+  return weeks;
 }
 
 export function compoundCursorFilter(startMs: number, id: string): string {
@@ -59,7 +76,7 @@ export function partitionDeletedRows<T extends { id: string; deleted: boolean }>
   };
 }
 
-export class MonthLoadCoordinator {
+export class WeekLoadCoordinator {
   private readonly inFlight = new Map<string, Promise<number>>();
 
   run(key: string, load: () => Promise<number>): Promise<number> {
@@ -82,7 +99,7 @@ export interface StringStorage {
   setItem(key: string, value: string): Promise<void>;
 }
 
-export class LoadedMonthRegistry {
+export class LoadedWeekRegistry {
   private writeTail: Promise<void> = Promise.resolve();
   private readonly storage: StringStorage;
   private readonly keyForChild: (remoteChildId: string) => string;
@@ -107,15 +124,15 @@ export class LoadedMonthRegistry {
     }
   }
 
-  async has(remoteChildId: string, monthKey: string): Promise<boolean> {
+  async has(remoteChildId: string, weekKey: string): Promise<boolean> {
     await this.writeTail;
-    return (await this.read(remoteChildId)).has(monthKey);
+    return (await this.read(remoteChildId)).has(weekKey);
   }
 
-  mark(remoteChildId: string, monthKey: string): Promise<void> {
+  mark(remoteChildId: string, weekKey: string): Promise<void> {
     const write = this.writeTail.then(async () => {
       const loaded = await this.read(remoteChildId);
-      loaded.add(monthKey);
+      loaded.add(weekKey);
       await this.storage.setItem(
         this.keyForChild(remoteChildId),
         JSON.stringify([...loaded].sort()),
@@ -123,5 +140,50 @@ export class LoadedMonthRegistry {
     });
     this.writeTail = write.catch(() => {});
     return write;
+  }
+}
+
+export class DayFreshnessRegistry {
+  private readonly storage: StringStorage;
+  private readonly keyForChild: (remoteChildId: string) => string;
+
+  constructor(
+    storage: StringStorage,
+    keyForChild: (remoteChildId: string) => string,
+  ) {
+    this.storage = storage;
+    this.keyForChild = keyForChild;
+  }
+
+  private async read(remoteChildId: string): Promise<Record<string, number>> {
+    try {
+      const raw = await this.storage.getItem(this.keyForChild(remoteChildId));
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, number] =>
+            typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+        ),
+      );
+    } catch {
+      return {};
+    }
+  }
+
+  async isFresh(
+    remoteChildId: string,
+    dayKey: string,
+    maxAgeMs: number,
+    now = Date.now(),
+  ): Promise<boolean> {
+    const refreshedAt = (await this.read(remoteChildId))[dayKey];
+    return refreshedAt !== undefined && now >= refreshedAt && now - refreshedAt < maxAgeMs;
+  }
+
+  async mark(remoteChildId: string, dayKey: string, refreshedAt = Date.now()): Promise<void> {
+    const timestamps = await this.read(remoteChildId);
+    timestamps[dayKey] = refreshedAt;
+    await this.storage.setItem(this.keyForChild(remoteChildId), JSON.stringify(timestamps));
   }
 }

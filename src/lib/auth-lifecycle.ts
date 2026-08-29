@@ -33,6 +33,21 @@ export function classifyAuthFailure({
   return 'inconclusive';
 }
 
+/**
+ * An access token that merely went stale and an account that was really revoked
+ * both answer 401/403, so that status alone must not end a session. Only the
+ * refresh token can tell them apart, and this reports when it has to be asked.
+ */
+export function requiresSessionRefresh({
+  status,
+  code,
+  retryable,
+}: AuthFailureSummary): boolean {
+  if (retryable) return false;
+  if (code && INVALID_REFRESH_CODES.has(code)) return false;
+  return status === 401 || status === 403;
+}
+
 export function authStatusClass(status?: number): AuthStatusClass {
   if (status === undefined || status === 0) return 'none';
   if (status >= 400 && status < 500) return '4xx';

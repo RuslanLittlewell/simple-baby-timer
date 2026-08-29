@@ -8,6 +8,7 @@ import {
   classifyAuthFailure,
   classifySessionRecovery,
   isForegroundEdge,
+  requiresSessionRefresh,
 } from '../src/lib/auth-lifecycle.ts';
 import { createAuthDiagnosticRecord } from '../src/lib/auth-diagnostics.ts';
 import { SingleFlightCoordinator } from '../src/lib/single-flight-coordinator.ts';
@@ -26,6 +27,35 @@ test('explicit unauthorized and forbidden responses are definitive', () => {
     const outcome = classifyAuthFailure({ status, retryable: false });
     assert.equal(outcome, 'definitive-auth-loss');
     assert.equal(accountOutcomeRequiresGate(outcome), true);
+  }
+});
+
+test('a rejected access token asks the refresh token before ending the session', () => {
+  // The 16:47 logout: GET /auth/v1/user answered 403 while the refresh token
+  // was still good, and the session was discarded without ever spending it.
+  for (const status of [401, 403]) {
+    assert.equal(requiresSessionRefresh({ status, retryable: false }), true);
+  }
+});
+
+test('a failed refresh, not the rejected request, ends the session', () => {
+  for (const code of ['refresh_token_not_found', 'refresh_token_already_used']) {
+    // Already proven dead by the refresh endpoint - nothing left to ask.
+    assert.equal(requiresSessionRefresh({ status: 403, code, retryable: false }), false);
+    assert.equal(classifyAuthFailure({ status: 400, code, retryable: false }), 'definitive-auth-loss');
+  }
+});
+
+test('failures that cannot be a stale token are never worth a refresh', () => {
+  const failures = [
+    { status: 401, retryable: true },
+    { status: 429, retryable: false },
+    { status: 503, retryable: false },
+    { status: 400, code: 'unexpected', retryable: false },
+    { status: undefined, retryable: false },
+  ];
+  for (const failure of failures) {
+    assert.equal(requiresSessionRefresh(failure), false);
   }
 });
 
