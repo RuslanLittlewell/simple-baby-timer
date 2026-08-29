@@ -60,8 +60,14 @@
     "test:auth": "node --test tests/auth-lifecycle.test.mjs",
     "test:activity-sync-ui": "node --test tests/activity-sync-presentation.test.mjs",
     "test:activity-initial-sync": "node --test tests/activity-initial-sync.test.mjs",
+    "test:add-activity-modal": "node --test tests/add-activity-modal-refactor.test.mjs",
+    "test:entry-editor": "node --test tests/entry-editor-refactor.test.mjs",
+    "test:child-auth-gate": "node --test tests/child-global-auth-gate.test.mjs",
     "test:history": "node --test tests/activity-history-loading.test.mjs",
-    "test:live-activity": "node --test tests/live-activity-lifecycle.test.mjs"
+    "test:calendar-breast-side": "node --test tests/calendar-breast-side-markers.test.mjs",
+    "test:live-activity": "node --test tests/live-activity-lifecycle.test.mjs",
+    "test:regime-games": "node --test tests/regime-developmental-games.test.mjs",
+    "test:regime-modal": "node --test tests/regime-note-modal.test.mjs"
   },
   "private": true
 }

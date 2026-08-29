@@ -16,17 +16,25 @@ import {
   POINT_HEIGHT,
   useKindStyle,
 } from '../constants';
+import { assignGamesToAwakeFills } from '../developmental-games';
 import { awakeFills, formatMin, windowForVariant } from '../helpers';
-import { type RegimeStep, type RegimeVariant } from '../types';
+import { type DevelopmentalGame, type RegimeStep, type RegimeVariant } from '../types';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 interface RegimeTimelineProps {
   variant: RegimeVariant;
+  developmentalGameGroups?: DevelopmentalGame[][];
+  developmentalGamesGuidance?: string;
   onSelect: (step: RegimeStep) => void;
 }
 
-export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
+export function RegimeTimeline({
+  variant,
+  developmentalGameGroups,
+  developmentalGamesGuidance,
+  onSelect,
+}: RegimeTimelineProps) {
   const theme = useTheme();
   const t = useT();
   const kindStyle = useKindStyle();
@@ -41,13 +49,18 @@ export function RegimeTimeline({ variant, onSelect }: RegimeTimelineProps) {
   
   const overlays = variant.steps.filter((s) => s.kind !== 'sleep' && s.startMin !== null);
 
-  const fills: RegimeStep[] = awakeFills(variant, winStart, winEnd).map((f) => ({
+  const fills: RegimeStep[] = assignGamesToAwakeFills(
+    awakeFills(variant, winStart, winEnd),
+    developmentalGameGroups,
+  ).map((f) => ({
     time: `${formatMin(f.startMin)}–${formatMin(f.endMin)}`,
     startMin: f.startMin,
     endMin: f.endMin,
     action: t('regimes.anyActivity'),
     note: t('regimes.anyActivityNote'),
     kind: 'wake',
+    games: f.games,
+    developmentalGamesGuidance: f.games?.length ? developmentalGamesGuidance : undefined,
   }));
 
   const renderFullBlock = (step: RegimeStep, key: string) => {
