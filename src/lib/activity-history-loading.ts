@@ -99,6 +99,15 @@ export interface StringStorage {
   setItem(key: string, value: string): Promise<void>;
 }
 
+interface LoadedWeekRecord {
+  localChildId: string;
+  weeks: string[];
+}
+
+/**
+ * Stored rows are readable only under the local child id that wrote them, so a
+ * record of what was downloaded is worthless unless it names that same id.
+ */
 export class LoadedWeekRegistry {
   private writeTail: Promise<void> = Promise.resolve();
   private readonly storage: StringStorage;
@@ -112,38 +121,47 @@ export class LoadedWeekRegistry {
     this.keyForChild = keyForChild;
   }
 
-  private async read(remoteChildId: string): Promise<Set<string>> {
+  private async read(remoteChildId: string): Promise<LoadedWeekRecord | null> {
     try {
       const raw = await this.storage.getItem(this.keyForChild(remoteChildId));
-      const parsed = raw ? JSON.parse(raw) : [];
-      return new Set(
-        Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [],
-      );
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      const { localChildId, weeks } = parsed as Partial<LoadedWeekRecord>;
+      if (typeof localChildId !== 'string' || !Array.isArray(weeks)) return null;
+      return {
+        localChildId,
+        weeks: weeks.filter((week): week is string => typeof week === 'string'),
+      };
     } catch {
-      return new Set();
+      return null;
     }
   }
 
-  async has(remoteChildId: string, weekKey: string): Promise<boolean> {
-    await this.writeTail;
-    return (await this.read(remoteChildId)).has(weekKey);
+  private async weeksOf(remoteChildId: string, localChildId: string): Promise<Set<string>> {
+    const record = await this.read(remoteChildId);
+    if (!record || record.localChildId !== localChildId) return new Set();
+    return new Set(record.weeks);
   }
 
-  mark(remoteChildId: string, weekKey: string): Promise<void> {
+  async has(remoteChildId: string, localChildId: string, weekKey: string): Promise<boolean> {
+    await this.writeTail;
+    return (await this.weeksOf(remoteChildId, localChildId)).has(weekKey);
+  }
+
+  mark(remoteChildId: string, localChildId: string, weekKey: string): Promise<void> {
     const write = this.writeTail.then(async () => {
-      const loaded = await this.read(remoteChildId);
+      const loaded = await this.weeksOf(remoteChildId, localChildId);
       loaded.add(weekKey);
-      await this.storage.setItem(
-        this.keyForChild(remoteChildId),
-        JSON.stringify([...loaded].sort()),
-      );
+      const record: LoadedWeekRecord = { localChildId, weeks: [...loaded].sort() };
+      await this.storage.setItem(this.keyForChild(remoteChildId), JSON.stringify(record));
     });
     this.writeTail = write.catch(() => {});
     return write;
   }
 }
 
-export class DayFreshnessRegistry {
+/** Bounds how long a result may stand in for a range without re-requesting it. */
+export class FreshnessRegistry {
   private readonly storage: StringStorage;
   private readonly keyForChild: (remoteChildId: string) => string;
 
@@ -173,17 +191,55 @@ export class DayFreshnessRegistry {
 
   async isFresh(
     remoteChildId: string,
-    dayKey: string,
+    key: string,
     maxAgeMs: number,
     now = Date.now(),
   ): Promise<boolean> {
-    const refreshedAt = (await this.read(remoteChildId))[dayKey];
+    const refreshedAt = (await this.read(remoteChildId))[key];
     return refreshedAt !== undefined && now >= refreshedAt && now - refreshedAt < maxAgeMs;
   }
 
-  async mark(remoteChildId: string, dayKey: string, refreshedAt = Date.now()): Promise<void> {
+  async mark(remoteChildId: string, key: string, refreshedAt = Date.now()): Promise<void> {
     const timestamps = await this.read(remoteChildId);
-    timestamps[dayKey] = refreshedAt;
+    timestamps[key] = refreshedAt;
     await this.storage.setItem(this.keyForChild(remoteChildId), JSON.stringify(timestamps));
+  }
+}
+
+/**
+ * An empty response cannot separate a range that holds nothing from one this
+ * client could not read, so only an applied row settles a range for good; an
+ * empty one is merely fresh for a while and is asked again afterwards.
+ */
+export class HistoryRangeRegistry {
+  private readonly loaded: LoadedWeekRegistry;
+  private readonly empty: FreshnessRegistry;
+  private readonly emptyMaxAgeMs: number;
+
+  constructor(loaded: LoadedWeekRegistry, empty: FreshnessRegistry, emptyMaxAgeMs: number) {
+    this.loaded = loaded;
+    this.empty = empty;
+    this.emptyMaxAgeMs = emptyMaxAgeMs;
+  }
+
+  async isSettled(
+    remoteChildId: string,
+    localChildId: string,
+    rangeKey: string,
+    now = Date.now(),
+  ): Promise<boolean> {
+    if (await this.loaded.has(remoteChildId, localChildId, rangeKey)) return true;
+    return this.empty.isFresh(remoteChildId, rangeKey, this.emptyMaxAgeMs, now);
+  }
+
+  async record(
+    remoteChildId: string,
+    localChildId: string,
+    rangeKey: string,
+    applied: number,
+    now = Date.now(),
+  ): Promise<void> {
+    if (applied > 0) await this.loaded.mark(remoteChildId, localChildId, rangeKey);
+    else await this.empty.mark(remoteChildId, rangeKey, now);
   }
 }

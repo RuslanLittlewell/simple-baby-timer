@@ -7,7 +7,7 @@ import {
   calendarWeeksInRange,
   compoundCursorFilter,
   LoadedWeekRegistry,
-  DayFreshnessRegistry,
+  FreshnessRegistry,
   WeekLoadCoordinator,
   paginateCompound,
   partitionDeletedRows,
@@ -62,37 +62,37 @@ test('loaded week registry is durable and preserves concurrent week marks', asyn
   };
   const registry = new LoadedWeekRegistry(storage, (childId) => `loaded/${childId}`);
   await Promise.all([
-    registry.mark('child', '2026-01-05'),
-    registry.mark('child', '2026-01-12'),
+    registry.mark('child', 'local', '2026-01-05'),
+    registry.mark('child', 'local', '2026-01-12'),
   ]);
   const afterRestart = new LoadedWeekRegistry(storage, (childId) => `loaded/${childId}`);
-  assert.equal(await afterRestart.has('child', '2026-01-05'), true);
-  assert.equal(await afterRestart.has('child', '2026-01-12'), true);
-  assert.equal(await afterRestart.has('other-child', '2026-01-05'), false);
+  assert.equal(await afterRestart.has('child', 'local', '2026-01-05'), true);
+  assert.equal(await afterRestart.has('child', 'local', '2026-01-12'), true);
+  assert.equal(await afterRestart.has('other-child', 'local', '2026-01-05'), false);
 });
 
-test('day freshness uses a strict TTL and survives a registry restart', async () => {
+test('freshness uses a strict TTL and survives a registry restart', async () => {
   const values = new Map();
   const storage = {
     async getItem(key) { return values.get(key) ?? null; },
     async setItem(key, value) { values.set(key, value); },
   };
   const keyForChild = (childId) => `fresh/${childId}`;
-  const registry = new DayFreshnessRegistry(storage, keyForChild);
+  const registry = new FreshnessRegistry(storage, keyForChild);
   await registry.mark('child', '2026-02-18', 1_000);
 
-  const afterRestart = new DayFreshnessRegistry(storage, keyForChild);
+  const afterRestart = new FreshnessRegistry(storage, keyForChild);
   assert.equal(await afterRestart.isFresh('child', '2026-02-18', 60_000, 60_999), true);
   assert.equal(await afterRestart.isFresh('child', '2026-02-18', 60_000, 61_000), false);
   assert.equal(await afterRestart.isFresh('child', 'missing', 60_000, 1_001), false);
 });
 
-test('failed freshness persistence never reports a day as fresh', async () => {
+test('failed freshness persistence never reports a range as fresh', async () => {
   const storage = {
     async getItem() { return null; },
     async setItem() { throw new Error('storage unavailable'); },
   };
-  const registry = new DayFreshnessRegistry(storage, (childId) => `fresh/${childId}`);
+  const registry = new FreshnessRegistry(storage, (childId) => `fresh/${childId}`);
   await assert.rejects(registry.mark('child', '2026-02-18', 1_000));
   assert.equal(await registry.isFresh('child', '2026-02-18', 60_000, 1_001), false);
 });

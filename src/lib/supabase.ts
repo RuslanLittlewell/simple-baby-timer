@@ -6,8 +6,12 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
-import { logAuthDiagnostic } from '@/lib/auth-diagnostics';
+import {
+  logAuthDiagnostic,
+  type AuthRecoverySource,
+} from '@/lib/auth-diagnostics';
 import { authGeneration } from '@/lib/auth-generation';
+import { AuthVerificationCoordinator } from '@/lib/auth-verification';
 import {
   authStatusClass,
   classifyAuthFailure,
@@ -64,7 +68,7 @@ export async function getUserId(): Promise<string | null> {
 
 
 
-export async function checkAccount(): Promise<AccountCheckOutcome> {
+async function checkAccount(source: AuthRecoverySource): Promise<AccountCheckOutcome> {
   if (!isSupabaseConfigured) return 'definitive-auth-loss';
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (!data.session) {
@@ -77,10 +81,12 @@ export async function checkAccount(): Promise<AccountCheckOutcome> {
             retryable: isAuthRetryableFetchError(sessionError),
           }
         : undefined,
+      source === 'destructive-confirmation',
     );
     logAuthDiagnostic('account-check', {
       outcome,
       statusClass: authStatusClass(sessionError?.status),
+      recoverySource: source,
     });
     return outcome;
   }
@@ -90,7 +96,11 @@ export async function checkAccount(): Promise<AccountCheckOutcome> {
   
   const { error } = await supabase.auth.getUser();
   if (!error) {
-    logAuthDiagnostic('account-check', { outcome: 'ok', statusClass: 'none' });
+    logAuthDiagnostic('account-check', {
+      outcome: 'ok',
+      statusClass: 'none',
+      recoverySource: source,
+    });
     return 'ok';
   }
   const failure = {
@@ -103,6 +113,7 @@ export async function checkAccount(): Promise<AccountCheckOutcome> {
     logAuthDiagnostic('account-check', {
       outcome: outcome.result,
       statusClass: authStatusClass(outcome.status),
+      recoverySource: source,
     });
     return outcome.result;
   }
@@ -110,8 +121,42 @@ export async function checkAccount(): Promise<AccountCheckOutcome> {
   logAuthDiagnostic('account-check', {
     outcome,
     statusClass: authStatusClass(error.status),
+    recoverySource: source,
   });
   return outcome;
+}
+
+const accountVerifier = new AuthVerificationCoordinator<AccountCheckOutcome, AuthRecoverySource>(
+  checkAccount,
+);
+
+export async function verifyAccount(
+  source: AuthRecoverySource,
+): Promise<AccountCheckOutcome> {
+  const result = await accountVerifier.request(source);
+  logAuthDiagnostic('account-check', {
+    outcome: result.outcome,
+    recoverySource: source,
+    disposition: result.disposition,
+  });
+  return result.outcome;
+}
+
+export async function confirmAccountLoss(
+  verificationEpoch: number,
+): Promise<boolean> {
+  if (!authGeneration.isVerificationCurrent(verificationEpoch)) return false;
+  const outcome = await verifyAccount('destructive-confirmation');
+  const current = authGeneration.isVerificationCurrent(verificationEpoch);
+  if (!current) {
+    logAuthDiagnostic('account-check', {
+      outcome,
+      recoverySource: 'destructive-confirmation',
+      disposition: 'stale-rejected',
+      verificationEpoch,
+    });
+  }
+  return current && outcome === 'definitive-auth-loss';
 }
 
 interface SessionRecovery {

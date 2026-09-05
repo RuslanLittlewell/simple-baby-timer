@@ -1,7 +1,7 @@
 {
   "name": "babytimer",
   "main": "expo-router/entry",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "dependencies": {
     "@expo-google-fonts/nunito-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
@@ -64,6 +64,7 @@
     "test:entry-editor": "node --test tests/entry-editor-refactor.test.mjs",
     "test:child-auth-gate": "node --test tests/child-global-auth-gate.test.mjs",
     "test:history": "node --test tests/activity-history-loading.test.mjs",
+    "test:history-cache": "node --test tests/history-cache-invalidation.test.mjs",
     "test:calendar-breast-side": "node --test tests/calendar-breast-side-markers.test.mjs",
     "test:live-activity": "node --test tests/live-activity-lifecycle.test.mjs",
     "test:regime-games": "node --test tests/regime-developmental-games.test.mjs",

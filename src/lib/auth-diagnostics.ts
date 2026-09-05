@@ -1,4 +1,12 @@
 import type { AccountCheckOutcome, AuthStatusClass } from './auth-lifecycle.ts';
+import type { VerificationDisposition } from './auth-verification.ts';
+
+export type AuthRecoverySource =
+  | 'sync'
+  | 'foreground'
+  | 'auth-event'
+  | 'protected-action'
+  | 'destructive-confirmation';
 
 type AuthDiagnosticEvent =
   | 'app-state'
@@ -21,7 +29,10 @@ interface AuthDiagnosticDetails {
   syncGeneration?: number;
   fresh?: boolean;
   authGeneration?: number;
+  verificationEpoch?: number;
   attemptGeneration?: number;
+  recoverySource?: AuthRecoverySource;
+  disposition?: VerificationDisposition | 'stale-rejected';
   stage?:
     | 'started'
     | 'provider-launch'
@@ -76,10 +87,15 @@ export function createAuthDiagnosticRecord(
   if (details.syncGeneration !== undefined) record.syncGeneration = details.syncGeneration;
   if (details.fresh !== undefined) record.fresh = details.fresh;
   if (details.authGeneration !== undefined) record.authGeneration = details.authGeneration;
+  if (details.verificationEpoch !== undefined) {
+    record.verificationEpoch = details.verificationEpoch;
+  }
   if (details.attemptGeneration !== undefined) {
     record.attemptGeneration = details.attemptGeneration;
   }
   if (details.stage !== undefined) record.stage = details.stage;
   if (details.failedAt !== undefined) record.failedAt = details.failedAt;
+  if (details.recoverySource !== undefined) record.recoverySource = details.recoverySource;
+  if (details.disposition !== undefined) record.disposition = details.disposition;
   return record;
 }
