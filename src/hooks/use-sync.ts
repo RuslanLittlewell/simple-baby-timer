@@ -4,12 +4,13 @@ import { AppState } from 'react-native';
 
 import { translate } from '@/i18n';
 import {
-  checkAccount,
+  confirmAccountLoss,
   getUserId,
   isOAuthInFlight,
   isSupabaseConfigured,
   signOutLocal,
   supabase,
+  verifyAccount,
 } from '@/lib/supabase';
 import { logAuthDiagnostic } from '@/lib/auth-diagnostics';
 import { authGeneration } from '@/lib/auth-generation';
@@ -63,6 +64,7 @@ function finishActivityGate(generation: number) {
 
 async function performSyncPass(generation: number): Promise<SyncOutcome> {
   const capturedAuthGeneration = authGeneration.snapshot();
+  const capturedVerificationEpoch = authGeneration.verificationSnapshot();
   const isCurrentAuth = () => authGeneration.isCurrent(capturedAuthGeneration);
   logAuthDiagnostic('sync-start', {
     syncGeneration: generation,
@@ -73,7 +75,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     
     
     
-    const account = await checkAccount();
+    const account = await verifyAccount('sync');
     if (!isCurrentAuth()) return 'unavailable';
     
     if (account === 'inconclusive') return 'unavailable';
@@ -84,8 +86,12 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       
       
       if (isOAuthInFlight()) return 'unavailable';
+      if (!(await confirmAccountLoss(capturedVerificationEpoch))) return 'unavailable';
       await signOutLocal();
-      if (!isCurrentAuth()) return 'unavailable';
+      if (
+        !isCurrentAuth() ||
+        !authGeneration.isVerificationCurrent(capturedVerificationEpoch)
+      ) return 'unavailable';
       useAppStore.getState().setProStatus(false);
       useAppStore.getState().setAuthRequired(true);
       return 'auth-required';
@@ -354,6 +360,7 @@ export function useSync() {
           authEvent: event,
           hasSession: true,
           authGeneration: verified.generation,
+          verificationEpoch: verified.verificationEpoch,
         });
         useAppStore.getState().setAuthRequired(false);
         
@@ -370,7 +377,6 @@ export function useSync() {
         }
         return;
       }
-      setAuthed(false);
       logAuthDiagnostic('auth-event', {
         authEvent: event,
         hasSession: false,
@@ -384,29 +390,47 @@ export function useSync() {
       
       if (isOAuthInFlight()) return;
       authGeneration.observeMissingSession();
-      const capturedGeneration = authGeneration.snapshot();
+      const capturedVerificationEpoch = authGeneration.verificationSnapshot();
+
+      const applyMissingSession = async () => {
+        if (!authGeneration.claimMissingEffects(capturedVerificationEpoch)) return;
+        setAuthed(false);
+        const syncState = useAppStore.getState();
+        syncState.finishActivitySync(syncState.activitySyncGeneration);
+        syncState.setProStatus(false);
+        syncState.setAuthRequired(true);
+        await forgetPurchaser();
+      };
+
+      if (authGeneration.isExplicitLogoutPending()) {
+        void applyMissingSession();
+        return;
+      }
       
       
       queueMicrotask(() => {
         void (async () => {
           const { data: current } = await supabase.auth.getSession();
-          if (current.session || !authGeneration.isCurrent(capturedGeneration)) {
+          if (
+            current.session ||
+            !authGeneration.isVerificationCurrent(capturedVerificationEpoch)
+          ) {
             logAuthDiagnostic('auth-event', {
               authEvent: event,
               stage: 'stale-rejected',
-              authGeneration: capturedGeneration,
+              verificationEpoch: capturedVerificationEpoch,
               hasSession: !!current.session,
+              recoverySource: 'auth-event',
+              disposition: 'stale-rejected',
             });
             return;
           }
-          if (!authGeneration.claimMissingEffects(capturedGeneration)) return;
-          const syncState = useAppStore.getState();
-          syncState.finishActivitySync(syncState.activitySyncGeneration);
-          syncState.setProStatus(false);
-          syncState.setAuthRequired(true);
-          
-          
-          await forgetPurchaser();
+          const outcome = await verifyAccount('auth-event');
+          if (
+            outcome === 'ok' ||
+            !(await confirmAccountLoss(capturedVerificationEpoch))
+          ) return;
+          await applyMissingSession();
         })();
       });
     });
@@ -420,6 +444,8 @@ export function useSync() {
 
     const startForegroundAuth = async (fresh: boolean) => {
       await supabase.auth.startAutoRefresh();
+      if (disposed) return;
+      await verifyAccount('foreground');
       if (!disposed) await syncNow({ fresh });
     };
 

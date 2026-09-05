@@ -16,7 +16,8 @@ import {
   calendarWeeksInRange,
   compoundCursorFilter,
   LoadedWeekRegistry,
-  DayFreshnessRegistry,
+  FreshnessRegistry,
+  HistoryRangeRegistry,
   WeekLoadCoordinator,
   paginateCompound,
   partitionDeletedRows,
@@ -27,18 +28,28 @@ const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
 const LEGACY_LOADED_MONTHS_PREFIX = 'babytimer.sync.loaded-months.v1.';
 const legacyLoadedMonthsKey = (remoteId: string) => `${LEGACY_LOADED_MONTHS_PREFIX}${remoteId}`;
-const LOADED_WEEKS_PREFIX = 'babytimer.sync.loaded-weeks.v1.';
+const LEGACY_LOADED_WEEKS_PREFIX = 'babytimer.sync.loaded-weeks.v1.';
+const legacyLoadedWeeksKey = (remoteId: string) => `${LEGACY_LOADED_WEEKS_PREFIX}${remoteId}`;
+const LOADED_WEEKS_PREFIX = 'babytimer.sync.loaded-weeks.v2.';
 const loadedWeeksKey = (remoteId: string) => `${LOADED_WEEKS_PREFIX}${remoteId}`;
+const EMPTY_RANGES_PREFIX = 'babytimer.sync.empty-ranges.v1.';
+const emptyRangesKey = (remoteId: string) => `${EMPTY_RANGES_PREFIX}${remoteId}`;
 const LEGACY_WEEK_FRESHNESS_PREFIX = 'babytimer.sync.week-freshness.v1.';
 const legacyWeekFreshnessKey = (remoteId: string) => `${LEGACY_WEEK_FRESHNESS_PREFIX}${remoteId}`;
 const DAY_FRESHNESS_PREFIX = 'babytimer.sync.day-freshness.v1.';
 const dayFreshnessKey = (remoteId: string) => `${DAY_FRESHNESS_PREFIX}${remoteId}`;
 export const CURRENT_DAY_FRESHNESS_MS = 60_000;
+export const EMPTY_RANGE_FRESHNESS_MS = 5 * 60_000;
 const UPSERT_CHUNK = 500;
 const HISTORY_PAGE_SIZE = 1000;
 const weekLoads = new WeekLoadCoordinator();
 const loadedWeeks = new LoadedWeekRegistry(AsyncStorage, loadedWeeksKey);
-const dayFreshness = new DayFreshnessRegistry(AsyncStorage, dayFreshnessKey);
+const dayFreshness = new FreshnessRegistry(AsyncStorage, dayFreshnessKey);
+const historyRanges = new HistoryRangeRegistry(
+  loadedWeeks,
+  new FreshnessRegistry(AsyncStorage, emptyRangesKey),
+  EMPTY_RANGE_FRESHNESS_MS,
+);
 
 export interface SessionRow {
   child_id: string;
@@ -141,9 +152,11 @@ export async function clearSyncState(): Promise<void> {
     QUEUE_KEY,
     ...keys.filter((key) => key.startsWith('babytimer.sync.cursor.')),
     ...keys.filter((key) => key.startsWith(LEGACY_LOADED_MONTHS_PREFIX)),
+    ...keys.filter((key) => key.startsWith(LEGACY_LOADED_WEEKS_PREFIX)),
     ...keys.filter((key) => key.startsWith(LOADED_WEEKS_PREFIX)),
     ...keys.filter((key) => key.startsWith(LEGACY_WEEK_FRESHNESS_PREFIX)),
     ...keys.filter((key) => key.startsWith(DAY_FRESHNESS_PREFIX)),
+    ...keys.filter((key) => key.startsWith(EMPTY_RANGES_PREFIX)),
   ]);
 }
 
@@ -427,9 +440,11 @@ export async function leaveChild(remoteId: string): Promise<void> {
   await AsyncStorage.multiRemove([
     cursorKey(remoteId),
     legacyLoadedMonthsKey(remoteId),
+    legacyLoadedWeeksKey(remoteId),
     loadedWeeksKey(remoteId),
     legacyWeekFreshnessKey(remoteId),
     dayFreshnessKey(remoteId),
+    emptyRangesKey(remoteId),
   ]);
   const queue = await readQueue();
   await writeQueue(queue.filter((op) => op.remoteChildId !== remoteId));
@@ -475,9 +490,9 @@ export async function loadChildHistoryWeek(
   if (!isSupabaseConfigured) return 0;
   const requestKey = `${remoteId}/${week.key}`;
   return weekLoads.run(requestKey, async () => {
-    if (!refresh && (await loadedWeeks.has(remoteId, week.key))) return 0;
+    if (!refresh && (await historyRanges.isSettled(remoteId, localChildId, week.key))) return 0;
     const applied = await fetchHistoryPages(remoteId, localChildId, week);
-    await loadedWeeks.mark(remoteId, week.key);
+    await historyRanges.record(remoteId, localChildId, week.key, applied);
     return applied;
   });
 }
@@ -535,7 +550,7 @@ export async function loadChildCurrentWeekRemainder(
   const week = calendarWeekOf(now);
   const day = calendarDayOf(now);
   return weekLoads.run(`${remoteId}/${week.key}`, async () => {
-    if (await loadedWeeks.has(remoteId, week.key)) return 0;
+    if (await historyRanges.isSettled(remoteId, localChildId, week.key)) return 0;
     const ranges = [
       { startMs: week.startMs, endMs: day.startMs },
       { startMs: day.endMs, endMs: week.endMs },
@@ -543,7 +558,8 @@ export async function loadChildCurrentWeekRemainder(
     const counts = await Promise.all(
       ranges.map((range) => fetchHistoryPages(remoteId, localChildId, range)),
     );
-    await loadedWeeks.mark(remoteId, week.key);
-    return counts.reduce((sum, count) => sum + count, 0);
+    const applied = counts.reduce((sum, count) => sum + count, 0);
+    await historyRanges.record(remoteId, localChildId, week.key, applied);
+    return applied;
   });
 }

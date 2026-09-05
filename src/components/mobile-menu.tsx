@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useState } from "react";
 import {
@@ -31,6 +32,7 @@ import { signOut } from "@/lib/supabase";
 import { useAppStore, useT } from "@/state/app-state";
 
 const DRAWER_WIDTH = Dimensions.get("window").width * 0.5;
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.5";
 
 export function MobileMenu() {
   const theme = useTheme();
@@ -233,6 +235,9 @@ export function MobileMenu() {
                     {t("menu.logout")}
                   </ThemedText>
                 </Pressable>
+                <ThemedText themeColor="textSecondary" style={styles.version}>
+                  v{APP_VERSION}
+                </ThemedText>
               </View>
             </View>
           </Animated.View>
@@ -338,6 +343,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: Spacing.four,
     paddingBottom: Spacing.two,
+  },
+  version: {
+    alignSelf: "center",
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 0.2,
   },
   pressed: {
     opacity: 0.7,

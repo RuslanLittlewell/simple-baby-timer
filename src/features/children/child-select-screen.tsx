@@ -15,7 +15,8 @@ import { MAX_CHILDREN, type Child, type ChildGradientKey } from '@/lib/children'
 import { useAppStore, useT } from '@/state/app-state';
 
 import { deleteSessionsForChild } from '@/lib/activity-store';
-import { getIsSignedIn } from '@/lib/supabase';
+import { confirmAccountLoss, verifyAccount } from '@/lib/supabase';
+import { authGeneration } from '@/lib/auth-generation';
 import { leaveChild } from '@/lib/sync';
 
 import { AddChildModal } from './components/add-child-modal/add-child-modal';
@@ -58,8 +59,14 @@ export default function ChildSelectScreen() {
 
   
   const requestAction = async (action: ChildAction) => {
-    if (!(await getIsSignedIn())) {
-      useAppStore.getState().setAuthRequired(true);
+    const verificationEpoch = authGeneration.verificationSnapshot();
+    const account = await verifyAccount('protected-action');
+    if (account !== 'ok') {
+      if (
+        await confirmAccountLoss(verificationEpoch)
+      ) {
+        useAppStore.getState().setAuthRequired(true);
+      }
       return;
     }
     if (action.type === 'share' && !proActive) {

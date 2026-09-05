@@ -685,6 +685,14 @@ export const useAppStore = create<AppStore>()(
           stopLiveActivity(track, remoteIdOfChild(current.childId) ?? current.childId);
           cancelReminder(current.reminderId);
         }
+        /**
+         * Download records go first. Any interruption after this point leaves
+         * rows the next download supersedes, whereas the reverse order leaves
+         * records claiming rows that are already gone - and a claimed range is
+         * never requested again.
+         */
+        await clearSyncState();
+        await deleteAllSessions().catch(() => {});
         set({
           children: [],
           activeChildId: null,
@@ -701,8 +709,6 @@ export const useAppStore = create<AppStore>()(
           pendingPaywall: false,
           dataVersion: get().dataVersion + 1,
         });
-        await deleteAllSessions();
-        await clearSyncState();
       },
 
       setProStatus: (active, expiresAt, renewsAt, trialUsed = false) =>

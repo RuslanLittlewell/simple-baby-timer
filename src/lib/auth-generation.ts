@@ -1,6 +1,8 @@
 export class AuthGenerationCoordinator {
   private generation = 0;
+  private verificationEpoch = 0;
   private authenticated = false;
+  private explicitLogoutPending = false;
   private handledMissingGeneration: number | null = null;
 
   snapshot(): number {
@@ -11,28 +13,44 @@ export class AuthGenerationCoordinator {
     return generation === this.generation;
   }
 
+  verificationSnapshot(): number {
+    return this.verificationEpoch;
+  }
+
+  isVerificationCurrent(epoch: number): boolean {
+    return epoch === this.verificationEpoch;
+  }
+
   beginLogout(): number {
     this.generation += 1;
+    this.verificationEpoch += 1;
     this.authenticated = false;
+    this.explicitLogoutPending = true;
     this.handledMissingGeneration = null;
     return this.generation;
   }
 
-  observeVerifiedSession(): { generation: number; isNew: boolean } {
-    if (this.authenticated) return { generation: this.generation, isNew: false };
-    this.generation += 1;
+  observeVerifiedSession(): { generation: number; verificationEpoch: number; isNew: boolean } {
+    const isNew = !this.authenticated;
+    this.verificationEpoch += 1;
+    if (isNew) this.generation += 1;
     this.authenticated = true;
+    this.explicitLogoutPending = false;
     this.handledMissingGeneration = null;
-    return { generation: this.generation, isNew: true };
+    return { generation: this.generation, verificationEpoch: this.verificationEpoch, isNew };
   }
 
   observeMissingSession(): void {
     this.authenticated = false;
   }
 
-  claimMissingEffects(generation: number): boolean {
-    if (!this.isCurrent(generation) || this.handledMissingGeneration === generation) return false;
-    this.handledMissingGeneration = generation;
+  isExplicitLogoutPending(): boolean {
+    return this.explicitLogoutPending;
+  }
+
+  claimMissingEffects(epoch: number): boolean {
+    if (!this.isVerificationCurrent(epoch) || this.handledMissingGeneration === epoch) return false;
+    this.handledMissingGeneration = epoch;
     return true;
   }
 }

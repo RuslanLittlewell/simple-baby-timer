@@ -4,17 +4,21 @@ import test from 'node:test';
 
 const childScreenUrl = new URL('../src/features/children/child-select-screen.tsx', import.meta.url);
 
-test('missing session activates the global auth gate and stops the child action', () => {
+test('confirmed session loss activates the global auth gate and stops the child action', () => {
   const source = readFileSync(childScreenUrl, 'utf8');
   const requestStart = source.indexOf('const requestAction');
   const requestEnd = source.indexOf('const pickChild', requestStart);
   const requestSource = source.slice(requestStart, requestEnd);
-  const signedOutCheck = requestSource.indexOf('if (!(await getIsSignedIn()))');
+  const verification = requestSource.indexOf("verifyAccount('protected-action')");
+  const signedOutCheck = requestSource.indexOf("account !== 'ok'", verification);
+  const confirmation = requestSource.indexOf('confirmAccountLoss(verificationEpoch)', signedOutCheck);
   const gateActivation = requestSource.indexOf('setAuthRequired(true)', signedOutCheck);
   const earlyReturn = requestSource.indexOf('return;', gateActivation);
 
-  assert.ok(signedOutCheck >= 0);
-  assert.ok(gateActivation > signedOutCheck);
+  assert.ok(verification >= 0);
+  assert.ok(signedOutCheck > verification);
+  assert.ok(confirmation > signedOutCheck);
+  assert.ok(gateActivation > confirmation);
   assert.ok(earlyReturn > gateActivation);
 });
 

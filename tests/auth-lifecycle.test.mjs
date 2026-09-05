@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -12,6 +13,7 @@ import {
 } from '../src/lib/auth-lifecycle.ts';
 import { createAuthDiagnosticRecord } from '../src/lib/auth-diagnostics.ts';
 import { SingleFlightCoordinator } from '../src/lib/single-flight-coordinator.ts';
+import { AuthVerificationCoordinator } from '../src/lib/auth-verification.ts';
 import {
   AuthGenerationCoordinator,
   LatestAttemptCoordinator,
@@ -20,6 +22,11 @@ import {
 test('valid and successfully refreshed sessions remain authenticated', () => {
   assert.equal(classifySessionRecovery(true), 'ok');
   assert.equal(accountOutcomeRequiresGate('ok'), false);
+});
+
+test('one empty session read is inconclusive until authoritative confirmation', () => {
+  assert.equal(classifySessionRecovery(false), 'inconclusive');
+  assert.equal(classifySessionRecovery(false, undefined, true), 'definitive-auth-loss');
 });
 
 test('explicit unauthorized and forbidden responses are definitive', () => {
@@ -132,11 +139,32 @@ test('overlapping fresh requests remain single-flight and collapse follow-ups', 
   assert.deepEqual(generations, [1, 3]);
 });
 
+test('concurrent auth checks share one authoritative verification', async () => {
+  let calls = 0;
+  let release;
+  const blocked = new Promise((resolve) => { release = resolve; });
+  const verifier = new AuthVerificationCoordinator(async () => {
+    calls += 1;
+    await blocked;
+    return 'ok';
+  });
+
+  const foreground = verifier.request('foreground');
+  const action = verifier.request('protected-action');
+  release();
+
+  assert.deepEqual(await foreground, { outcome: 'ok', disposition: 'started' });
+  assert.deepEqual(await action, { outcome: 'ok', disposition: 'joined' });
+  assert.equal(calls, 1);
+});
+
 test('auth diagnostics retain only allow-listed non-sensitive fields', () => {
   const record = createAuthDiagnosticRecord('account-check', {
     outcome: 'inconclusive',
     statusClass: authStatusClass(429),
     syncGeneration: 7,
+    recoverySource: 'foreground',
+    disposition: 'joined',
     accessToken: 'secret',
     email: 'parent@example.com',
     rawError: { authorization: 'Bearer secret' },
@@ -147,6 +175,8 @@ test('auth diagnostics retain only allow-listed non-sensitive fields', () => {
     outcome: 'inconclusive',
     statusClass: '4xx',
     syncGeneration: 7,
+    recoverySource: 'foreground',
+    disposition: 'joined',
   });
 });
 
@@ -159,6 +189,42 @@ test('a verified session advances auth generation and defeats stale logout work'
   assert.equal(initial.isNew, true);
   assert.equal(auth.isCurrent(logout), false);
   assert.equal(auth.isCurrent(replacement.generation), true);
+});
+
+test('every verified session advances the verification epoch for the same account', () => {
+  const auth = new AuthGenerationCoordinator();
+  const initial = auth.observeVerifiedSession();
+  const staleEpoch = initial.verificationEpoch;
+  const refreshed = auth.observeVerifiedSession();
+
+  assert.equal(refreshed.isNew, false);
+  assert.equal(refreshed.generation, initial.generation);
+  assert.ok(refreshed.verificationEpoch > staleEpoch);
+  assert.equal(auth.isVerificationCurrent(staleEpoch), false);
+  assert.equal(auth.claimMissingEffects(staleEpoch), false);
+});
+
+test('successful refresh wins over older destructive auth work', () => {
+  const auth = new AuthGenerationCoordinator();
+  auth.observeVerifiedSession();
+  const destructiveCheck = auth.verificationSnapshot();
+
+  auth.observeVerifiedSession();
+
+  assert.equal(auth.isVerificationCurrent(destructiveCheck), false);
+  assert.equal(auth.claimMissingEffects(destructiveCheck), false);
+});
+
+test('explicit logout remains distinguishable from unexpected signed-out events', () => {
+  const auth = new AuthGenerationCoordinator();
+  auth.observeVerifiedSession();
+  assert.equal(auth.isExplicitLogoutPending(), false);
+
+  auth.beginLogout();
+  assert.equal(auth.isExplicitLogoutPending(), true);
+
+  auth.observeVerifiedSession();
+  assert.equal(auth.isExplicitLogoutPending(), false);
 });
 
 test('same-account and different-account re-login share safe generation semantics', () => {
@@ -174,7 +240,8 @@ test('same-account and different-account re-login share safe generation semantic
 test('duplicate signed-out effects are claimed only once', () => {
   const auth = new AuthGenerationCoordinator();
   auth.observeVerifiedSession();
-  const logout = auth.beginLogout();
+  auth.beginLogout();
+  const logout = auth.verificationSnapshot();
   auth.observeMissingSession();
   assert.equal(auth.claimMissingEffects(logout), true);
   assert.equal(auth.claimMissingEffects(logout), false);
@@ -202,7 +269,31 @@ test('late OAuth cancellation, exchange failure, and success cannot win over ret
 
 test('missing session verification does not create a verified generation', () => {
   const auth = new AuthGenerationCoordinator();
-  const before = auth.snapshot();
-  assert.equal(auth.snapshot(), before);
+  const before = auth.verificationSnapshot();
+  assert.equal(auth.verificationSnapshot(), before);
   assert.equal(auth.claimMissingEffects(before), true);
+});
+
+test('unexpected null-session events require authoritative confirmation before gating', () => {
+  const source = readFileSync(new URL('../src/hooks/use-sync.ts', import.meta.url), 'utf8');
+  const listener = source.slice(
+    source.indexOf('supabase.auth.onAuthStateChange'),
+    source.indexOf('const startForegroundAuth'),
+  );
+
+  assert.match(listener, /verifyAccount\(['"]auth-event['"]\)/);
+  assert.match(listener, /confirmAccountLoss\(capturedVerificationEpoch\)/);
+  assert.match(listener, /isVerificationCurrent\(capturedVerificationEpoch\)/);
+  assert.ok(listener.indexOf('confirmAccountLoss') < listener.lastIndexOf('applyMissingSession()'));
+});
+
+test('foreground recovery settles before foreground synchronization', () => {
+  const source = readFileSync(new URL('../src/hooks/use-sync.ts', import.meta.url), 'utf8');
+  const foreground = source.slice(
+    source.indexOf('const startForegroundAuth'),
+    source.indexOf('if (previousState'),
+  );
+
+  assert.ok(foreground.indexOf("verifyAccount('foreground')") >= 0);
+  assert.ok(foreground.indexOf("verifyAccount('foreground')") < foreground.indexOf('syncNow'));
 });
