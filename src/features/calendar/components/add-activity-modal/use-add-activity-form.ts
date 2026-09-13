@@ -14,7 +14,6 @@ import {
 import { type AddActivityFormValues, type AddActivityModalProps } from './types';
 
 const EMPTY_FORM: AddActivityFormValues = {
-  kind: 'settling',
   startInput: '09:00',
   endInput: '09:30',
   startDayMs: 0,
@@ -28,7 +27,7 @@ const EMPTY_FORM: AddActivityFormValues = {
 };
 
 export function useAddActivityForm(
-  props: Pick<AddActivityModalProps, 'visible' | 'day' | 'proActive' | 'onClose' | 'onSave'>,
+  props: Pick<AddActivityModalProps, 'visible' | 'kind' | 'day' | 'proActive' | 'onClose' | 'onSave'>,
   t: Translate,
 ) {
   const [form, setForm] = useState<AddActivityFormValues>(EMPTY_FORM);
@@ -44,10 +43,10 @@ export function useAddActivityForm(
     setSaving(false);
   }, [props.day, props.visible]);
 
-  const eventKind = isEvent(form.kind);
+  const eventKind = isEvent(props.kind);
   const parsedVolume = parsePositiveVolume(form.volume);
   const bottleVolume =
-    form.kind === 'feeding' && form.feedingMode === 'bottle' ? parsedVolume : undefined;
+    props.kind === 'feeding' && form.feedingMode === 'bottle' ? parsedVolume : undefined;
 
   const setField = <Key extends keyof AddActivityFormValues>(
     key: Key,
@@ -71,7 +70,7 @@ export function useAddActivityForm(
   };
 
   const submit = async () => {
-    const duration = eventKind ? eventDurationMs(form.kind as EventKind) : 0;
+    const duration = eventKind ? eventDurationMs(props.kind as EventKind) : 0;
     const result = buildTimeRange({
       startInput: form.startInput,
       endInput: form.endInput,
@@ -87,7 +86,7 @@ export function useAddActivityForm(
 
     const details = buildProDetails({
       proActive: props.proActive,
-      kind: form.kind,
+      kind: props.kind,
       eventKind,
       settlingMethods: form.settlingMethods,
       sleepPlace: form.sleepPlace,
@@ -99,7 +98,7 @@ export function useAddActivityForm(
 
     setSaving(true);
     try {
-      await props.onSave(form.kind, result.range.start, result.range.end, details, bottleVolume);
+      await props.onSave(props.kind, result.range.start, result.range.end, details, bottleVolume);
       props.onClose();
     } finally {
       setSaving(false);

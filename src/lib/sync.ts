@@ -202,6 +202,27 @@ export async function fetchAccountProStatus(): Promise<AccountProStatus> {
   };
 }
 
+const PRO_ACTIVATION_POLLS = 10;
+const PRO_ACTIVATION_POLL_MS = 1500;
+
+/**
+ * Pro is read from the profile only. After a purchase the server copies the
+ * RevenueCat entitlement into it; if that call is unavailable, the webhook
+ * does the same a little later, so the profile is polled for a while.
+ */
+export async function refreshAccountProStatus(): Promise<AccountProStatus> {
+  if (!isSupabaseConfigured) return { active: false, trialUsed: false };
+  await requireSession();
+  const { error } = await supabase.functions.invoke('refresh-pro-status');
+  let status = await fetchAccountProStatus();
+  if (!error) return status;
+  for (let attempt = 0; !status.active && attempt < PRO_ACTIVATION_POLLS; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, PRO_ACTIVATION_POLL_MS));
+    status = await fetchAccountProStatus();
+  }
+  return status;
+}
+
 export async function deleteAccount(): Promise<void> {
   await requireSession();
   const { error } = await supabase.rpc('delete_account');
@@ -531,6 +552,25 @@ export async function loadChildHistoryRange(
     ),
   );
   return counts.reduce((sum, count) => sum + count, 0);
+}
+
+/**
+ * Loads a long span one week at a time: each merge reads and rewrites the
+ * shared day buckets, so weeks merged in parallel can overwrite each other.
+ */
+export async function syncChildHistory(
+  remoteId: string,
+  localChildId: string,
+  startMs: number,
+  endMs: number,
+  options: { refresh?: boolean } = {},
+): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  let applied = 0;
+  for (const week of calendarWeeksInRange(startMs, endMs)) {
+    applied += await loadChildHistoryWeek(remoteId, localChildId, week, options);
+  }
+  return applied;
 }
 
 export function loadChildCurrentWeek(

@@ -13,6 +13,7 @@ import {
   AppState,
   Dimensions,
   Easing,
+  Keyboard,
   Platform,
   Pressable,
   StyleSheet,
@@ -56,6 +57,8 @@ export function WheelSheetHost({ children }: WheelSheetHostProps) {
   const requestRef = useRef<WheelSheetRequest | null>(null);
 
   const open = useCallback((next: WheelSheetRequest) => {
+    // The sheet is drawn in JS, so a focused input would keep its keyboard open under it.
+    Keyboard.dismiss();
     requestRef.current = next;
     setRequest(next);
   }, []);

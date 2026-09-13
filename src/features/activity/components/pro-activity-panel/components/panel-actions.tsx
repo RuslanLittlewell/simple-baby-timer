@@ -1,9 +1,4 @@
 import { View, type LayoutChangeEvent } from "react-native";
-import Animated, {
-  FadeInRight,
-  FadeOutRight,
-  LinearTransition,
-} from "react-native-reanimated";
 
 import { type EventKind } from "@/lib/activity-store";
 import { useT } from "@/state/app-state";
@@ -24,7 +19,6 @@ interface PanelActionsProps {
   awakeActive: boolean;
   disabled: boolean;
   feedingActive: boolean;
-  layoutAnimationsReady: boolean;
   nightWakingVisible: boolean;
   settlingActive: boolean;
   sleepActive: boolean;
@@ -41,9 +35,6 @@ interface PanelActionsProps {
 
 export function PanelActions(props: PanelActionsProps) {
   const t = useT();
-  const transition = props.layoutAnimationsReady
-    ? LinearTransition.duration(280)
-    : undefined;
 
   return (
     <>
@@ -58,14 +49,12 @@ export function PanelActions(props: PanelActionsProps) {
           onPress={() => props.onOpen("settling")}
         />
       </View>
-      <Animated.View
+      <View
         style={styles.sleepActionRow}
-        layout={transition}
         onLayout={(event) => props.onSleepRowTop(event.nativeEvent.layout.y)}
       >
-        <Animated.View
+        <View
           style={styles.sleepActionMain}
-          layout={transition}
           onLayout={props.onCaptureRect("sleep")}
         >
           <ActivityRow
@@ -77,29 +66,16 @@ export function PanelActions(props: PanelActionsProps) {
             onStop={() => void props.onToggleSleep()}
             onPress={() => props.onOpen("sleep")}
           />
-        </Animated.View>
+        </View>
         {props.nightWakingVisible && (
-          <Animated.View
-            entering={
-              props.layoutAnimationsReady
-                ? FadeInRight.duration(240)
-                : undefined
-            }
-            exiting={
-              props.layoutAnimationsReady
-                ? FadeOutRight.duration(200)
-                : undefined
-            }
-            layout={transition}
-            style={styles.nightWakingSlot}
-          >
+          <View style={styles.nightWakingSlot}>
             <NightWakingButton
               disabled={props.disabled}
               onPress={() => void props.onLogEvent(NIGHT_WAKING_EVENT.id)}
             />
-          </Animated.View>
+          </View>
         )}
-      </Animated.View>
+      </View>
       <ActivityRow
         disabled={props.disabled}
         icon={AWAKE_ACTIVITY.icon}

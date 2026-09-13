@@ -75,10 +75,6 @@ export function entitlementFrom(info: CustomerInfo): ProEntitlement {
   };
 }
 
-export async function fetchEntitlement(): Promise<ProEntitlement> {
-  if (!purchasesSupported) return { active: false };
-  return entitlementFrom(await Purchases.getCustomerInfo());
-}
 
 
 

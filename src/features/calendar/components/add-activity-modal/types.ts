@@ -11,6 +11,7 @@ export type BottleContent = (typeof BOTTLE_CONTENTS)[number];
 
 export interface AddActivityModalProps {
   visible: boolean;
+  kind: ManualKind;
   day: Date;
   proActive: boolean;
   onClose: () => void;
@@ -24,7 +25,6 @@ export interface AddActivityModalProps {
 }
 
 export interface AddActivityFormValues {
-  kind: ManualKind;
   startInput: string;
   endInput: string;
   startDayMs: number;

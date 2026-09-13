@@ -94,7 +94,6 @@ export function ProActivityPanel({
   const [nightWakingVisible, setNightWakingVisible] = useState(
     isNightWakingTime,
   );
-  const [layoutAnimationsReady, setLayoutAnimationsReady] = useState(false);
   
   const [mode, setMode] = useState<FeedingMode | null>(null);
   const [side, setSide] = useState<BreastSide | null>(null);
@@ -132,9 +131,7 @@ export function ProActivityPanel({
   const stopping = timerRunning && !(isFeeding && mode === "bottle");
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setLayoutAnimationsReady(true));
     return () => {
-      cancelAnimationFrame(frame);
       cancelAnimation(expansion);
       cancelAnimation(lift);
     };
@@ -356,7 +353,6 @@ export function ProActivityPanel({
         awakeActive={awakeActive}
         disabled={disabled}
         feedingActive={feedingActive}
-        layoutAnimationsReady={layoutAnimationsReady}
         nightWakingVisible={nightWakingVisible}
         settlingActive={settlingActive}
         sleepActive={sleepActive}

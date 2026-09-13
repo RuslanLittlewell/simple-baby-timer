@@ -35,12 +35,7 @@ import {
   syncChildToCloud,
   syncChildProfile,
 } from '@/lib/sync';
-import {
-  fetchEntitlement,
-  forgetPurchaser,
-  identifyPurchaser,
-  type ProEntitlement,
-} from '@/lib/purchases';
+import { forgetPurchaser, identifyPurchaser } from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 import { subscribeToLiveActivityPushTokens } from '@/lib/live-activity-sync';
 import {
@@ -154,17 +149,10 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     await flushQueue();
     if (!isCurrentAuth()) return 'unavailable';
 
-    const [pro, receipt] = await Promise.all([
-      fetchAccountProStatus(),
-      fetchEntitlement().catch(() => ({ active: false }) as ProEntitlement),
-    ]);
+    // Pro comes from the profile alone; RevenueCat reaches it through the server.
+    const pro = await fetchAccountProStatus();
     if (!isCurrentAuth()) return 'unavailable';
-    useAppStore.getState().setProStatus(
-      pro.active || receipt.active,
-      pro.expiresAt ?? receipt.expiresAt,
-      pro.renewsAt ?? receipt.renewsAt,
-      pro.trialUsed,
-    );
+    useAppStore.getState().setProStatus(pro.active, pro.expiresAt, pro.renewsAt, pro.trialUsed);
 
     const { removedRemoteIds, clearRemovedRemoteId } = useAppStore.getState();
     for (const remoteId of removedRemoteIds) {
