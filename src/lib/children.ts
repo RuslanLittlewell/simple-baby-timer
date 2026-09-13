@@ -79,6 +79,10 @@ export function formatAge(birthdayMs: number, lang: LanguageCode, now = Date.now
   return parts.join(' ');
 }
 
+export function ageInMonths(birthdayMs: number, now = Date.now()): number {
+  return ageParts(birthdayMs, now).months;
+}
+
 export function regimeIndexForBirthday(birthdayMs: number, now = Date.now()): number {
   const months = ageParts(birthdayMs, now).totalDays / 30.44;
   if (months < 1.5) return 0;

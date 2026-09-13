@@ -15,7 +15,9 @@ export const TIMELINE_Z_INDEX = {
   live: 1,
   completed: 2,
   event: 3,
-  now: 4,
+  // Above every record so the plan stays visible, but it takes no touches.
+  ghost: 5,
+  now: 6,
 } as const;
 
 export const ZOOM_MODES = [
@@ -67,3 +69,5 @@ export const KIND_META: Record<SessionKind, KindMeta> = {
   diaper: { gradKey: 'diaper', icon: 'diaper-outline' },
   nightWaking: { gradKey: 'nightWaking', icon: 'power-sleep' },
 };
+
+export const MANUAL_KINDS: SessionKind[] = ['settling', 'sleep', 'awake', 'feeding', 'diaper', 'poop'];

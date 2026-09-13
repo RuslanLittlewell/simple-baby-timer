@@ -7,6 +7,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAppStore, useT } from '@/state/app-state';
 import { AccountSection } from './components/account-section';
 import { AppearanceSection } from './components/appearance-section';
+import { DataSection } from './components/data-section';
 import { ReminderCard } from './components/reminder-card';
 import { SettingsSection } from './components/settings-section';
 
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
               <ReminderCard label={t('settings.awakeTime')} timeLabel={t('settings.remindAfter')} hint={t('settings.awakeHint')} icon="white-balance-sunny" value={awakeMinutes} enabled={awakeEnabled} expanded={awakeEnabled || expanded.awake} onToggle={() => toggle('awake', awakeEnabled)} onEnabledChange={(value) => updateReminder('awake', value)} onCommit={setAwakeMinutes} />
             </View>
           </SettingsSection>
+          <DataSection />
           <AccountSection />
         </View>
       </ScrollView>

@@ -28,6 +28,7 @@ import {
   restorePurchases,
   type ProEntitlement,
 } from '@/lib/purchases';
+import { refreshAccountProStatus } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 
 
@@ -104,6 +105,7 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   const t = useT();
   const setProStatus = useAppStore((state) => state.setProStatus);
   const trialUsed = useAppStore((state) => state.trialUsed);
+  const [activationPending, setActivationPending] = useState(false);
   const accountId = useAppStore((state) => state.accountId);
   const startTrial = useAppStore((state) => state.startTrial);
   const { height } = useWindowDimensions();
@@ -124,6 +126,7 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
     setLoadFailed(false);
     setPurchaseFailed(false);
     setTrialFailed(false);
+    setActivationPending(false);
     fetchOffering()
       .then((offering) => {
         if (alive) setPackages(offering?.availablePackages ?? []);
@@ -158,22 +161,27 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   const plansSettled = packages !== null || loadFailed;
   const hasPlans = packages !== null && packages.length > 0;
 
+  // The store confirms the purchase, but Pro itself is whatever the profile says.
   const apply = useCallback(
-    (entitlement: ProEntitlement) => {
+    async (entitlement: ProEntitlement) => {
       if (!entitlement.active) return false;
-      setProStatus(true, entitlement.expiresAt, entitlement.renewsAt, trialUsed);
-      return true;
+      // The purchase already went through, so a failed refresh is only a delay, not an error.
+      const status = await refreshAccountProStatus().catch(() => null);
+      if (status) setProStatus(status.active, status.expiresAt, status.renewsAt, status.trialUsed);
+      setActivationPending(!status?.active);
+      return status?.active === true;
     },
-    [setProStatus, trialUsed],
+    [setProStatus],
   );
 
   const buy = () => {
     if (busy || !selected) return;
     setBusy(true);
     setPurchaseFailed(false);
+    setActivationPending(false);
     purchase(selected)
-      .then((entitlement) => {
-        if (apply(entitlement)) onClose();
+      .then(async (entitlement) => {
+        if (await apply(entitlement)) onClose();
       })
       .catch((error: unknown) => {
         
@@ -204,10 +212,11 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
     if (busy) return;
     setBusy(true);
     setPurchaseFailed(false);
+    setActivationPending(false);
     restorePurchases()
-      .then((entitlement) => {
-        if (apply(entitlement)) onClose();
-        else setPurchaseFailed(true);
+      .then(async (entitlement) => {
+        if (!entitlement.active) setPurchaseFailed(true);
+        else if (await apply(entitlement)) onClose();
       })
       .catch(() => setPurchaseFailed(true))
       .finally(() => setBusy(false));
@@ -360,6 +369,12 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
           {purchaseFailed && (
             <ThemedText type="small" themeColor="danger" style={styles.note}>
               {t('paywall.purchaseError')}
+            </ThemedText>
+          )}
+
+          {activationPending && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+              {t('paywall.activationPending')}
             </ThemedText>
           )}
 

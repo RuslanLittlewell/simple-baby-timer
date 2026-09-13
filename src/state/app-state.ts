@@ -47,6 +47,7 @@ import {
   scheduleActivityNotification,
   type ActivityKind,
 } from '@/lib/notifications';
+import { usePersonalRegimeStore } from '@/state/personal-regime-state';
 
 const STORAGE_KEY = 'babytimer.settings.v1';
 
@@ -654,7 +655,8 @@ export const useAppStore = create<AppStore>()(
           state.children.some((child) => child.id === id) ? { activeChildId: id } : {},
         ),
 
-      removeChild: (id) =>
+      removeChild: (id) => {
+        usePersonalRegimeStore.getState().removeRegime(id);
         set((state) => {
           const removed = state.children.find((child) => child.id === id);
           const children = state.children.filter((child) => child.id !== id);
@@ -668,7 +670,8 @@ export const useAppStore = create<AppStore>()(
               state.activeChildId === id ? (children[0]?.id ?? null) : state.activeChildId,
             dataVersion: state.dataVersion + 1,
           };
-        }),
+        });
+      },
 
       clearRemovedRemoteId: (remoteId) =>
         set((state) => ({
@@ -693,6 +696,7 @@ export const useAppStore = create<AppStore>()(
          */
         await clearSyncState();
         await deleteAllSessions().catch(() => {});
+        usePersonalRegimeStore.getState().clear();
         set({
           children: [],
           activeChildId: null,

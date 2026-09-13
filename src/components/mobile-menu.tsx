@@ -32,7 +32,7 @@ import { signOut } from "@/lib/supabase";
 import { useAppStore, useT } from "@/state/app-state";
 
 const DRAWER_WIDTH = Dimensions.get("window").width * 0.5;
-const APP_VERSION = Constants.expoConfig?.version ?? "1.0.5";
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.6";
 
 export function MobileMenu() {
   const theme = useTheme();

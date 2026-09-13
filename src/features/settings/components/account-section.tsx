@@ -25,7 +25,7 @@ export function AccountSection() {
   return <SettingsSection title={t('settings.accountSection')}>
     <Pressable accessibilityRole="button" disabled={deleting} onPress={confirmDelete}
       style={({ pressed }) => [styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }, (pressed || deleting) && styles.pressed]}>
-      <MaterialCommunityIcons name="trash-can-outline" size={30} color={theme.danger} />
+      <MaterialCommunityIcons name="account-remove-outline" size={30} color={theme.danger} />
       <ThemedText type="smallBold" themeColor="danger" style={styles.flex}>{t('settings.deleteAccount')}</ThemedText>
     </Pressable>
   </SettingsSection>;

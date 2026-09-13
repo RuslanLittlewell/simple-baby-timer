@@ -125,13 +125,29 @@ test('add activity modal is split behind a stable folder entry point', () => {
   assert.match(indexSource, /export \{ AddActivityModal \}/);
   assert.match(modalSource, /<Modal/);
   assert.match(modalSource, /<WheelSheetHost>/);
-  assert.match(modalSource, /<ActivityField/);
   assert.match(modalSource, /<TimeFields/);
   assert.match(modalSource, /<ProParameters/);
   assert.match(modalSource, /const showProParameters =/);
   assert.match(hookSource, /const bottleVolume =/);
   assert.equal(
     existsSync(new URL('../src/features/calendar/components/add-activity-modal.tsx', import.meta.url)),
+    false,
+  );
+});
+
+test('the + menu picks the activity, so the modal opens already set to it', () => {
+  const folder = new URL('../src/features/calendar/', import.meta.url);
+  const modalSource = readFileSync(new URL('components/add-activity-modal/add-activity-modal.tsx', folder), 'utf8');
+  const hookSource = readFileSync(new URL('components/add-activity-modal/use-add-activity-form.ts', folder), 'utf8');
+  const screenSource = readFileSync(new URL('calendar-screen.tsx', folder), 'utf8');
+
+  assert.doesNotMatch(modalSource, /ActivityField/);
+  assert.match(modalSource, /t\(`kind\.\$\{props\.kind\}`\)/);
+  assert.doesNotMatch(hookSource, /form\.kind/);
+  assert.match(screenSource, /<ManualAddMenu/);
+  assert.match(screenSource, /kind=\{manualKind\}/);
+  assert.equal(
+    existsSync(new URL('components/add-activity-modal/activity-field.tsx', folder)),
     false,
   );
 });

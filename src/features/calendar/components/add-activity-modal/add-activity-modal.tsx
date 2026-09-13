@@ -11,7 +11,6 @@ import { useAppStore, useT } from '@/state/app-state';
 
 import { KIND_META } from '../../constants';
 import { modalStyles } from '../../modal-styles';
-import { ActivityField } from './activity-field';
 import { ProParameters } from './pro-parameters';
 import { SaveButton } from './save-button';
 import { styles } from './styles';
@@ -27,8 +26,8 @@ export function AddActivityModal(props: AddActivityModalProps) {
   const weekdays = WEEKDAYS_I18N[language];
   const formState = useAddActivityForm(props, t);
   const { form, eventKind } = formState;
-  const borderColor = accent[KIND_META[form.kind].gradKey];
-  const showProParameters = props.proActive && form.kind !== 'awake' && !eventKind;
+  const borderColor = accent[KIND_META[props.kind].gradKey];
+  const showProParameters = props.proActive && props.kind !== 'awake' && !eventKind;
   const showProRequired = !props.proActive && !eventKind;
 
   return (
@@ -46,7 +45,9 @@ export function AddActivityModal(props: AddActivityModalProps) {
               { backgroundColor: theme.background, borderColor },
             ]}>
             <View style={modalStyles.header}>
-              <ThemedText style={modalStyles.title}>{t('manual.title')}</ThemedText>
+              <ThemedText style={modalStyles.title}>
+                {props.kind === 'poop' ? '💩' : t(`kind.${props.kind}`)}
+              </ThemedText>
               <Pressable onPress={props.onClose} hitSlop={12}>
                 <MaterialCommunityIcons name="close" size={24} color={theme.text} />
               </Pressable>
@@ -57,11 +58,6 @@ export function AddActivityModal(props: AddActivityModalProps) {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.content}>
-              <ActivityField
-                kind={form.kind}
-                onChange={(kind) => formState.setField('kind', kind)}
-                t={t}
-              />
               <TimeFields
                 eventKind={eventKind}
                 startInput={form.startInput}
@@ -79,7 +75,7 @@ export function AddActivityModal(props: AddActivityModalProps) {
 
               {showProParameters && (
                 <ProParameters
-                  kind={form.kind}
+                  kind={props.kind}
                   sleepPlace={form.sleepPlace}
                   feedingMode={form.feedingMode}
                   breastSide={form.breastSide}

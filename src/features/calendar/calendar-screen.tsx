@@ -9,13 +9,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
-import { getSessionsForDay, type ActivitySession } from '@/lib/activity-store';
+import { getSessionsForDay, type ActivitySession, type SessionKind } from '@/lib/activity-store';
 import { loadChildHistoryRange } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
+import { usePersonalRegimeStore } from '@/state/personal-regime-state';
 
 import { EntryEditor } from './components/entry-editor';
 import { AddActivityModal } from './components/add-activity-modal';
+import { ManualAddMenu, ManualAddToggleIcon } from './components/manual-add-menu';
 import { MonthView } from './components/month-view';
+import { RegimeGhostBlocks } from './components/regime-ghost-blocks';
+import { RegimeGhostToggle } from './components/regime-ghost-toggle';
 import { StatsModal } from './components/stats-modal/stats-modal';
 import { LiveBlocks, TimelineBlocks, type LiveBlock } from './components/timeline-blocks';
 import { TimelineGrid } from './components/timeline-grid';
@@ -55,7 +59,21 @@ export default function CalendarScreen() {
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
   const [statsVisible, setStatsVisible] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<ActivitySession | null>(null);
+  const [manualMenuOpen, setManualMenuOpen] = useState(false);
   const [addingActivity, setAddingActivity] = useState(false);
+  // Kept after the modal closes so its title and colour do not change while it fades out.
+  const [manualKind, setManualKind] = useState<SessionKind>('sleep');
+  const [headerBottom, setHeaderBottom] = useState(0);
+  const openManualActivity = (kind: SessionKind) => {
+    setManualMenuOpen(false);
+    setManualKind(kind);
+    setAddingActivity(true);
+  };
+  const regime = usePersonalRegimeStore((state) =>
+    activeChildId ? state.regimes[activeChildId] : undefined,
+  );
+  const ghostVisible = usePersonalRegimeStore((state) => state.ghostVisible);
+  const setGhostVisible = usePersonalRegimeStore((state) => state.setGhostVisible);
 
   const syncCurrentDate = useCallback(() => {
     const nextToday = new Date();
@@ -282,7 +300,12 @@ export default function CalendarScreen() {
             styles.safe,
             Platform.OS === 'ios' && Platform.isPad && styles.ipadTopTabsInset,
           ]}>
-          <View style={styles.header}>
+          <View
+            style={styles.header}
+            onLayout={(event) => {
+              const { y, height } = event.nativeEvent.layout;
+              setHeaderBottom(y + height);
+            }}>
             <Pressable
               accessibilityLabel={t('calendar.week')}
               onPress={openWeek}
@@ -322,10 +345,11 @@ export default function CalendarScreen() {
               </Pressable>
               <Pressable
                 accessibilityLabel={t('manual.title')}
-                onPress={() => setAddingActivity(true)}
+                accessibilityState={{ expanded: manualMenuOpen }}
+                onPress={() => setManualMenuOpen((open) => !open)}
                 hitSlop={12}
                 style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-                <MaterialCommunityIcons name="plus" size={24} color={theme.text} />
+                <ManualAddToggleIcon open={manualMenuOpen} color={theme.text} />
               </Pressable>
             </View>
           </View>
@@ -375,6 +399,10 @@ export default function CalendarScreen() {
                   t={t}
                 />
 
+                {ghostVisible && regime && (
+                  <RegimeGhostBlocks regime={regime} hourHeight={hourHeight} />
+                )}
+
                 {isToday && (
                   <View style={[styles.nowLine, { top: px(nowMinutes) }]} pointerEvents="none">
                     <View style={styles.nowDot} />
@@ -393,6 +421,14 @@ export default function CalendarScreen() {
             </View>
           )}
 
+          {regime && (
+            <RegimeGhostToggle
+              active={ghostVisible}
+              accessibilityLabel={t('calendar.regimeGhost')}
+              onPress={() => setGhostVisible(!ghostVisible)}
+            />
+          )}
+
           <ZoomBadge label={zoomLabel} zoom={zoom} />
 
           {dayStats}
@@ -403,8 +439,17 @@ export default function CalendarScreen() {
             onClose={closeEntryEditor}
             onChanged={refreshSessions}
           />
+          <ManualAddMenu
+            open={manualMenuOpen}
+            top={headerBottom}
+            closeLabel={t('editor.cancel')}
+            t={t}
+            onSelect={openManualActivity}
+            onClose={() => setManualMenuOpen(false)}
+          />
           <AddActivityModal
             visible={addingActivity}
+            kind={manualKind}
             day={shownDay}
             proActive={proAccess}
             onClose={() => setAddingActivity(false)}

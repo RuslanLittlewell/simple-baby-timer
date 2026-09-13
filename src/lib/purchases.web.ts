@@ -30,10 +30,6 @@ export function entitlementFrom(_info: CustomerInfo): ProEntitlement {
   return { active: false };
 }
 
-export async function fetchEntitlement(): Promise<ProEntitlement> {
-  return { active: false };
-}
-
 export async function fetchOffering(): Promise<PurchasesOffering | null> {
   return null;
 }

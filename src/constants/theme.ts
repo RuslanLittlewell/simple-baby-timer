@@ -57,6 +57,8 @@ export const BackgroundGradient: Record<
 
 
 
+export const PurpleGradient = ['#4C1D95', '#7C3AED', '#C026D3'] as const;
+
 export const NunitoSans = {
   regular: 'NunitoSans_400Regular',
   medium: 'NunitoSans_500Medium',
