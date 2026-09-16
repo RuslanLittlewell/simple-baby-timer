@@ -19,6 +19,18 @@ const titles: Record<string, Record<string, string>> = {
   it: { settling: 'Addormentamento', sleep: 'Sonno', feeding: 'Poppata', awake: 'Sveglio' },
 };
 
+const lastFeedingTitles: Record<string, string> = {
+  en: 'Last feeding',
+  ru: 'Последнее кормление',
+  ua: 'Останнє годування',
+  pl: 'Ostatnie karmienie',
+  es: 'Última toma',
+  fr: 'Dernier repas',
+  de: 'Letzte Fütterung',
+  pt: 'Última alimentação',
+  it: 'Ultima poppata',
+};
+
 const icons: Record<string, string> = {
   settling: 'la-settling', sleep: 'la-sleep', feeding: 'la-feed', awake: 'la-awake',
 };
@@ -76,9 +88,14 @@ const isPermanentTokenFailure = (status: number, body: string) => {
   }
 };
 
-const stateFor = (kind: string, startedAt: number, locale: string) => ({
+const stateFor = (
+  kind: string,
+  startedAt: number,
+  locale: string,
+  lastFeedingTime: string | null,
+) => ({
   title: titles[locale]?.[kind] ?? titles.en[kind] ?? kind,
-  subtitle: null,
+  subtitle: `${lastFeedingTitles[locale] ?? lastFeedingTitles.en}: ${lastFeedingTime ?? '—'}`,
   timerEndDateInMilliseconds: null,
   progress: null,
   imageName: icons[kind],
@@ -103,7 +120,7 @@ Deno.serve(async (request) => {
 
     const body = await request.json() as {
       action: Action; childId: string; track: Track; installationId: string;
-      kind?: string; startedAt?: number;
+      kind?: string; startedAt?: number; lastFeedingTime?: string | null;
     };
     if (!['start', 'end'].includes(body.action) || !['session', 'feeding'].includes(body.track)) {
       return new Response('Invalid payload', { status: 400 });
@@ -154,7 +171,12 @@ Deno.serve(async (request) => {
           .neq('installation_id', body.installationId);
         for (const device of devices ?? []) {
           if (blockedInstallations.has(device.installation_id)) continue;
-          const state = stateFor(body.kind, body.startedAt!, device.locale);
+          const state = stateFor(
+            body.kind,
+            body.startedAt!,
+            device.locale,
+            body.lastFeedingTime ?? null,
+          );
           const result = await sendApns(device.push_to_start_token, {
             aps: {
               event: 'start',
@@ -169,7 +191,7 @@ Deno.serve(async (request) => {
                 progressViewLabelColor: '#FFFFFF',
                 deepLinkUrl: 'babytimer://',
                 timerType: 'digital',
-                paddingDetails: { vertical: 6, horizontal: 10 },
+                paddingDetails: { vertical: 14, horizontal: 16 },
                 imageWidth: 28,
                 imageHeight: 28,
               },
@@ -184,6 +206,50 @@ Deno.serve(async (request) => {
               .eq('user_id', device.user_id)
               .eq('installation_id', device.installation_id);
           }
+        }
+      }
+
+      const { data: companionInstances } = await admin
+        .from('live_activity_instances')
+        .select('user_id, installation_id, track, update_token')
+        .eq('child_id', body.childId)
+        .neq('track', body.track)
+        .neq('installation_id', body.installationId);
+      const companionInstallations = (companionInstances ?? []).map(
+        (instance) => instance.installation_id,
+      );
+      if (companionInstallations.length) {
+        const [{ data: companionDevices }, { data: liveRows }] = await Promise.all([
+          admin
+            .from('live_activity_devices')
+            .select('user_id, installation_id, locale')
+            .in('installation_id', companionInstallations),
+          admin
+            .from('live_sessions')
+            .select('track, kind, started_at_ms')
+            .eq('child_id', body.childId),
+        ]);
+        for (const instance of companionInstances ?? []) {
+          const device = (companionDevices ?? []).find(
+            (item) =>
+              item.user_id === instance.user_id &&
+              item.installation_id === instance.installation_id,
+          );
+          const live = (liveRows ?? []).find((row) => row.track === instance.track);
+          if (!device || !live) continue;
+          const result = await sendApns(instance.update_token, {
+            aps: {
+              event: 'update',
+              timestamp,
+              'content-state': stateFor(
+                live.kind,
+                Number(live.started_at_ms),
+                device.locale,
+                body.lastFeedingTime ?? null,
+              ),
+            },
+          });
+          results.push(result);
         }
       }
     }

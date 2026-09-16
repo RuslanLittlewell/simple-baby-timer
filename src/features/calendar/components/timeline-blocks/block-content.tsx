@@ -13,6 +13,7 @@ type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 interface BlockContentProps {
   icon: IconName;
   proDetails?: ActivitySession["proDetails"];
+  hasNotes?: boolean;
   color: string;
   title: string;
   detail?: string;
@@ -22,6 +23,7 @@ interface BlockContentProps {
 export function BlockContent({
   icon,
   proDetails,
+  hasNotes = false,
   color,
   title,
   detail,
@@ -41,6 +43,9 @@ export function BlockContent({
           <ThemedText style={[styles.breastSideMarker, { color }]}>
             {sideMarker}
           </ThemedText>
+        )}
+        {hasNotes && (
+          <MaterialCommunityIcons name="note-text-outline" size={14} color={color} />
         )}
         <ThemedText style={[styles.blockTitle, { color }]} numberOfLines={1}>
           {title}

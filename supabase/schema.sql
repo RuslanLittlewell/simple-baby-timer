@@ -63,15 +63,30 @@ create table if not exists public.sessions (
   end_ms bigint not null,
   milk_ml integer,
   pro_details jsonb,
+  notes text,
   deleted boolean not null default false,
   updated_at timestamptz not null default now(),
   primary key (child_id, id)
 );
 
 alter table public.sessions add column if not exists pro_details jsonb;
+alter table public.sessions add column if not exists notes text;
 
 create index if not exists sessions_child_updated
   on public.sessions (child_id, updated_at);
+
+create table if not exists public.child_measurements (
+  child_id uuid not null references public.children (id) on delete cascade,
+  id text not null,
+  measured_on date not null,
+  height_cm numeric(7, 2) not null check (height_cm > 0),
+  weight_kg numeric(7, 3) not null check (weight_kg > 0),
+  updated_at timestamptz not null default now(),
+  primary key (child_id, id)
+);
+
+create index if not exists child_measurements_child_date
+  on public.child_measurements (child_id, measured_on desc, id desc);
 
 create table if not exists public.live_sessions (
   child_id uuid not null references public.children (id) on delete cascade,
@@ -128,6 +143,11 @@ create trigger sessions_touch
   before insert or update on public.sessions
   for each row execute function public.touch_updated_at();
 
+drop trigger if exists child_measurements_touch on public.child_measurements;
+create trigger child_measurements_touch
+  before insert or update on public.child_measurements
+  for each row execute function public.touch_updated_at();
+
 
 do $$ begin
   if not exists (
@@ -145,6 +165,14 @@ do $$ begin
       and tablename = 'live_sessions'
   ) then
     alter publication supabase_realtime add table public.live_sessions;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'child_measurements'
+  ) then
+    alter publication supabase_realtime add table public.child_measurements;
   end if;
 end $$;
 
@@ -181,6 +209,7 @@ alter table public.profiles enable row level security;
 alter table public.children enable row level security;
 alter table public.child_members enable row level security;
 alter table public.sessions enable row level security;
+alter table public.child_measurements enable row level security;
 alter table public.live_sessions enable row level security;
 alter table public.live_activity_devices enable row level security;
 alter table public.live_activity_instances enable row level security;
@@ -223,6 +252,22 @@ drop policy if exists sessions_all on public.sessions;
 create policy sessions_all on public.sessions
   for all using (public.is_child_member(child_id))
   with check (public.is_child_member(child_id));
+
+drop policy if exists child_measurements_select on public.child_measurements;
+create policy child_measurements_select on public.child_measurements
+  for select using (public.is_child_member(child_id));
+
+drop policy if exists child_measurements_insert on public.child_measurements;
+create policy child_measurements_insert on public.child_measurements
+  for insert with check (public.is_child_member(child_id));
+
+drop policy if exists child_measurements_update on public.child_measurements;
+create policy child_measurements_update on public.child_measurements
+  for update
+  using (public.is_child_member(child_id))
+  with check (public.is_child_member(child_id));
+
+grant select, insert, update on public.child_measurements to authenticated;
 
 drop policy if exists live_sessions_all on public.live_sessions;
 create policy live_sessions_all on public.live_sessions

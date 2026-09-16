@@ -10,6 +10,7 @@ import { Spacing } from '@/constants/theme';
 import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { getSessionsForDay, type ActivitySession, type SessionKind } from '@/lib/activity-store';
+import { selectActiveChildProAccess } from '@/lib/pro-access';
 import { loadChildHistoryRange } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 import { usePersonalRegimeStore } from '@/state/personal-regime-state';
@@ -49,9 +50,8 @@ export default function CalendarScreen() {
   const session = useAppStore((state) => state.session);
   const feeding = useAppStore((state) => state.feeding);
   const remoteLive = useAppStore((state) => state.remoteLive);
-  const proActive = useAppStore((state) => state.proActive);
+  const proAccess = useAppStore(selectActiveChildProAccess);
   const activeChild = children.find((child) => child.id === activeChildId);
-  const proAccess = proActive || activeChild?.proEnabled === true;
   const addManualActivity = useAppStore((state) => state.addManualActivity);
   const bumpDataVersion = useAppStore((state) => state.bumpDataVersion);
   const t = useT();

@@ -18,6 +18,7 @@ import {
   editorKindFlags,
   initialEditorValues,
   normalizeMilk,
+  normalizeNotes,
 } from './helpers';
 import { type EntryEditorProps, type EntryEditorValues, type TranslatedEditorProps } from './types';
 
@@ -27,6 +28,7 @@ const EMPTY_VALUES: EntryEditorValues = {
   startDayMs: 0,
   endDayMs: 0,
   milkInput: '',
+  notesInput: '',
   settlingMethods: [],
   sleepPlace: 'crib',
   feedingMode: 'breast',
@@ -103,7 +105,10 @@ export function useEntryEditorForm(
     const proDetails = props.proActive
       ? (buildEditableProDetails(entry.kind, values) as ProDetails | undefined)
       : entry.proDetails;
-    const update = { ...rangeResult.range, milkMl: milk.milkMl, proDetails };
+    const notes = entry.kind === 'awake'
+      ? normalizeNotes(entry.kind, values.notesInput)
+      : entry.notes;
+    const update = { ...rangeResult.range, milkMl: milk.milkMl, proDetails, notes };
     const originalDate = new Date(entry.start);
 
     await updateSession(entry.id, originalDate, update);

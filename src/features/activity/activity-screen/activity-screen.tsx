@@ -25,7 +25,12 @@ import {
   type ProDetails,
 } from "@/lib/activity-store";
 import { formatAge } from "@/lib/children";
+import { latestGrowthMeasurement } from "@/lib/growth-measurements";
+import { selectActiveChildProAccess } from "@/lib/pro-access";
 import { useAppStore, useT } from "@/state/app-state";
+import { useGrowthStore } from "@/state/growth-state";
+import { GrowthHistoryModal } from "@/features/growth/growth-history-modal";
+import { GrowthSummary } from "@/features/growth/growth-summary";
 
 import { activitySyncPresentation } from "../activity-sync-presentation";
 import { ActivityActionsSyncLoader } from "../components/activity-sync-loader/activity-actions-sync-loader";
@@ -71,14 +76,13 @@ export default function ActivityScreen() {
   const logEvent = useAppStore((state) => state.logEvent);
   const addManualActivity = useAppStore((state) => state.addManualActivity);
   const setActiveProDetails = useAppStore((state) => state.setActiveProDetails);
-  const proActive = useAppStore((state) => state.proActive);
+  const proAccess = useAppStore(selectActiveChildProAccess);
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
   const selectChild = useAppStore((state) => state.selectChild);
   const activeChildId = useAppStore((state) => state.activeChildId);
   const dataVersion = useAppStore((state) => state.dataVersion);
   const activeChild = children.find((child) => child.id === activeChildId);
-  const proAccess = proActive || activeChild?.proEnabled === true;
   const t = useT();
   const focused = useIsFocused();
   const { float } = useActivityColors();
@@ -88,6 +92,8 @@ export default function ActivityScreen() {
   const [proDismissSignal, setProDismissSignal] = useState(0);
   const [childSessions, setChildSessions] = useState<ActivitySession[]>([]);
   const [pendingStart, setPendingStart] = useState<PendingStart | null>(null);
+  const [growthHistoryOpen, setGrowthHistoryOpen] = useState(false);
+  const growthMeasurements = useGrowthStore((state) => state.measurements);
   
   
   const pendingStartResolve = useRef<((started: boolean) => void) | null>(null);
@@ -193,6 +199,9 @@ export default function ActivityScreen() {
   const childAge = activeChild?.birthday
     ? formatAge(activeChild.birthday, language)
     : null;
+  const latestGrowth = latestGrowthMeasurement(
+    growthMeasurements.filter((measurement) => measurement.childId === activeChildId),
+  );
 
   const handlePanelTouch = () => {
     if (proExpanded) setProDismissSignal((value) => value + 1);
@@ -287,48 +296,54 @@ export default function ActivityScreen() {
       <SafeAreaView style={[styles.safeArea, dense && styles.safeAreaDense]} edges={["top", "left", "right"]}>
         <View style={[styles.header, dense && styles.headerDense]}>
           {activeChild ? (
-            <Pressable
-              accessibilityLabel={activeChild.name}
-              onPress={() => router.navigate("/children")}
-              style={({ pressed }) => [pressed && styles.pressed]}
-            >
-              <LinearGradient
-                colors={CHILD_GRADIENTS[activeChild.gradientKey]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.childChip, dense && styles.childChipDense]}
+            <View style={styles.profileStack}>
+              <Pressable
+                accessibilityLabel={activeChild.name}
+                onPress={() => router.navigate("/children")}
+                style={({ pressed }) => [pressed && styles.pressed]}
               >
-                <BabySvg
-                  size={20}
-                  faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
-                  featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
-                />
-                <View style={styles.childInfo}>
-                  <ThemedText
-                    type="smallBold"
-                    numberOfLines={1}
-                    style={[
-                      styles.childName,
-                      { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
-                    ]}
-                  >
-                    {activeChild.name}{childAge ? " |" : ""}
-                  </ThemedText>
-                  {childAge && (
+                <LinearGradient
+                  colors={CHILD_GRADIENTS[activeChild.gradientKey]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.childChip, dense && styles.childChipDense]}
+                >
+                  <BabySvg
+                    size={20}
+                    faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
+                    featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
+                  />
+                  <View style={styles.childInfo}>
                     <ThemedText
-                      type="small"
+                      type="smallBold"
                       numberOfLines={1}
                       style={[
-                        styles.childAge,
+                        styles.childName,
                         { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
                       ]}
                     >
-                      {childAge}
+                      {activeChild.name}{childAge ? " |" : ""}
                     </ThemedText>
-                  )}
-                </View>
-              </LinearGradient>
-            </Pressable>
+                    {childAge && (
+                      <ThemedText
+                        type="small"
+                        numberOfLines={1}
+                        style={[
+                          styles.childAge,
+                          { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
+                        ]}
+                      >
+                        {childAge}
+                      </ThemedText>
+                    )}
+                  </View>
+                </LinearGradient>
+              </Pressable>
+              <GrowthSummary
+                measurement={latestGrowth}
+                onPress={() => setGrowthHistoryOpen(true)}
+              />
+            </View>
           ) : (
             <View />
           )}
@@ -434,6 +449,11 @@ export default function ActivityScreen() {
           onDismiss={dismissPendingStart}
         />
       )}
+      <GrowthHistoryModal
+        visible={growthHistoryOpen}
+        child={activeChild ?? null}
+        onClose={() => setGrowthHistoryOpen(false)}
+      />
     </ThemedView>
   );
 }

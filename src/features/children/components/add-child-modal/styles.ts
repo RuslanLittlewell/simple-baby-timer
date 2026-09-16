@@ -58,6 +58,24 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
+  measurementInputs: {
+    flexDirection: "row",
+    gap: Spacing.three,
+  },
+  measurementField: {
+    flex: 1,
+    gap: Spacing.one,
+  },
+  measurementInput: {
+    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: NunitoSans.bold,
+    fontVariant: ["tabular-nums"],
+  },
   saveButton: {
     alignItems: "center",
     borderRadius: Spacing.three,

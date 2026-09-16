@@ -52,6 +52,7 @@ export type ActivitySession = {
   kind: SessionKind;
   start: number;
   end: number;
+  notes?: string;
 
   milkMl?: number;
   proDetails?: ProDetails;
@@ -125,6 +126,22 @@ export async function getAllSessionsForChild(childId: string): Promise<ActivityS
     }
   });
   return [...new Map(all.map((session) => [session.id, session])).values()];
+}
+
+export async function getLatestFeedingStart(
+  childId?: string | null,
+): Promise<number | null> {
+  const sessions = await getSessionsInRange(
+    Number.MIN_SAFE_INTEGER,
+    Number.MAX_SAFE_INTEGER,
+    childId,
+  );
+  return sessions
+    .filter((session) => session.kind === 'feeding')
+    .reduce<number | null>(
+      (latest, session) => latest === null ? session.start : Math.max(latest, session.start),
+      null,
+    );
 }
 
 export async function claimUnownedSessions(childId: string): Promise<void> {
@@ -244,6 +261,7 @@ export async function updateSession(
   updates: Pick<ActivitySession, 'start' | 'end'> & {
     milkMl?: number;
     proDetails?: ProDetails;
+    notes?: string;
   },
 ): Promise<void> {
   const oldKey = storageKey(dayKeyFromDate(originalDate));

@@ -40,6 +40,7 @@ export function CompletedBlock({
     session.kind === "feeding" && session.milkMl
       ? ` · ${session.milkMl} ${t("unit.ml")}`
       : undefined;
+  const hasNotes = Boolean(session.notes?.trim());
 
   return (
     <Pressable
@@ -65,6 +66,7 @@ export function CompletedBlock({
           <BlockContent
             icon={meta.icon}
             proDetails={session.proDetails}
+            hasNotes={hasNotes}
             color={color}
             title={t(`kind.${session.kind}`)}
             detail={detail}

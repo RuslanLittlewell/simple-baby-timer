@@ -15,6 +15,7 @@ import { WheelField } from '@/components/wheel-field';
 import { WheelSheetHost } from '@/components/wheel-sheet';
 import { useTheme } from '@/hooks/use-theme';
 import { type Child, type ChildGradientKey } from '@/lib/children';
+import { parseMeasurementNumber } from '@/lib/growth-measurements';
 import { useT } from '@/state/app-state';
 
 import { CHILD_GRADIENT_FG, CHILD_GRADIENTS } from '../../constants';
@@ -27,7 +28,12 @@ interface AddChildModalProps {
   visible: boolean;
   child?: Child | null;
   onClose: () => void;
-  onSave: (name: string, gradientKey: ChildGradientKey, birthday: number) => void;
+  onSave: (
+    name: string,
+    gradientKey: ChildGradientKey,
+    birthday: number,
+    growth?: { heightCm: number; weightKg: number },
+  ) => void;
 }
 
 export function AddChildModal({ visible, child, onClose, onSave }: AddChildModalProps) {
@@ -36,17 +42,26 @@ export function AddChildModal({ visible, child, onClose, onSave }: AddChildModal
 
   const [name, setName] = useState('');
   const [birthday, setBirthday] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [gradientKey, setGradientKey] = useState<ChildGradientKey>('sky');
 
   useEffect(() => {
     if (!visible) return;
     setName(child?.name ?? '');
     setBirthday(child?.birthday === undefined ? '' : formatBirthday(new Date(child.birthday)));
+    setHeight('');
+    setWeight('');
     setGradientKey(child?.gradientKey ?? 'sky');
   }, [visible, child]);
 
   const birthdayMs = parseBirthday(birthday);
-  const canSave = name.trim().length > 0 && birthdayMs !== null;
+  const heightCm = parseMeasurementNumber(height);
+  const weightKg = parseMeasurementNumber(weight);
+  const canSave =
+    name.trim().length > 0 &&
+    birthdayMs !== null &&
+    (!!child || (heightCm !== null && weightKg !== null));
   const fg = CHILD_GRADIENT_FG[gradientKey];
 
   return (
@@ -107,6 +122,47 @@ export function AddChildModal({ visible, child, onClose, onSave }: AddChildModal
             ]}
           />
 
+          {!child && (
+            <View style={styles.measurementInputs}>
+              <View style={styles.measurementField}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('growth.weight')}
+                </ThemedText>
+                <TextInput
+                  accessibilityLabel={t('growth.weight')}
+                  value={weight}
+                  onChangeText={setWeight}
+                  inputMode="decimal"
+                  keyboardType="decimal-pad"
+                  placeholder={t('growth.weightPlaceholder')}
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.measurementInput,
+                    { color: theme.text, backgroundColor: theme.backgroundElement },
+                  ]}
+                />
+              </View>
+              <View style={styles.measurementField}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('growth.height')}
+                </ThemedText>
+                <TextInput
+                  accessibilityLabel={t('growth.height')}
+                  value={height}
+                  onChangeText={setHeight}
+                  inputMode="decimal"
+                  keyboardType="decimal-pad"
+                  placeholder={t('growth.heightPlaceholder')}
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.measurementInput,
+                    { color: theme.text, backgroundColor: theme.backgroundElement },
+                  ]}
+                />
+              </View>
+            </View>
+          )}
+
           <ThemedText type="small" themeColor="textSecondary">
             {t('children.color')}
           </ThemedText>
@@ -114,7 +170,13 @@ export function AddChildModal({ visible, child, onClose, onSave }: AddChildModal
 
           <Pressable
             disabled={!canSave}
-            onPress={() => birthdayMs !== null && onSave(name, gradientKey, birthdayMs)}
+            onPress={() => {
+              if (birthdayMs === null) return;
+              if (child) onSave(name, gradientKey, birthdayMs);
+              else if (heightCm !== null && weightKg !== null) {
+                onSave(name, gradientKey, birthdayMs, { heightCm, weightKg });
+              }
+            }}
             style={({ pressed }) => [
               styles.saveButton,
               { backgroundColor: theme.text },

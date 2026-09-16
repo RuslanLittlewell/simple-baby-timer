@@ -48,6 +48,15 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     fontFamily: NunitoSans.bold,
   },
+  notesInput: {
+    minHeight: 88,
+    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: NunitoSans.regular,
+  },
   saveButton: {
     alignItems: 'center',
     borderRadius: Spacing.three,

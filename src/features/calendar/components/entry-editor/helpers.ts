@@ -8,6 +8,7 @@ export interface InitialEntry {
   kind: string;
   start: number;
   end: number;
+  notes?: string;
   milkMl?: number;
   proDetails?: EntryDetails;
 }
@@ -18,6 +19,7 @@ export interface EditorValuesInput {
   startDayMs: number;
   endDayMs: number;
   milkInput: string;
+  notesInput: string;
   settlingMethods: string[];
   sleepPlace: string;
   feedingMode: 'breast' | 'bottle';
@@ -52,6 +54,7 @@ export function initialEditorValues(entry: InitialEntry): EditorValuesInput {
     startDayMs: startOfLocalDay(entry.start),
     endDayMs: startOfLocalDay(entry.end),
     milkInput: amount ? String(amount) : '',
+    notesInput: entry.notes ?? '',
     settlingMethods: details?.type === 'settling' ? details.methods : [],
     sleepPlace: details?.type === 'sleep' ? details.place : 'crib',
     feedingMode: details?.type === 'feeding' ? details.mode : 'breast',
@@ -108,6 +111,12 @@ export function buildEditedRange(input: {
 
 export function sanitizeMilkInput(value: string): string {
   return value.replace(/[^0-9]/g, '');
+}
+
+export function normalizeNotes(kind: string, input: string): string | undefined {
+  if (kind !== 'awake') return undefined;
+  const trimmed = input.trim();
+  return trimmed || undefined;
 }
 
 export function normalizeMilk(kind: string, input: string) {

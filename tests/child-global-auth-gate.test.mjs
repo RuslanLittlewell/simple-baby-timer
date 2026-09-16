@@ -25,7 +25,7 @@ test('confirmed session loss activates the global auth gate and stops the child 
 test('signed-in join and share routing remains connected', () => {
   const source = readFileSync(childScreenUrl, 'utf8');
 
-  assert.match(source, /if \(action\.type === ['"]share['"] && !proActive\)/);
+  assert.match(source, /!hasProAccess\(useAppStore\.getState\(\), action\.childId\)/);
   assert.match(source, /requestPro\(action\)/);
   assert.match(source, /runAction\(action\)/);
   assert.match(source, /else setEnteringCode\(true\)/);
