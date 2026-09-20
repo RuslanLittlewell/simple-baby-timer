@@ -8,7 +8,6 @@ import {
   getUserId,
   isOAuthInFlight,
   isSupabaseConfigured,
-  signOutLocal,
   supabase,
   verifyAccount,
 } from '@/lib/supabase';
@@ -84,11 +83,10 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       
       
       if (isOAuthInFlight()) return 'unavailable';
-      if (!(await confirmAccountLoss(capturedVerificationEpoch))) return 'unavailable';
-      await signOutLocal();
+      if (!(await confirmAccountLoss(capturedVerificationEpoch, account))) return 'unavailable';
       if (
         !isCurrentAuth() ||
-        !authGeneration.isVerificationCurrent(capturedVerificationEpoch)
+        !authGeneration.claimMissingEffects(capturedVerificationEpoch)
       ) return 'unavailable';
       useAppStore.getState().setProStatus(false);
       useAppStore.getState().setAuthRequired(true);
@@ -456,9 +454,10 @@ export function useSync() {
             return;
           }
           const outcome = await verifyAccount('auth-event');
+          if (outcome === 'ok') return;
           if (
-            outcome === 'ok' ||
-            !(await confirmAccountLoss(capturedVerificationEpoch))
+            outcome === 'definitive-auth-loss' &&
+            !(await confirmAccountLoss(capturedVerificationEpoch, outcome))
           ) return;
           await applyMissingSession();
         })();
@@ -473,9 +472,9 @@ export function useSync() {
     let previousState = AppState.currentState;
 
     const startForegroundAuth = async (fresh: boolean) => {
-      await supabase.auth.startAutoRefresh();
-      if (disposed) return;
       await verifyAccount('foreground');
+      if (disposed) return;
+      await supabase.auth.startAutoRefresh();
       if (!disposed) await syncNow({ fresh });
     };
 

@@ -20,3 +20,8 @@
 - [x] 4.1 Add deterministic tests for successful refresh winning over older missing-session and destructive-check work
 - [x] 4.2 Add tests for transient absence, unexpected signed-out recovery, protected-action recovery, and confirmed credential loss
 - [x] 4.3 Run focused authentication tests, the full test suite, type checking, and strict OpenSpec validation
+
+## 5. Production Race Follow-up
+
+- [x] 5.1 Verify the foreground session before scheduling the auto-refresh tick, and make unexpected confirmed loss update the gate only after an atomic current-epoch claim without calling local sign-out
+- [x] 5.2 Add regression coverage for refresh winning after confirmation, verify automatic loss handling cannot call local sign-out, and rerun authentication tests, type checking, lint, and strict OpenSpec validation

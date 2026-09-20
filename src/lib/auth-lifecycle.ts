@@ -11,10 +11,9 @@ interface AuthFailureSummary {
 export function classifySessionRecovery(
   hasSession: boolean,
   failure?: AuthFailureSummary,
-  confirmedMissing = false,
 ): AccountCheckOutcome {
   if (hasSession) return 'ok';
-  if (!failure) return confirmedMissing ? 'definitive-auth-loss' : 'inconclusive';
+  if (!failure) return 'inconclusive';
   return classifyAuthFailure(failure);
 }
 

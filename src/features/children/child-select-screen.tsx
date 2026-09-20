@@ -63,7 +63,8 @@ export default function ChildSelectScreen() {
     const account = await verifyAccount('protected-action');
     if (account !== 'ok') {
       if (
-        await confirmAccountLoss(verificationEpoch)
+        await confirmAccountLoss(verificationEpoch, account) &&
+        authGeneration.claimMissingEffects(verificationEpoch)
       ) {
         useAppStore.getState().setAuthRequired(true);
       }

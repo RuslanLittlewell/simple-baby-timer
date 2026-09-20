@@ -26,7 +26,6 @@ test('valid and successfully refreshed sessions remain authenticated', () => {
 
 test('one empty session read is inconclusive until authoritative confirmation', () => {
   assert.equal(classifySessionRecovery(false), 'inconclusive');
-  assert.equal(classifySessionRecovery(false, undefined, true), 'definitive-auth-loss');
 });
 
 test('explicit unauthorized and forbidden responses are definitive', () => {
@@ -215,6 +214,18 @@ test('successful refresh wins over older destructive auth work', () => {
   assert.equal(auth.claimMissingEffects(destructiveCheck), false);
 });
 
+test('successful refresh after loss confirmation still blocks auth-loss effects', () => {
+  const auth = new AuthGenerationCoordinator();
+  auth.observeVerifiedSession();
+  const confirmedLossEpoch = auth.verificationSnapshot();
+
+  // The asynchronous confirmation has returned, but its caller has not yet
+  // applied any effects when the refreshed session is observed.
+  auth.observeVerifiedSession();
+
+  assert.equal(auth.claimMissingEffects(confirmedLossEpoch), false);
+});
+
 test('explicit logout remains distinguishable from unexpected signed-out events', () => {
   const auth = new AuthGenerationCoordinator();
   auth.observeVerifiedSession();
@@ -282,18 +293,39 @@ test('unexpected null-session events require authoritative confirmation before g
   );
 
   assert.match(listener, /verifyAccount\(['"]auth-event['"]\)/);
-  assert.match(listener, /confirmAccountLoss\(capturedVerificationEpoch\)/);
+  assert.match(listener, /confirmAccountLoss\(capturedVerificationEpoch, outcome\)/);
   assert.match(listener, /isVerificationCurrent\(capturedVerificationEpoch\)/);
   assert.ok(listener.indexOf('confirmAccountLoss') < listener.lastIndexOf('applyMissingSession()'));
 });
 
-test('foreground recovery settles before foreground synchronization', () => {
+test('foreground verification settles before auto-refresh and synchronization', () => {
   const source = readFileSync(new URL('../src/hooks/use-sync.ts', import.meta.url), 'utf8');
   const foreground = source.slice(
     source.indexOf('const startForegroundAuth'),
     source.indexOf('if (previousState'),
   );
 
-  assert.ok(foreground.indexOf("verifyAccount('foreground')") >= 0);
-  assert.ok(foreground.indexOf("verifyAccount('foreground')") < foreground.indexOf('syncNow'));
+  const verification = foreground.indexOf("verifyAccount('foreground')");
+  const autoRefresh = foreground.indexOf('startAutoRefresh()');
+  const synchronization = foreground.indexOf('syncNow');
+
+  assert.ok(verification >= 0);
+  assert.ok(autoRefresh > verification);
+  assert.ok(synchronization > autoRefresh);
+});
+
+test('automatic confirmed loss is claimed atomically without local sign-out', () => {
+  const source = readFileSync(new URL('../src/hooks/use-sync.ts', import.meta.url), 'utf8');
+  const syncPass = source.slice(
+    source.indexOf('async function performSyncPass'),
+    source.indexOf('const syncCoordinator'),
+  );
+  const confirmation = syncPass.indexOf('confirmAccountLoss(capturedVerificationEpoch, account)');
+  const claim = syncPass.indexOf('claimMissingEffects(capturedVerificationEpoch)', confirmation);
+  const gate = syncPass.indexOf('setAuthRequired(true)', claim);
+
+  assert.ok(confirmation >= 0);
+  assert.ok(claim > confirmation);
+  assert.ok(gate > claim);
+  assert.doesNotMatch(syncPass, /signOutLocal/);
 });

@@ -11,14 +11,16 @@ test('confirmed session loss activates the global auth gate and stops the child 
   const requestSource = source.slice(requestStart, requestEnd);
   const verification = requestSource.indexOf("verifyAccount('protected-action')");
   const signedOutCheck = requestSource.indexOf("account !== 'ok'", verification);
-  const confirmation = requestSource.indexOf('confirmAccountLoss(verificationEpoch)', signedOutCheck);
+  const confirmation = requestSource.indexOf('confirmAccountLoss(verificationEpoch, account)', signedOutCheck);
+  const claim = requestSource.indexOf('claimMissingEffects(verificationEpoch)', confirmation);
   const gateActivation = requestSource.indexOf('setAuthRequired(true)', signedOutCheck);
   const earlyReturn = requestSource.indexOf('return;', gateActivation);
 
   assert.ok(verification >= 0);
   assert.ok(signedOutCheck > verification);
   assert.ok(confirmation > signedOutCheck);
-  assert.ok(gateActivation > confirmation);
+  assert.ok(claim > confirmation);
+  assert.ok(gateActivation > claim);
   assert.ok(earlyReturn > gateActivation);
 });
 
