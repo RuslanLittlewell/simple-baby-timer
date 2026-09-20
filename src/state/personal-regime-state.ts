@@ -3,6 +3,11 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { isPersonalRegime, type PersonalRegime } from '@/lib/personal-regime';
+import {
+  adjustmentAfterCompletedSleep,
+  isDailyRegimeAdjustment,
+  type DailyRegimeAdjustment,
+} from '@/lib/personal-regime-adjustment';
 
 const STORAGE_KEY = 'babytimer.personal-regime.v1';
 
@@ -16,6 +21,7 @@ export interface ScheduledRegimeReminder {
 
 interface PersistedPersonalRegimeState {
   regimes: Record<string, PersonalRegime>;
+  dailyAdjustments: Record<string, DailyRegimeAdjustment>;
   /**
    * Local day of each child's last finished rebuild, so the daily run happens
    * once whichever of its triggers fires first.
@@ -33,6 +39,7 @@ interface PersistedPersonalRegimeState {
 
 interface PersonalRegimeState extends PersistedPersonalRegimeState {
   setRegime: (childId: string, regime: PersonalRegime) => void;
+  recordCompletedSleep: (childId: string, start: number, end: number) => void;
   markRun: (childId: string, day: string) => void;
   removeRegime: (childId: string) => void;
   setGhostVisible: (visible: boolean) => void;
@@ -57,8 +64,9 @@ const sanitizeReminders = (value: unknown): ScheduledRegimeReminder[] =>
 
 export const usePersonalRegimeStore = create<PersonalRegimeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       regimes: {},
+      dailyAdjustments: {},
       lastRunDay: {},
       ghostVisible: false,
       ghostAutoShown: false,
@@ -68,19 +76,39 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
           regimes: { ...state.regimes, [childId]: regime },
           ...(state.ghostAutoShown ? {} : { ghostVisible: true, ghostAutoShown: true }),
         })),
+      recordCompletedSleep: (childId, start, end) => {
+        const state = get();
+        const regime = state.regimes[childId];
+        if (!regime) return;
+        const adjustment = adjustmentAfterCompletedSleep(
+          regime,
+          state.dailyAdjustments[childId],
+          { start, end },
+        );
+        if (!adjustment) return;
+        set({
+          dailyAdjustments: {
+            ...state.dailyAdjustments,
+            [childId]: adjustment,
+          },
+        });
+      },
       markRun: (childId, day) =>
         set((state) => ({ lastRunDay: { ...state.lastRunDay, [childId]: day } })),
       removeRegime: (childId) =>
         set((state) => {
           const { [childId]: _removed, ...regimes } = state.regimes;
           const { [childId]: _removedRun, ...lastRunDay } = state.lastRunDay;
-          return { regimes, lastRunDay };
+          const { [childId]: _removedAdjustment, ...dailyAdjustments } =
+            state.dailyAdjustments;
+          return { regimes, lastRunDay, dailyAdjustments };
         }),
       setGhostVisible: (ghostVisible) => set({ ghostVisible, ghostAutoShown: true }),
       setSettlingReminders: (settlingReminders) => set({ settlingReminders }),
       clear: () =>
         set({
           regimes: {},
+          dailyAdjustments: {},
           lastRunDay: {},
           ghostVisible: false,
           ghostAutoShown: false,
@@ -90,15 +118,18 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      migrate: (persisted) => persisted as PersistedPersonalRegimeState,
       partialize: ({
         regimes,
+        dailyAdjustments,
         lastRunDay,
         ghostVisible,
         ghostAutoShown,
         settlingReminders,
       }): PersistedPersonalRegimeState => ({
         regimes,
+        dailyAdjustments,
         lastRunDay,
         ghostVisible,
         ghostAutoShown,
@@ -121,9 +152,19 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
               ),
             )
           : {};
+        const dailyAdjustments =
+          saved.dailyAdjustments && typeof saved.dailyAdjustments === 'object'
+            ? Object.fromEntries(
+                Object.entries(saved.dailyAdjustments).filter(
+                  (entry): entry is [string, DailyRegimeAdjustment] =>
+                    isDailyRegimeAdjustment(entry[1]),
+                ),
+              )
+            : {};
         return {
           ...current,
           regimes,
+          dailyAdjustments,
           lastRunDay,
           ghostVisible: saved.ghostVisible === true,
           ghostAutoShown: saved.ghostAutoShown === true,

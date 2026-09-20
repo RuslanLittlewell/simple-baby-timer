@@ -33,7 +33,7 @@ import { selectActiveChildProAccess } from "@/lib/pro-access";
 import { useAppStore, useT } from "@/state/app-state";
 
 const DRAWER_WIDTH = Dimensions.get("window").width * 0.5;
-const APP_VERSION = Constants.expoConfig?.version ?? "1.0.8";
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.9";
 
 export function MobileMenu() {
   const theme = useTheme();

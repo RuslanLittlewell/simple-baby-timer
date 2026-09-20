@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -28,12 +29,15 @@ import { WeekView } from './components/week-view';
 import { ZoomBadge } from './components/zoom-badge';
 import { GUTTER, NOW_COLOR, SCROLL_BOTTOM_PAD, TIMELINE_Z_INDEX } from './constants';
 import { isSameDay, pad2, startOfWeek } from './helpers';
+import { timelineFocusTargetY } from './timeline-focus';
 import { usePinchZoom } from './use-pinch-zoom';
 
 export default function CalendarScreen() {
   const theme = useTheme();
   const scrollRef = useRef<ScrollView>(null);
-  const didAutoScroll = useRef(false);
+  const timelineReady = useRef(false);
+  const pendingFocusAt = useRef<number | null>(null);
+  const [focusRequestVersion, setFocusRequestVersion] = useState(0);
 
   const [today, setToday] = useState(() => new Date());
   const todayRef = useRef(today);
@@ -72,6 +76,9 @@ export default function CalendarScreen() {
   const regime = usePersonalRegimeStore((state) =>
     activeChildId ? state.regimes[activeChildId] : undefined,
   );
+  const regimeAdjustment = usePersonalRegimeStore((state) =>
+    activeChildId ? state.dailyAdjustments[activeChildId] : undefined,
+  );
   const ghostVisible = usePersonalRegimeStore((state) => state.ghostVisible);
   const setGhostVisible = usePersonalRegimeStore((state) => state.setGhostVisible);
 
@@ -83,7 +90,6 @@ export default function CalendarScreen() {
       setToday(nextToday);
       setShownDay((current) => {
         if (!isSameDay(current, previousToday)) return current;
-        didAutoScroll.current = false;
         return nextToday;
       });
       setMonthCursor((current) =>
@@ -183,6 +189,23 @@ export default function CalendarScreen() {
     pendingScrollY,
   } = usePinchZoom();
 
+  useFocusEffect(
+    useCallback(() => {
+      const focusedToday = new Date();
+      todayRef.current = focusedToday;
+      pendingFocusAt.current = focusedToday.getTime();
+      pendingScrollY.current = null;
+      setToday(focusedToday);
+      setNow(focusedToday.getTime());
+      setShownDay(focusedToday);
+      setWeekStart(startOfWeek(focusedToday));
+      setMonthCursor(new Date(focusedToday.getFullYear(), focusedToday.getMonth(), 1));
+      setOverlay('none');
+      clearPinchOffset();
+      setFocusRequestVersion((version) => version + 1);
+    }, [clearPinchOffset, pendingScrollY]),
+  );
+
   const openWeek = () => {
     setWeekStart(startOfWeek(shownDay));
     clearPinchOffset();
@@ -264,6 +287,28 @@ export default function CalendarScreen() {
   const nowMinutes = (now - dayStartMs) / 60000;
   const totalHeight = 24 * hourHeight;
   const px = (minutes: number) => (minutes / 60) * hourHeight;
+
+  const fulfillFocusRequest = useCallback(() => {
+    const focusedAt = pendingFocusAt.current;
+    if (focusedAt == null || !isToday || !timelineReady.current) return;
+
+    pendingFocusAt.current = null;
+    const targetY = timelineFocusTargetY(
+      focusedAt,
+      dayStartMs,
+      hourHeight,
+      viewportHeight.current,
+      SCROLL_BOTTOM_PAD,
+    );
+    scrollY.current = targetY;
+    scrollRef.current?.scrollTo({ y: targetY, animated: false });
+  }, [dayStartMs, hourHeight, isToday, scrollY, viewportHeight]);
+
+  useEffect(() => {
+    if (focusRequestVersion === 0) return;
+    const frame = requestAnimationFrame(fulfillFocusRequest);
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequestVersion, fulfillFocusRequest]);
 
   const clampDayMin = (m: number) => Math.max(0, Math.min(24 * 60, m));
   
@@ -368,12 +413,12 @@ export default function CalendarScreen() {
               }}
               onLayout={(e) => {
                 viewportHeight.current = e.nativeEvent.layout.height;
+                fulfillFocusRequest();
               }}
               onContentSizeChange={() => {
-                if (!didAutoScroll.current) {
-                  didAutoScroll.current = true;
-                  const targetY = isToday ? px(nowMinutes) - 140 : px(6 * 60) - 20;
-                  scrollRef.current?.scrollTo({ y: Math.max(0, targetY), animated: false });
+                timelineReady.current = true;
+                if (pendingFocusAt.current != null) {
+                  fulfillFocusRequest();
                   return;
                 }
                 const pending = pendingScrollY.current;
@@ -400,7 +445,12 @@ export default function CalendarScreen() {
                 />
 
                 {ghostVisible && regime && (
-                  <RegimeGhostBlocks regime={regime} hourHeight={hourHeight} />
+                  <RegimeGhostBlocks
+                    regime={regime}
+                    adjustment={regimeAdjustment}
+                    shownDay={shownDay}
+                    hourHeight={hourHeight}
+                  />
                 )}
 
                 {isToday && (

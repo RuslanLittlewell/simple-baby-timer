@@ -3,6 +3,7 @@
  * block it plans, so the preparation starts on time instead of the sleep.
  */
 import type { PersonalRegime } from './personal-regime';
+import type { DailyRegimeAdjustment } from './personal-regime-adjustment';
 
 /** How long before the settling block the reminder arrives. */
 export const REGIME_REMINDER_LEAD_MIN = 30;
@@ -20,18 +21,47 @@ export interface RegimeReminderPlan {
 
 const wrapMinutes = (minutes: number) => ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
 
+const adjustmentOffset = (
+  adjustment: DailyRegimeAdjustment | undefined,
+  baseMinute: number,
+) =>
+  adjustment?.anchors.reduce(
+    (total, anchor) => total + (anchor.afterEndMin <= baseMinute ? anchor.deltaMin : 0),
+    0,
+  ) ?? 0;
+
 /**
  * Where the preparation for each sleep begins. Without a recorded settling
  * the sleep is its own beginning, and the lead time still comes before it.
  */
-function settlingStarts(regime: PersonalRegime): number[] {
-  const naps = regime.naps.map((nap) => nap.startMin - (regime.napSettlingMin ?? 0));
-  return [...naps, regime.bedMin - (regime.bedtimeSettlingMin ?? 0)];
-}
+const settlingStarts = (
+  regime: PersonalRegime,
+  adjustment?: DailyRegimeAdjustment,
+): number[] => {
+  const naps = regime.naps.map(
+    (nap) =>
+      nap.startMin -
+      (regime.napSettlingMin ?? 0) +
+      adjustmentOffset(adjustment, nap.startMin),
+  );
+  return [
+    ...naps,
+    regime.bedMin -
+      (regime.bedtimeSettlingMin ?? 0) +
+      adjustmentOffset(adjustment, regime.bedMin),
+  ];
+};
 
 const localMidnight = (now: number, dayOffset: number) => {
   const date = new Date(now);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + dayOffset).getTime();
+};
+
+const localDayKey = (ms: number) => {
+  const date = new Date(ms);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 };
 
 /**
@@ -42,11 +72,16 @@ export function planRegimeReminders(
   regime: PersonalRegime,
   now: number,
   horizonMs = DAY_MS,
+  adjustment?: DailyRegimeAdjustment,
 ): RegimeReminderPlan[] {
   const plans: RegimeReminderPlan[] = [];
   for (const dayOffset of [0, 1]) {
     const midnight = localMidnight(now, dayOffset);
-    for (const settlingStartMin of settlingStarts(regime)) {
+    const dayAdjustment =
+      dayOffset === 0 && adjustment?.dayKey === localDayKey(now)
+        ? adjustment
+        : undefined;
+    for (const settlingStartMin of settlingStarts(regime, dayAdjustment)) {
       const at = midnight + (settlingStartMin - REGIME_REMINDER_LEAD_MIN) * MINUTE_MS;
       if (at <= now || at > now + horizonMs) continue;
       plans.push({ at, settlingStartMin: wrapMinutes(settlingStartMin) });

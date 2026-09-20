@@ -6,6 +6,7 @@ import {
   planRegimeReminders,
   regimeReminderTime,
 } from '../src/lib/regime-reminders.ts';
+import { regimeAdjustmentDayKey } from '../src/lib/personal-regime-adjustment.ts';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -83,4 +84,35 @@ test('a bedtime past midnight keeps its own evening', () => {
 
 test('nothing is planned for a schedule whose blocks have passed', () => {
   assert.deepEqual(planRegimeReminders({ ...regime, naps: [] }, at(0, 22), 60 * 60_000), []);
+});
+
+test('today reminders follow the adjusted plan while tomorrow stays unchanged', () => {
+  const adjustment = {
+    dayKey: regimeAdjustmentDayKey(at(0, 6)),
+    anchors: [{ afterEndMin: 7 * 60, deltaMin: -60 }],
+  };
+  const plans = planRegimeReminders(regime, at(0, 6), 30 * 60 * 60_000, adjustment);
+
+  assert.deepEqual(times(plans), times([
+    { at: at(0, 7) },
+    { at: at(0, 10) },
+    { at: at(0, 14) },
+    { at: at(0, 19) },
+    { at: at(1, 8) },
+    { at: at(1, 11) },
+  ]));
+  assert.deepEqual(
+    plans.map((plan) => regimeReminderTime(plan.settlingStartMin)),
+    ['07:30', '10:30', '14:30', '19:30', '08:30', '11:30'],
+  );
+});
+
+test('an adjustment from another local day is ignored', () => {
+  const plans = planRegimeReminders(regime, at(0, 6), 24 * 60 * 60_000, {
+    dayKey: regimeAdjustmentDayKey(at(-1, 6)),
+    anchors: [{ afterEndMin: 7 * 60, deltaMin: -60 }],
+  });
+
+  assert.equal(new Date(plans[0].at).getHours(), 8);
+  assert.equal(regimeReminderTime(plans[0].settlingStartMin), '08:30');
 });
