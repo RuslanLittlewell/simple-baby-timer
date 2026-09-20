@@ -29,10 +29,11 @@ import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { LANGUAGES } from "@/i18n";
 import { signOut } from "@/lib/supabase";
+import { selectActiveChildProAccess } from "@/lib/pro-access";
 import { useAppStore, useT } from "@/state/app-state";
 
 const DRAWER_WIDTH = Dimensions.get("window").width * 0.5;
-const APP_VERSION = Constants.expoConfig?.version ?? "1.0.6";
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.9";
 
 export function MobileMenu() {
   const theme = useTheme();
@@ -48,7 +49,7 @@ export function MobileMenu() {
   };
   const language = useAppStore((state) => state.language);
   const themeMode = useAppStore((state) => state.themeMode);
-  const proActive = useAppStore((state) => state.proActive);
+  const proAccess = useAppStore(selectActiveChildProAccess);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
 
@@ -107,7 +108,7 @@ export function MobileMenu() {
         onPress={() => setVisible(true)}
         style={({ pressed }) => [styles.trigger, pressed && styles.pressed]}
       >
-        {proActive && (
+        {proAccess && (
           <LinearGradient
             colors={["#4C1D95", "#7C3AED", "#C026D3"]}
             start={{ x: 0, y: 0 }}

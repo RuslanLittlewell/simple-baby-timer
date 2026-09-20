@@ -14,6 +14,7 @@ import { EditableProSection } from './editable-pro-section';
 import { EditorHeader } from './editor-header';
 import { EditorTimeFields } from './editor-time-fields';
 import { MilkField } from './milk-field';
+import { NotesField } from './notes-field';
 import { ReadonlyProSection } from './readonly-pro-section';
 import { SaveButton } from './save-button';
 import { styles } from './styles';
@@ -31,6 +32,7 @@ export function EntryEditor(props: EntryEditorProps) {
   const title = entry ? t(`kind.${entry.kind}`) : t('activity.title');
   const borderColor = entry ? accent[KIND_META[entry.kind].gradKey] : theme.border;
   const showMilk = entry?.kind === 'feeding';
+  const showNotes = entry?.kind === 'awake';
 
   return (
     <Modal visible={!!entry} transparent animationType="fade" onRequestClose={props.onClose}>
@@ -96,6 +98,14 @@ export function EntryEditor(props: EntryEditorProps) {
                 value={editor.values.milkInput}
                 theme={theme}
                 onChange={(value) => editor.setValidatedField('milkInput', value)}
+                t={t}
+              />
+            )}
+            {showNotes && (
+              <NotesField
+                value={editor.values.notesInput}
+                theme={theme}
+                onChange={(value) => editor.setField('notesInput', value)}
                 t={t}
               />
             )}

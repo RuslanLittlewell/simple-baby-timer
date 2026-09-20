@@ -7,9 +7,14 @@ import {
   type SessionKind,
 } from '@/lib/activity-store';
 import { type Child, type ChildGradientKey } from '@/lib/children';
+import {
+  sanitizeGrowthMeasurements,
+  type GrowthMeasurement,
+} from '@/lib/growth-measurements';
 import { type ActivityKind } from '@/lib/notifications';
 import { getUserId, requireSession, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { dispatchLiveActivityPush } from '@/lib/live-activity-sync';
+import { formatLiveActivityTime } from '@/lib/live-activity';
 import {
   calendarDayOf,
   calendarWeekOf,
@@ -23,6 +28,7 @@ import {
   partitionDeletedRows,
   type CalendarWeek,
 } from '@/lib/activity-history-loading';
+import { useGrowthStore } from '@/state/growth-state';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
 const cursorKey = (remoteId: string) => `babytimer.sync.cursor.${remoteId}`;
@@ -59,6 +65,7 @@ export interface SessionRow {
   end_ms: number;
   milk_ml: number | null;
   pro_details: ActivitySession['proDetails'] | null;
+  notes?: string | null;
   deleted: boolean;
   updated_at: string;
 }
@@ -73,6 +80,7 @@ function rowsToLocalChanges(rows: SessionRow[], localChildId: string) {
       end: Number(row.end_ms),
       milkMl: row.milk_ml ?? undefined,
       proDetails: row.pro_details ?? undefined,
+      notes: row.notes ?? undefined,
       childId: localChildId,
     }));
   return {
@@ -103,20 +111,20 @@ const toRow = (op: QueuedOp) => ({
   end_ms: op.session.end,
   milk_ml: op.session.milkMl ?? null,
   pro_details: op.session.proDetails ?? null,
+  notes: op.session.notes ?? null,
   deleted: op.deleted,
 });
 
 async function upsertSessionRows(rows: ReturnType<typeof toRow>[]): Promise<void> {
-  let result = await supabase.from('sessions').upsert(rows);
-  if (
-    result.error &&
-    (result.error.code === '42703' ||
-      result.error.code === 'PGRST204' ||
-      result.error.message.includes('pro_details'))
-  ) {
-    result = await supabase.from('sessions').upsert(
-      rows.map(({ pro_details: _proDetails, ...row }) => row),
-    );
+  let compatibleRows: Record<string, unknown>[] = rows;
+  let result = await supabase.from('sessions').upsert(compatibleRows);
+  for (const column of ['notes', 'pro_details'] as const) {
+    if (
+      !result.error ||
+      !result.error.message.includes(column)
+    ) continue;
+    compatibleRows = compatibleRows.map(({ [column]: _missing, ...row }) => row);
+    result = await supabase.from('sessions').upsert(compatibleRows);
   }
   if (result.error) throw result.error;
 }
@@ -158,6 +166,130 @@ export async function clearSyncState(): Promise<void> {
     ...keys.filter((key) => key.startsWith(DAY_FRESHNESS_PREFIX)),
     ...keys.filter((key) => key.startsWith(EMPTY_RANGES_PREFIX)),
   ]);
+}
+
+interface GrowthMeasurementRow {
+  child_id: string;
+  id: string;
+  measured_on: string;
+  height_cm: number | string;
+  weight_kg: number | string;
+  updated_at: string;
+}
+
+const isMissingGrowthTable = (error: { code?: string; message?: string }): boolean =>
+  error.code === '42P01' ||
+  error.code === 'PGRST205' ||
+  error.message?.includes('child_measurements') === true;
+
+function growthMeasurementFromRow(
+  row: GrowthMeasurementRow,
+  localChildId: string,
+): GrowthMeasurement | null {
+  const updatedAt = Date.parse(row.updated_at);
+  const sanitized = sanitizeGrowthMeasurements([{
+    id: row.id,
+    childId: localChildId,
+    measuredOn: row.measured_on,
+    heightCm: Number(row.height_cm),
+    weightKg: Number(row.weight_kg),
+    updatedAt,
+  }]);
+  return sanitized[0] ?? null;
+}
+
+export async function flushGrowthMeasurements(children: Child[]): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  const state = useGrowthStore.getState();
+  const pending = new Set(state.pendingIds);
+  const remoteIdByLocal = new Map(
+    children
+      .filter((child): child is Child & { remoteId: string } => !!child.remoteId)
+      .map((child) => [child.id, child.remoteId]),
+  );
+  const submitted = state.measurements.filter(
+    (measurement) => pending.has(measurement.id) && remoteIdByLocal.has(measurement.childId),
+  );
+  if (!submitted.length) return 0;
+  await requireSession();
+  const rows = submitted.map((measurement) => ({
+    child_id: remoteIdByLocal.get(measurement.childId)!,
+    id: measurement.id,
+    measured_on: measurement.measuredOn,
+    height_cm: measurement.heightCm,
+    weight_kg: measurement.weightKg,
+  }));
+  const { data, error } = await supabase
+    .from('child_measurements')
+    .upsert(rows, { onConflict: 'child_id,id' })
+    .select('child_id, id, measured_on, height_cm, weight_kg, updated_at');
+  if (error) {
+    if (isMissingGrowthTable(error)) return 0;
+    throw error;
+  }
+  const localIdByRemote = new Map(
+    [...remoteIdByLocal.entries()].map(([localId, remoteId]) => [remoteId, localId]),
+  );
+  const returnedById = new Map<string, GrowthMeasurement>();
+  for (const row of (data ?? []) as GrowthMeasurementRow[]) {
+    const localChildId = localIdByRemote.get(row.child_id);
+    if (!localChildId) continue;
+    const measurement = growthMeasurementFromRow(row, localChildId);
+    if (measurement) returnedById.set(measurement.id, measurement);
+  }
+  useGrowthStore.getState().markMeasurementsSynced(
+    submitted.map((measurement) => ({
+      measurement: returnedById.get(measurement.id) ?? measurement,
+      submittedUpdatedAt: measurement.updatedAt,
+    })),
+  );
+  return submitted.length;
+}
+
+export async function fetchGrowthMeasurements(children: Child[]): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  const shared = children.filter(
+    (child): child is Child & { remoteId: string } => !!child.remoteId,
+  );
+  if (!shared.length) return 0;
+  await requireSession();
+  let applied = 0;
+  for (const child of shared) {
+    const { data, error } = await supabase
+      .from('child_measurements')
+      .select('child_id, id, measured_on, height_cm, weight_kg, updated_at')
+      .eq('child_id', child.remoteId)
+      .order('measured_on', { ascending: false })
+      .order('id', { ascending: false });
+    if (error) {
+      if (isMissingGrowthTable(error)) return applied;
+      throw error;
+    }
+    const measurements = ((data ?? []) as GrowthMeasurementRow[])
+      .map((row) => growthMeasurementFromRow(row, child.id))
+      .filter((item): item is GrowthMeasurement => item !== null);
+    useGrowthStore.getState().mergeRemoteMeasurements(child.id, measurements);
+    applied += measurements.length;
+  }
+  return applied;
+}
+
+export async function syncGrowthMeasurements(children: Child[]): Promise<number> {
+  await flushGrowthMeasurements(children);
+  return fetchGrowthMeasurements(children);
+}
+
+export function applyRealtimeGrowthMeasurementRow(
+  row: Record<string, unknown>,
+  localChildId: string,
+): void {
+  const measurement = growthMeasurementFromRow(
+    row as unknown as GrowthMeasurementRow,
+    localChildId,
+  );
+  if (measurement) {
+    useGrowthStore.getState().mergeRemoteMeasurements(localChildId, [measurement]);
+  }
 }
 
 export const enqueueSessionUpsert = (remoteChildId: string, session: ActivitySession) =>
@@ -285,6 +417,7 @@ export async function syncChildToCloud(child: Child): Promise<string> {
       chunk.map((session) => toRow({ remoteChildId: remoteId, session, deleted: false })),
     );
   }
+  await flushGrowthMeasurements([{ ...child, remoteId }]);
   return remoteId;
 }
 
@@ -391,6 +524,7 @@ export async function pushLiveSession(
   kind: ActivityKind,
   startedAtMs: number,
   proDetails?: ActivitySession['proDetails'],
+  lastFeedingAt: number | null = null,
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
   await requireSession();
@@ -405,6 +539,7 @@ export async function pushLiveSession(
   dispatchLiveActivityPush('start', remoteChildId, track, {
     kind,
     startedAt: startedAtMs,
+    lastFeedingTime: lastFeedingAt === null ? null : formatLiveActivityTime(lastFeedingAt),
   }).catch(() => {});
 }
 

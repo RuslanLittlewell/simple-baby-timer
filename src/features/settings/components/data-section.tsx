@@ -9,6 +9,7 @@ import { fmtTime, pad2 } from "@/features/calendar/helpers";
 import { useProPaywall } from "@/hooks/use-pro-paywall";
 import { useTheme } from "@/hooks/use-theme";
 import { PERSONAL_REGIME_MIN_CLEAN_DAYS } from "@/lib/personal-regime";
+import { selectActiveChildProAccess } from "@/lib/pro-access";
 import { useAppStore, useT } from "@/state/app-state";
 import { usePersonalRegimeStore } from "@/state/personal-regime-state";
 
@@ -81,10 +82,9 @@ export function DataSection() {
   const children = useAppStore((s) => s.children);
   const activeChildId = useAppStore((s) => s.activeChildId);
   const dataVersion = useAppStore((s) => s.dataVersion);
-  const proActive = useAppStore((s) => s.proActive);
+  const proAccess = useAppStore(selectActiveChildProAccess);
   const openPaywall = useProPaywall();
   const activeChild = children.find((child) => child.id === activeChildId);
-  const proAccess = proActive || activeChild?.proEnabled === true;
   const regime = usePersonalRegimeStore((s) =>
     activeChildId ? s.regimes[activeChildId] : undefined,
   );

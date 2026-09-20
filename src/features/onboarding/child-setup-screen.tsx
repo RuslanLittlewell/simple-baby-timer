@@ -24,8 +24,14 @@ export function ChildSetupScreen({ onDone }: ChildSetupScreenProps) {
   const [adding, setAdding] = useState(false);
   const [enteringCode, setEnteringCode] = useState(false);
 
-  const saveChild = (name: string, gradientKey: ChildGradientKey, birthday: number) => {
-    addChild(name, gradientKey, birthday);
+  const saveChild = (
+    name: string,
+    gradientKey: ChildGradientKey,
+    birthday: number,
+    growth?: { heightCm: number; weightKg: number },
+  ) => {
+    if (!growth) return;
+    addChild(name, gradientKey, birthday, growth.heightCm, growth.weightKg);
     setAdding(false);
     onDone();
   };

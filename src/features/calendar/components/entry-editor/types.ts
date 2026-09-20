@@ -22,6 +22,7 @@ export interface EntryEditorValues {
   startDayMs: number;
   endDayMs: number;
   milkInput: string;
+  notesInput: string;
   settlingMethods: SettlingMethod[];
   sleepPlace: SleepPlace;
   feedingMode: FeedingMode;

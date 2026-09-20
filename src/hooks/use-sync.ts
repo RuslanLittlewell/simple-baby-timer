@@ -2,13 +2,12 @@ import { type RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { translate } from '@/i18n';
+import { getLatestFeedingStart } from '@/lib/activity-store';
 import {
   confirmAccountLoss,
   getUserId,
   isOAuthInFlight,
   isSupabaseConfigured,
-  signOutLocal,
   supabase,
   verifyAccount,
 } from '@/lib/supabase';
@@ -24,6 +23,7 @@ import {
   fetchLiveSessions,
   fetchAccountProStatus,
   fetchRemoteChildren,
+  applyRealtimeGrowthMeasurementRow,
   flushQueue,
   isChildCurrentDayFresh,
   leaveChild,
@@ -34,11 +34,13 @@ import {
   type SessionRow,
   syncChildToCloud,
   syncChildProfile,
+  syncGrowthMeasurements,
 } from '@/lib/sync';
 import { forgetPurchaser, identifyPurchaser } from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 import { subscribeToLiveActivityPushTokens } from '@/lib/live-activity-sync';
 import {
+  buildLiveActivityLabels,
   reconcileLiveActivities,
   type DesiredLiveActivity,
 } from '@/lib/live-activity';
@@ -81,11 +83,10 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       
       
       if (isOAuthInFlight()) return 'unavailable';
-      if (!(await confirmAccountLoss(capturedVerificationEpoch))) return 'unavailable';
-      await signOutLocal();
+      if (!(await confirmAccountLoss(capturedVerificationEpoch, account))) return 'unavailable';
       if (
         !isCurrentAuth() ||
-        !authGeneration.isVerificationCurrent(capturedVerificationEpoch)
+        !authGeneration.claimMissingEffects(capturedVerificationEpoch)
       ) return 'unavailable';
       useAppStore.getState().setProStatus(false);
       useAppStore.getState().setAuthRequired(true);
@@ -108,7 +109,7 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       
       
       
-      for (const kind of ['sleep', 'awake', 'settling'] as const) {
+      for (const kind of ['sleep', 'awake', 'feeding'] as const) {
         useAppStore.getState().setNotificationsEnabled(kind, false);
       }
     }
@@ -118,6 +119,8 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     const remote = await fetchRemoteChildren(userId);
     if (!isCurrentAuth()) return 'unavailable';
     useAppStore.getState().upsertRemoteChildren(remote);
+    await syncGrowthMeasurements(useAppStore.getState().children);
+    if (!isCurrentAuth()) return 'unavailable';
 
     const criticalState = useAppStore.getState();
     const activeChild = criticalState.children.find(
@@ -179,6 +182,8 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
       if (!isCurrentAuth()) return 'unavailable';
       useAppStore.getState().upsertRemoteChildren(refreshedRemote);
     }
+    await syncGrowthMeasurements(useAppStore.getState().children);
+    if (!isCurrentAuth()) return 'unavailable';
 
     const { children, bumpDataVersion } = useAppStore.getState();
     const backgroundResults = await Promise.allSettled([
@@ -270,13 +275,43 @@ async function reconcileCurrentLiveActivities(
 ) {
   const state = useAppStore.getState();
   const desired = new Map<string, DesiredLiveActivity>();
+  const lastFeedingCache = new Map<string, Promise<number | null>>();
+  const lastFeedingFor = (ownerId: string, localChildId?: string) => {
+    const cached = lastFeedingCache.get(ownerId);
+    if (cached) return cached;
+    const value = (async () => {
+      const persisted = localChildId ? await getLatestFeedingStart(localChildId) : null;
+      const remoteStartedAt = rows
+        .filter((row) => row.remoteChildId === ownerId && row.kind === 'feeding')
+        .reduce<number | null>(
+          (latest, row) => latest === null ? row.startedAt : Math.max(latest, row.startedAt),
+          null,
+        );
+      const localStartedAt = localChildId && state.feeding?.childId === localChildId
+        ? state.feeding.startedAt
+        : null;
+      return [persisted, remoteStartedAt, localStartedAt].reduce<number | null>(
+        (latest, value) => value === null
+          ? latest
+          : latest === null ? value : Math.max(latest, value),
+        null,
+      );
+    })();
+    lastFeedingCache.set(ownerId, value);
+    return value;
+  };
   for (const row of rows) {
+    const child = state.children.find((item) => item.remoteId === row.remoteChildId);
     const item: DesiredLiveActivity = {
       ownerId: row.remoteChildId,
       slot: row.track,
       kind: row.kind,
       startedAt: row.startedAt,
-      labels: { title: translate(state.language, `kind.${row.kind}`) },
+      labels: buildLiveActivityLabels(
+        state.language,
+        row.kind,
+        await lastFeedingFor(row.remoteChildId, child?.id),
+      ),
     };
     desired.set(`${item.ownerId}|${item.slot}`, item);
   }
@@ -284,12 +319,17 @@ async function reconcileCurrentLiveActivities(
     const current = state[slot];
     if (!current) continue;
     const child = state.children.find((item) => item.id === current.childId);
+    const ownerId = child?.remoteId ?? current.childId ?? 'current';
     const item: DesiredLiveActivity = {
-      ownerId: child?.remoteId ?? current.childId ?? 'current',
+      ownerId,
       slot,
       kind: current.kind,
       startedAt: current.startedAt,
-      labels: { title: translate(state.language, `kind.${current.kind}`) },
+      labels: buildLiveActivityLabels(
+        state.language,
+        current.kind,
+        await lastFeedingFor(ownerId, current.childId),
+      ),
     };
     desired.set(`${item.ownerId}|${item.slot}`, item);
   }
@@ -414,9 +454,10 @@ export function useSync() {
             return;
           }
           const outcome = await verifyAccount('auth-event');
+          if (outcome === 'ok') return;
           if (
-            outcome === 'ok' ||
-            !(await confirmAccountLoss(capturedVerificationEpoch))
+            outcome === 'definitive-auth-loss' &&
+            !(await confirmAccountLoss(capturedVerificationEpoch, outcome))
           ) return;
           await applyMissingSession();
         })();
@@ -431,9 +472,9 @@ export function useSync() {
     let previousState = AppState.currentState;
 
     const startForegroundAuth = async (fresh: boolean) => {
-      await supabase.auth.startAutoRefresh();
-      if (disposed) return;
       await verifyAccount('foreground');
+      if (disposed) return;
+      await supabase.auth.startAutoRefresh();
       if (!disposed) await syncNow({ fresh });
     };
 
@@ -499,6 +540,21 @@ export function useSync() {
               filter: `child_id=eq.${remoteId}`,
             },
             () => scheduleLiveRefresh(),
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'child_measurements',
+              filter: `child_id=eq.${remoteId}`,
+            },
+            (payload) => {
+              applyRealtimeGrowthMeasurementRow(
+                payload.new as Record<string, unknown>,
+                localChildId,
+              );
+            },
           )
           .subscribe(),
       );

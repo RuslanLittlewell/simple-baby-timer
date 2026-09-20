@@ -26,7 +26,7 @@ The existing auth generation protects some stale work, but a verified event only
 
 Create one session-verification operation that all non-explicit auth decisions call. It first reads the initialized session, joins SDK refresh behavior when a session is present, validates the user, and attempts an explicit refresh only when the access token is rejected. A missing session without a conclusive refresh-credential error is treated as inconclusive rather than destructive.
 
-Foreground handling will start auto-refresh and then call this operation through the existing serialized sync path. Protected child actions will call the same operation instead of reading `getSession()` directly. A fixed delay was rejected because it only changes race probability.
+Foreground handling will call this operation before starting auto-refresh, then enable the background ticker only after authoritative verification has settled. `startAutoRefresh()` schedules its first tick for a later event-loop turn, so awaiting it does not settle recovery and must not be used as a recovery barrier. Protected child actions will call the same operation instead of reading `getSession()` directly. A fixed delay was rejected because it only changes race probability.
 
 ### Separate explicit logout from unexpected null-session events
 
@@ -40,9 +40,9 @@ Every session-bearing auth event advances the auth epoch, regardless of whether 
 
 Using account ID as the freshness key was rejected because token rotation for the same account must still invalidate older work.
 
-### Confirm immediately before destructive local sign-out
+### Keep unexpected auth-loss handling non-destructive
 
-The destructive path performs a final authoritative check after it wins the current epoch. It clears local credentials only when the same auth epoch still applies and the result remains definitive. This closes the time-of-check/time-of-use window between validation and `signOutLocal()`.
+The unexpected-loss path performs a final authoritative check and then atomically claims the current auth epoch before changing entitlement or gate state. It does not call local sign-out: explicit logout owns user-requested credential removal, while Supabase owns credential removal after a conclusive refresh-token failure. Avoiding a second client-side removal closes the time-of-check/time-of-use window in which a successful `TOKEN_REFRESHED` event can arrive immediately before `signOutLocal()` erases the renewed session.
 
 ### Keep diagnostics credential-safe and development-only
 

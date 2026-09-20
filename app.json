@@ -2,7 +2,7 @@
   "expo": {
     "name": "Baby Tracker",
     "slug": "BabyTimer",
-    "version": "1.0.6",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "babytimer",
@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.littlewell.babylifetracker",
-      "buildNumber": "30",
+      "buildNumber": "31",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.usernotifications.time-sensitive": true
@@ -50,6 +50,7 @@
           "silentOnUnsupportedOS": true
         }
       ],
+      "./plugins/with-live-activity-style",
       "expo-apple-authentication",
       "@react-native-community/datetimepicker"
     ],

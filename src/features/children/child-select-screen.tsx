@@ -12,6 +12,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
 import { MAX_CHILDREN, type Child, type ChildGradientKey } from '@/lib/children';
+import { hasProAccess } from '@/lib/pro-access';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { deleteSessionsForChild } from '@/lib/activity-store';
@@ -35,7 +36,6 @@ export default function ChildSelectScreen() {
   const selectChild = useAppStore((state) => state.selectChild);
   const addChild = useAppStore((state) => state.addChild);
   const updateChild = useAppStore((state) => state.updateChild);
-  const proActive = useAppStore((state) => state.proActive);
   const openPaywall = useProPaywall();
   const [adding, setAdding] = useState(false);
   const [enteringCode, setEnteringCode] = useState(false);
@@ -63,13 +63,17 @@ export default function ChildSelectScreen() {
     const account = await verifyAccount('protected-action');
     if (account !== 'ok') {
       if (
-        await confirmAccountLoss(verificationEpoch)
+        await confirmAccountLoss(verificationEpoch, account) &&
+        authGeneration.claimMissingEffects(verificationEpoch)
       ) {
         useAppStore.getState().setAuthRequired(true);
       }
       return;
     }
-    if (action.type === 'share' && !proActive) {
+    if (
+      action.type === 'share' &&
+      !hasProAccess(useAppStore.getState(), action.childId)
+    ) {
       requestPro(action);
       return;
     }
@@ -81,8 +85,14 @@ export default function ChildSelectScreen() {
     router.navigate('/activity');
   };
 
-  const saveChild = (name: string, gradientKey: ChildGradientKey, birthday: number) => {
-    addChild(name, gradientKey, birthday);
+  const saveChild = (
+    name: string,
+    gradientKey: ChildGradientKey,
+    birthday: number,
+    growth?: { heightCm: number; weightKg: number },
+  ) => {
+    if (!growth) return;
+    addChild(name, gradientKey, birthday, growth.heightCm, growth.weightKg);
     setAdding(false);
     router.navigate('/activity');
   };

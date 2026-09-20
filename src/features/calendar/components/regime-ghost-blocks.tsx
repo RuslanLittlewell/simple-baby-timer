@@ -4,7 +4,12 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, type ThemeMode } from '@/constants/theme';
 import { formatMin } from '@/features/regimes/helpers';
-import { regimeGhostSegments, type PersonalRegime } from '@/lib/personal-regime';
+import { type PersonalRegime } from '@/lib/personal-regime';
+import {
+  adjustedRegimeGhostSegments,
+  regimeAdjustmentDayKey,
+  type DailyRegimeAdjustment,
+} from '@/lib/personal-regime-adjustment';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { GUTTER, TIMELINE_Z_INDEX } from '../constants';
@@ -39,20 +44,28 @@ const GHOST_PALETTE: Record<ThemeMode, GhostPalette> = {
 
 interface RegimeGhostBlocksProps {
   regime: PersonalRegime;
+  adjustment?: DailyRegimeAdjustment;
+  shownDay: Date;
   hourHeight: number;
 }
 
 export const RegimeGhostBlocks = memo(function RegimeGhostBlocks({
   regime,
+  adjustment,
+  shownDay,
   hourHeight,
 }: RegimeGhostBlocksProps) {
   const themeMode = useAppStore((state) => state.themeMode);
   const t = useT();
   const palette = GHOST_PALETTE[themeMode];
+  const shownDayAdjustment =
+    adjustment?.dayKey === regimeAdjustmentDayKey(shownDay.getTime())
+      ? adjustment
+      : undefined;
 
   return (
     <View pointerEvents="none" style={styles.layer}>
-      {regimeGhostSegments(regime).map((segment) => {
+      {adjustedRegimeGhostSegments(regime, shownDayAdjustment).map((segment) => {
         const top = minutesToPixels(segment.startMin, hourHeight);
         const height = minutesToPixels(segment.endMin - segment.startMin, hourHeight);
         const sleep = segment.kind === 'sleep';

@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useWheelSheet } from '@/components/wheel-sheet';
 
 interface WheelFieldProps {
+  accessibilityLabel?: string;
   value: Date;
   mode: 'time' | 'date';
   displayText: string;
@@ -26,6 +27,7 @@ interface WheelFieldProps {
 
 
 export function WheelField({
+  accessibilityLabel,
   value,
   mode,
   displayText,
@@ -61,7 +63,11 @@ export function WheelField({
   }, []);
 
   return (
-    <Pressable accessibilityRole="button" onPress={open} style={style}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={open}
+      style={style}>
       <ThemedText type="smallBold" style={textStyle}>
         {displayText}
       </ThemedText>

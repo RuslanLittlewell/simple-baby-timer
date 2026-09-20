@@ -5,7 +5,7 @@ Returning to the foreground can very rarely show the global sign-in gate even th
 ## What Changes
 
 - Serialize foreground session recovery and account validation so validation cannot race the initial auto-refresh tick.
-- Require confirmed credential loss before performing destructive local sign-out or showing the global auth gate.
+- Require confirmed credential loss before showing the global auth gate, and keep unexpected recovery non-destructive so it cannot erase a concurrently refreshed session.
 - Make every verified session observation invalidate older missing-session and logout work, including `TOKEN_REFRESHED` for an already authenticated account.
 - Route action-level authentication checks through the same verified recovery policy instead of opening the gate after one empty `getSession()` result.
 - Add deterministic regression tests for refresh/check ordering, stale auth generations, transient missing sessions, and genuine logout.

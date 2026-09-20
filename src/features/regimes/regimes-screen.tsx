@@ -12,6 +12,7 @@ import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { previousTabRoute } from '@/hooks/use-tab-history';
 import { useTheme } from '@/hooks/use-theme';
 import { regimeIndexForBirthday } from '@/lib/children';
+import { selectActiveChildProAccess } from '@/lib/pro-access';
 import { useAppStore } from '@/state/app-state';
 
 import { AgePicker } from './components/age-picker';
@@ -30,7 +31,7 @@ export default function RegimesScreen() {
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
   const activeChildId = useAppStore((state) => state.activeChildId);
-  const proActive = useAppStore((state) => state.proActive);
+  const proAccess = useAppStore(selectActiveChildProAccess);
   const regimes = useMemo(() => localizeRegimes(language), [language]);
   const focused = useIsFocused();
   const openPaywall = useProPaywall();
@@ -39,11 +40,11 @@ export default function RegimesScreen() {
   
   
   useEffect(() => {
-    if (!focused || proActive) return;
+    if (!focused || proAccess) return;
     openPaywall((unlocked) => {
       if (!unlocked) router.navigate(previousTabRoute() ?? '/activity');
     });
-  }, [focused, proActive, openPaywall, router]);
+  }, [focused, proAccess, openPaywall, router]);
 
   const birthday = children.find((c) => c.id === activeChildId)?.birthday;
   const defaultAgeIndex = birthday !== undefined
@@ -70,7 +71,7 @@ export default function RegimesScreen() {
 
   
   
-  if (!proActive) {
+  if (!proAccess) {
     return (
       <ThemedView gradient style={styles.container}>
         <AuroraBackground />

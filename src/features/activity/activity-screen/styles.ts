@@ -22,12 +22,16 @@ export const styles = StyleSheet.create({
   header: {
     alignSelf: "stretch",
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     paddingTop: Spacing.four,
   },
   headerDense: {
     paddingTop: Spacing.one,
+  },
+  profileStack: {
+    alignItems: "flex-start",
+    gap: Spacing.half,
   },
   childChip: {
     height: 28,

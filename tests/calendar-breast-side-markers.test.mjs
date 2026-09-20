@@ -56,6 +56,27 @@ test('shared block content places the marker between icons and title', () => {
   assert.match(liveSource, /<BlockContent/);
 });
 
+test('completed blocks show a note icon only when saved notes are not blank', () => {
+  const contentSource = readFileSync(
+    new URL(
+      '../src/features/calendar/components/timeline-blocks/block-content.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const completedSource = readFileSync(
+    new URL(
+      '../src/features/calendar/components/timeline-blocks/completed-block.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(completedSource, /Boolean\(session\.notes\?\.trim\(\)\)/);
+  assert.match(completedSource, /hasNotes=\{hasNotes\}/);
+  assert.match(contentSource, /hasNotes &&[\s\S]*?name="note-text-outline"/);
+});
+
 test('completed bottle volume presentation remains intact', () => {
   const source = readFileSync(
     new URL(
@@ -84,7 +105,7 @@ test('breast-side marker uses the same size as calendar icons', () => {
     'utf8',
   );
 
-  assert.equal(contentSource.match(/size=\{14\}/g)?.length, 2);
+  assert.equal(contentSource.match(/size=\{14\}/g)?.length, 3);
   assert.match(stylesSource, /breastSideMarker:\s*\{\s*fontSize: 14,/);
   assert.match(stylesSource, /blockRow:\s*\{[\s\S]*?alignItems: 'baseline'/);
   assert.doesNotMatch(stylesSource, /breastSideMarker:\s*\{[\s\S]*?translateY/);

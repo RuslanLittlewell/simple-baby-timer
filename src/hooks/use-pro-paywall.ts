@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+import { hasProAccess } from '@/lib/pro-access';
 import { useAppStore } from '@/state/app-state';
 
 
@@ -15,7 +16,7 @@ export function useProPaywall(): (onClosed?: (unlocked: boolean) => void) => voi
     if (pendingPaywall || !onClosed.current) return;
     const closed = onClosed.current;
     onClosed.current = null;
-    closed(useAppStore.getState().proActive);
+    closed(hasProAccess(useAppStore.getState()));
   }, [pendingPaywall]);
 
   return useCallback(

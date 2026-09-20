@@ -4,6 +4,7 @@ import * as LiveActivity from 'expo-live-activity';
 import { Platform } from 'react-native';
 
 import { ACTIVITY_ACCENT } from '@/constants/activities';
+import { translate, type LanguageCode } from '@/i18n';
 import { liveActivityKey, planLiveActivityReconciliation } from '@/lib/live-activity-lifecycle';
 import { type ActivityKind } from '@/lib/notifications';
 
@@ -71,6 +72,23 @@ const enqueue = (operation: () => Promise<void> | void) => {
   return operationTail;
 };
 
+export const formatLiveActivityTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+export function buildLiveActivityLabels(
+  language: LanguageCode,
+  kind: ActivityKind,
+  lastFeedingAt: number | null,
+): Labels {
+  const lastFeeding = lastFeedingAt === null ? '—' : formatLiveActivityTime(lastFeedingAt);
+  return {
+    title: translate(language, `kind.${kind}`),
+    subtitle: `${translate(language, 'stats.lastFeeding')}: ${lastFeeding}`,
+  };
+}
+
 const stateFor = (kind: ActivityKind, startedAt: number, labels: Labels): LiveActivity.LiveActivityState => ({
   title: labels.title,
   subtitle: labels.subtitle,
@@ -100,11 +118,35 @@ const startRecord = (desired: DesiredLiveActivity) => {
     progressViewTint: TINTS[desired.kind],
     progressViewLabelColor: '#FFFFFF',
     deepLinkUrl: 'babytimer://',
-    padding: { vertical: 6, horizontal: 10 },
+    padding: { vertical: 14, horizontal: 16 },
     imageSize: { width: 28, height: 28 },
   });
   if (id) records[recordKey(desired.ownerId, desired.slot)] = { ...desired, id };
 };
+
+export function updateLiveActivityLastFeeding(
+  ownerId: string,
+  language: LanguageCode,
+  lastFeedingAt: number | null,
+) {
+  if (!liveActivitySupported) return;
+  const subtitle = buildLiveActivityLabels(language, 'feeding', lastFeedingAt).subtitle;
+  void enqueue(() => {
+    let changed = false;
+    for (const [key, record] of Object.entries(records)) {
+      if (record.ownerId !== ownerId || record.labels.subtitle === subtitle) continue;
+      const labels = { ...record.labels, subtitle };
+      try {
+        LiveActivity.updateActivity(record.id, stateFor(record.kind, record.startedAt, labels));
+      } catch {
+        continue;
+      }
+      records[key] = { ...record, labels };
+      changed = true;
+    }
+    if (changed) return persist();
+  });
+}
 
 export function startLiveActivity(
   slot: LiveSlot,
@@ -165,6 +207,26 @@ export function reconcileLiveActivities(desiredList: DesiredLiveActivity[]) {
     for (const key of plan.stopKeys) stopRecord(key);
     for (const { key, desired } of plan.adopt) records[key] = { ...desired, id: records[key].id };
     for (const target of plan.start) startRecord(target);
+    for (const desired of desiredList) {
+      const key = recordKey(desired.ownerId, desired.slot);
+      const current = records[key];
+      if (
+        !current ||
+        current.kind !== desired.kind ||
+        current.startedAt !== desired.startedAt ||
+        (current.labels.title === desired.labels.title &&
+          current.labels.subtitle === desired.labels.subtitle)
+      ) continue;
+      try {
+        LiveActivity.updateActivity(
+          current.id,
+          stateFor(desired.kind, desired.startedAt, desired.labels),
+        );
+        records[key] = { ...current, labels: desired.labels };
+      } catch {
+        // Reconciliation will retry when the next sync pass runs.
+      }
+    }
     return persist();
   });
 }

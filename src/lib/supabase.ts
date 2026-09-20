@@ -81,7 +81,6 @@ async function checkAccount(source: AuthRecoverySource): Promise<AccountCheckOut
             retryable: isAuthRetryableFetchError(sessionError),
           }
         : undefined,
-      source === 'destructive-confirmation',
     );
     logAuthDiagnostic('account-check', {
       outcome,
@@ -144,7 +143,9 @@ export async function verifyAccount(
 
 export async function confirmAccountLoss(
   verificationEpoch: number,
+  candidate: AccountCheckOutcome,
 ): Promise<boolean> {
+  if (candidate !== 'definitive-auth-loss') return false;
   if (!authGeneration.isVerificationCurrent(verificationEpoch)) return false;
   const outcome = await verifyAccount('destructive-confirmation');
   const current = authGeneration.isVerificationCurrent(verificationEpoch);
@@ -156,7 +157,7 @@ export async function confirmAccountLoss(
       verificationEpoch,
     });
   }
-  return current && outcome === 'definitive-auth-loss';
+  return current && outcome !== 'ok';
 }
 
 interface SessionRecovery {
@@ -181,12 +182,6 @@ async function recoverSessionByRefresh(): Promise<SessionRecovery> {
     }),
     status: error.status,
   };
-}
-
-
-
-export async function signOutLocal(): Promise<void> {
-  await supabase.auth.signOut({ scope: 'local' });
 }
 
 

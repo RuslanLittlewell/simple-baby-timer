@@ -123,7 +123,7 @@ export async function dispatchLiveActivityPush(
   action: 'start' | 'end',
   childId: string,
   track: 'session' | 'feeding',
-  payload?: { kind: string; startedAt: number },
+  payload?: { kind: string; startedAt: number; lastFeedingTime: string | null },
 ) {
   if (!liveActivitySupported || !isSupabaseConfigured) return;
   const installationId = await getLiveActivityInstallationId();
