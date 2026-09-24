@@ -6,6 +6,7 @@ import { useAppStore } from "@/state/app-state";
 import { KIND_META, LANES } from "../../constants";
 import { isEvent } from "../../helpers";
 import { CompletedBlock } from "./completed-block";
+import { CustomBlock } from "./custom-block";
 import { EventBlock } from "./event-block";
 import { sessionLayout } from "./helpers";
 import { type TimelineBlocksProps } from "./types";
@@ -17,7 +18,7 @@ export const TimelineBlocks = memo(function TimelineBlocks({
   onEdit,
   t,
 }: TimelineBlocksProps) {
-  const { gradients, fg: foregroundColors } = useActivityColors();
+  const { timelineGradients: gradients, fg: foregroundColors, accent } = useActivityColors();
   const themeMode = useAppStore((state) => state.themeMode);
   const ordered = [...sessions].sort((a, b) => LANES[a.kind] - LANES[b.kind]);
 
@@ -34,6 +35,22 @@ export const TimelineBlocks = memo(function TimelineBlocks({
 
         const meta = KIND_META[session.kind];
         const foregroundColor = foregroundColors[meta.gradKey];
+
+        if (session.kind === "custom") {
+          return (
+            <CustomBlock
+              key={session.id}
+              session={session}
+              layout={layout}
+              hourHeight={hourHeight}
+              color={foregroundColor}
+              borderColor={accent[meta.gradKey]}
+              backgroundColor={gradients[meta.gradKey][0]}
+              onEdit={onEdit}
+              t={t}
+            />
+          );
+        }
 
         if (isEvent(session.kind)) {
           return (

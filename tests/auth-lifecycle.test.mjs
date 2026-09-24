@@ -9,6 +9,7 @@ import {
   classifyAuthFailure,
   classifySessionRecovery,
   isForegroundEdge,
+  missingSessionRequiresGate,
   requiresSessionRefresh,
 } from '../src/lib/auth-lifecycle.ts';
 import { createAuthDiagnosticRecord } from '../src/lib/auth-diagnostics.ts';
@@ -26,6 +27,14 @@ test('valid and successfully refreshed sessions remain authenticated', () => {
 
 test('one empty session read is inconclusive until authoritative confirmation', () => {
   assert.equal(classifySessionRecovery(false), 'inconclusive');
+});
+
+test('a missing session gates only when storage is really empty', () => {
+  assert.equal(missingSessionRequiresGate('ok', false), false);
+  assert.equal(missingSessionRequiresGate('inconclusive', false), true);
+  assert.equal(missingSessionRequiresGate('definitive-auth-loss', true), true);
+  // Refresh failed in transit: the session is still stored and auto-refresh retries it.
+  assert.equal(missingSessionRequiresGate('inconclusive', true), false);
 });
 
 test('explicit unauthorized and forbidden responses are definitive', () => {
@@ -328,4 +337,11 @@ test('automatic confirmed loss is claimed atomically without local sign-out', ()
   assert.ok(claim > confirmation);
   assert.ok(gate > claim);
   assert.doesNotMatch(syncPass, /signOutLocal/);
+});
+
+test('account loss is confirmed only by a second definitive answer', () => {
+  const source = readFileSync(new URL('../src/lib/supabase.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export async function confirmAccountLoss');
+  const body = source.slice(start, source.indexOf('\n}\n', start));
+  assert.match(body, /return current && outcome === 'definitive-auth-loss';/);
 });

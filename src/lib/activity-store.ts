@@ -10,7 +10,24 @@ export const NIGHT_WAKING_DURATION_MS = 15 * 60_000;
 export const eventDurationMs = (kind: EventKind) =>
   kind === 'nightWaking' ? NIGHT_WAKING_DURATION_MS : EVENT_DURATION_MS;
 
-export type SessionKind = ActivityKind | EventKind;
+/** A user-titled span of time, drawn beneath every other record. */
+export type CustomKind = 'custom';
+
+export type SessionKind = ActivityKind | EventKind | CustomKind;
+
+export const SESSION_KINDS: readonly SessionKind[] = [
+  'settling',
+  'sleep',
+  'awake',
+  'feeding',
+  'poop',
+  'diaper',
+  'nightWaking',
+  'custom',
+];
+
+export const isSessionKind = (kind: unknown): kind is SessionKind =>
+  SESSION_KINDS.includes(kind as SessionKind);
 
 export type ProDetails =
   | {
@@ -53,6 +70,8 @@ export type ActivitySession = {
   start: number;
   end: number;
   notes?: string;
+  /** Set only on custom events. */
+  title?: string;
 
   milkMl?: number;
   proDetails?: ProDetails;
@@ -101,6 +120,74 @@ export async function getSessionsInRange(
   } catch {
     return [];
   }
+}
+
+/**
+ * Awake, falling asleep and asleep describe one continuous timeline, so unlike
+ * point events (feeding, diaper, ...) they can never legitimately overlap.
+ */
+const NON_OVERLAPPING_KINDS: ReadonlySet<SessionKind> = new Set<ActivityKind>([
+  'settling',
+  'sleep',
+  'awake',
+]);
+
+export interface OverlapResolution {
+  /** Existing sessions trimmed to make room, keeping their original id. */
+  updated: ActivitySession[];
+  /** New sessions split off the far side of a session the new range cut through the middle of. */
+  created: ActivitySession[];
+  /** Existing sessions fully covered by the new range, and so removed outright. */
+  deleted: ActivitySession[];
+}
+
+/**
+ * Makes room for [start, end) on the awake/settling/sleep timeline by
+ * trimming, splitting or removing whichever of those sessions it overlaps,
+ * rather than rejecting the new range outright.
+ */
+export async function resolveOverlappingSessions(
+  kind: SessionKind,
+  start: number,
+  end: number,
+  childId?: string | null,
+  excludeId?: string,
+): Promise<OverlapResolution> {
+  const resolution: OverlapResolution = { updated: [], created: [], deleted: [] };
+  if (!NON_OVERLAPPING_KINDS.has(kind)) return resolution;
+
+  const overlapping = await getSessionsInRange(start, end, childId);
+  for (const session of overlapping) {
+    if (session.id === excludeId || !NON_OVERLAPPING_KINDS.has(session.kind)) continue;
+
+    const originalDate = new Date(session.start);
+    const remainderBefore = session.start < start;
+    const remainderAfter = end < session.end;
+
+    if (remainderBefore && remainderAfter) {
+      await updateSession(session.id, originalDate, { start: session.start, end: start });
+      resolution.updated.push({ ...session, end: start });
+
+      const split: ActivitySession = {
+        ...session,
+        id: `${end}-${session.kind}-${Date.now()}`,
+        start: end,
+        end: session.end,
+      };
+      await saveSession(split);
+      resolution.created.push(split);
+    } else if (remainderBefore) {
+      await updateSession(session.id, originalDate, { start: session.start, end: start });
+      resolution.updated.push({ ...session, end: start });
+    } else if (remainderAfter) {
+      await updateSession(session.id, originalDate, { start: end, end: session.end });
+      resolution.updated.push({ ...session, start: end });
+    } else {
+      await deleteSession(session.id, originalDate);
+      resolution.deleted.push(session);
+    }
+  }
+  return resolution;
 }
 
 export async function getSessionsForDay(

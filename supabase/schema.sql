@@ -64,6 +64,7 @@ create table if not exists public.sessions (
   milk_ml integer,
   pro_details jsonb,
   notes text,
+  title text,
   deleted boolean not null default false,
   updated_at timestamptz not null default now(),
   primary key (child_id, id)
@@ -71,6 +72,7 @@ create table if not exists public.sessions (
 
 alter table public.sessions add column if not exists pro_details jsonb;
 alter table public.sessions add column if not exists notes text;
+alter table public.sessions add column if not exists title text;
 
 create index if not exists sessions_child_updated
   on public.sessions (child_id, updated_at);

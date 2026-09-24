@@ -10,6 +10,7 @@ import { WEEKDAYS_I18N } from '@/i18n';
 import { useAppStore, useT } from '@/state/app-state';
 
 import { KIND_META } from '../../constants';
+import { EventTitleField } from '../event-title-field';
 import { modalStyles } from '../../modal-styles';
 import { ProParameters } from './pro-parameters';
 import { SaveButton } from './save-button';
@@ -27,8 +28,10 @@ export function AddActivityModal(props: AddActivityModalProps) {
   const formState = useAddActivityForm(props, t);
   const { form, eventKind } = formState;
   const borderColor = accent[KIND_META[props.kind].gradKey];
-  const showProParameters = props.proActive && props.kind !== 'awake' && !eventKind;
-  const showProRequired = !props.proActive && !eventKind;
+  const customKind = props.kind === 'custom';
+  const showProParameters =
+    props.proActive && props.kind !== 'awake' && !customKind && !eventKind;
+  const showProRequired = !props.proActive && !customKind && !eventKind;
 
   return (
     <Modal visible={props.visible} transparent animationType="fade" onRequestClose={props.onClose}>
@@ -58,6 +61,14 @@ export function AddActivityModal(props: AddActivityModalProps) {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.content}>
+              {customKind && (
+                <EventTitleField
+                  value={form.title}
+                  theme={theme}
+                  onChange={formState.setTitle}
+                  t={t}
+                />
+              )}
               <TimeFields
                 eventKind={eventKind}
                 startInput={form.startInput}

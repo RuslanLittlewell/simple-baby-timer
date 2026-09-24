@@ -15,10 +15,12 @@ import {
   claimUnownedSessions,
   deleteAllSessions,
   getLatestFeedingStart,
+  resolveOverlappingSessions,
   saveSession,
   eventDurationMs,
   type ActivitySession,
   type EventKind,
+  type OverlapResolution,
   type ProDetails,
   type SessionKind,
 } from '@/lib/activity-store';
@@ -39,6 +41,7 @@ import {
   activateTestPro as activateTestProPurchase,
   clearLiveSession,
   clearSyncState,
+  enqueueSessionDelete,
   enqueueSessionUpsert,
   pushLiveSession,
   startTrial as startTrialOnAccount,
@@ -276,6 +279,7 @@ type AppStore = PersistedState & {
     end: number,
     proDetails?: ProDetails,
     milkMl?: number,
+    title?: string,
   ) => Promise<void>;
   
   startActivity: (
@@ -361,6 +365,16 @@ function remoteIdOfChild(childId?: string): string | undefined {
 function pushSessionIfShared(session: ActivitySession) {
   const remoteId = remoteIdOfChild(session.childId);
   if (remoteId) enqueueSessionUpsert(remoteId, session);
+}
+
+function pushOverlapResolutionIfShared(resolution: OverlapResolution) {
+  for (const session of [...resolution.updated, ...resolution.created]) {
+    pushSessionIfShared(session);
+  }
+  for (const session of resolution.deleted) {
+    const remoteId = remoteIdOfChild(session.childId);
+    if (remoteId) enqueueSessionDelete(remoteId, session);
+  }
 }
 
 async function clearLiveIfShared(current: NonNullable<Session>, track: LiveTrack) {
@@ -854,19 +868,24 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
-      addManualActivity: async (kind, start, end, proDetails, milkMl) => {
+      addManualActivity: async (kind, start, end, proDetails, milkMl, title) => {
         if (get().activitySyncStatus === 'syncing') return;
+        const childId = get().activeChildId ?? undefined;
+        const resolution = await resolveOverlappingSessions(kind, start, end, childId);
+        pushOverlapResolutionIfShared(resolution);
         const proAccess = hasProAccess(get());
         const session: ActivitySession = {
           id: `${start}-${kind}-${Date.now()}`,
           kind,
           start,
           end,
-          childId: get().activeChildId ?? undefined,
+          childId,
           milkMl,
           proDetails: proAccess ? proDetails : undefined,
+          title,
         };
         await saveSession(session);
+        recordRegimeWakeUp(session);
         pushSessionIfShared(session);
         set((state) => ({ dataVersion: state.dataVersion + 1 }));
         if (kind === 'feeding') {

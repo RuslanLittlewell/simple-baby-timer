@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   getAllSessionsForChild,
+  isSessionKind,
   mergeRemoteSessions,
   type ActivitySession,
   type SessionKind,
@@ -66,13 +67,16 @@ export interface SessionRow {
   milk_ml: number | null;
   pro_details: ActivitySession['proDetails'] | null;
   notes?: string | null;
+  title?: string | null;
   deleted: boolean;
   updated_at: string;
 }
 
 function rowsToLocalChanges(rows: SessionRow[], localChildId: string) {
   const { activeRows, deletedIds } = partitionDeletedRows(rows);
+  // A kind from a newer app version would have nothing to draw it with.
   const upserts: ActivitySession[] = activeRows
+    .filter((row) => isSessionKind(row.kind))
     .map((row) => ({
       id: row.id,
       kind: row.kind as SessionKind,
@@ -81,6 +85,7 @@ function rowsToLocalChanges(rows: SessionRow[], localChildId: string) {
       milkMl: row.milk_ml ?? undefined,
       proDetails: row.pro_details ?? undefined,
       notes: row.notes ?? undefined,
+      title: row.title ?? undefined,
       childId: localChildId,
     }));
   return {
@@ -112,13 +117,14 @@ const toRow = (op: QueuedOp) => ({
   milk_ml: op.session.milkMl ?? null,
   pro_details: op.session.proDetails ?? null,
   notes: op.session.notes ?? null,
+  title: op.session.title ?? null,
   deleted: op.deleted,
 });
 
 async function upsertSessionRows(rows: ReturnType<typeof toRow>[]): Promise<void> {
   let compatibleRows: Record<string, unknown>[] = rows;
   let result = await supabase.from('sessions').upsert(compatibleRows);
-  for (const column of ['notes', 'pro_details'] as const) {
+  for (const column of ['notes', 'title', 'pro_details'] as const) {
     if (
       !result.error ||
       !result.error.message.includes(column)

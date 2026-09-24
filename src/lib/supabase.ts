@@ -157,7 +157,9 @@ export async function confirmAccountLoss(
       verificationEpoch,
     });
   }
-  return current && outcome !== 'ok';
+  // A confirmation lost to the network proves nothing; only a second
+  // definitive answer may end the session.
+  return current && outcome === 'definitive-auth-loss';
 }
 
 interface SessionRecovery {
