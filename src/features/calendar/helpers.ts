@@ -15,6 +15,17 @@ export const fmtTime = (ts: number) => {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
+const fmtDayMonth = (ts: number) => {
+  const d = new Date(ts);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
+};
+
+/** Both ends with their dates, collapsing the second date when the span stays within one day. */
+export const fmtDateTimeRange = (start: number, end: number) =>
+  isSameDay(new Date(start), new Date(end))
+    ? `${fmtDayMonth(start)} ${fmtTime(start)}–${fmtTime(end)}`
+    : `${fmtDayMonth(start)} ${fmtTime(start)} – ${fmtDayMonth(end)} ${fmtTime(end)}`;
+
 export const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
@@ -69,6 +80,9 @@ export const parseTime = (value: string) => {
   return { hours, minutes };
 };
 
+/** A custom event's title, or nothing when only whitespace was typed. */
+export const normalizeEventTitle = (input: string) => input.trim() || undefined;
+
 export const isEvent = (kind: SessionKind) =>
   kind === "poop" || kind === "diaper" || kind === "nightWaking";
 
@@ -82,7 +96,7 @@ export const laneLeft = (kind: SessionKind) =>
     ? trackLeft(0.29095)
     : kind === "diaper"
       ? trackLeft(0.2)
-      : LANES[kind] === 0
+      : LANES[kind] <= 0
         ? GUTTER
         : trackLeft(0.5);
 

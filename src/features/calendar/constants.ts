@@ -12,12 +12,14 @@ export const NOW_COLOR = '#FF3B30';
 
 export const TIMELINE_Z_INDEX = {
   grid: 0,
-  live: 1,
-  completed: 2,
-  event: 3,
+  // Custom events sit beneath every other record.
+  custom: 1,
+  live: 2,
+  completed: 3,
+  event: 4,
   // Above every record so the plan stays visible, but it takes no touches.
-  ghost: 5,
-  now: 6,
+  ghost: 6,
+  now: 7,
 } as const;
 
 export const ZOOM_MODES = [
@@ -39,6 +41,7 @@ export const CHART_ZOOM_MIN = 1;
 export const CHART_ZOOM_MAX = 4;
 
 export const LANES: Record<SessionKind, number> = {
+  custom: -1,
   settling: 0,
   sleep: 0,
   awake: 0,
@@ -68,6 +71,15 @@ export const KIND_META: Record<SessionKind, KindMeta> = {
   poop: { gradKey: 'poop', icon: 'emoticon-poop' },
   diaper: { gradKey: 'diaper', icon: 'diaper-outline' },
   nightWaking: { gradKey: 'nightWaking', icon: 'power-sleep' },
+  custom: { gradKey: 'custom', icon: 'exclamation-thick' },
 };
 
-export const MANUAL_KINDS: SessionKind[] = ['settling', 'sleep', 'awake', 'feeding', 'diaper', 'poop'];
+export const MANUAL_KINDS: SessionKind[] = [
+  'settling',
+  'sleep',
+  'awake',
+  'feeding',
+  'diaper',
+  'poop',
+  'custom',
+];

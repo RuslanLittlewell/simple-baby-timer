@@ -21,6 +21,10 @@ export const styles = StyleSheet.create({
   completedBlock: {
     zIndex: TIMELINE_Z_INDEX.completed,
   },
+  customBlock: {
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: TIMELINE_Z_INDEX.custom,
+  },
   feedingBlock: {
     zIndex: TIMELINE_Z_INDEX.event + 1,
   },

@@ -9,6 +9,7 @@ export interface InitialEntry {
   start: number;
   end: number;
   notes?: string;
+  title?: string;
   milkMl?: number;
   proDetails?: EntryDetails;
 }
@@ -20,6 +21,7 @@ export interface EditorValuesInput {
   endDayMs: number;
   milkInput: string;
   notesInput: string;
+  titleInput: string;
   settlingMethods: string[];
   sleepPlace: string;
   feedingMode: 'breast' | 'bottle';
@@ -27,7 +29,7 @@ export interface EditorValuesInput {
   bottleContent: string;
 }
 
-const DAY_KINDS = new Set(['settling', 'sleep', 'awake']);
+const DAY_KINDS = new Set(['settling', 'sleep', 'awake', 'custom']);
 const EVENT_KINDS = new Set(['poop', 'diaper', 'nightWaking']);
 
 export function editorKindFlags(kind?: string): {
@@ -55,6 +57,7 @@ export function initialEditorValues(entry: InitialEntry): EditorValuesInput {
     endDayMs: startOfLocalDay(entry.end),
     milkInput: amount ? String(amount) : '',
     notesInput: entry.notes ?? '',
+    titleInput: entry.title ?? '',
     settlingMethods: details?.type === 'settling' ? details.methods : [],
     sleepPlace: details?.type === 'sleep' ? details.place : 'crib',
     feedingMode: details?.type === 'feeding' ? details.mode : 'breast',

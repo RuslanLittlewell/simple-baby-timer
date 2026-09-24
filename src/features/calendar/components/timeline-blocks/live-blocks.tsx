@@ -10,7 +10,7 @@ import { styles } from "./styles";
 import { type LiveBlocksProps } from "./types";
 
 export function LiveBlocks({ blocks, t }: LiveBlocksProps) {
-  const { gradients, fg: fgColors, accent } = useActivityColors();
+  const { timelineGradients: gradients, fg: fgColors, accent } = useActivityColors();
 
   return (
     <>

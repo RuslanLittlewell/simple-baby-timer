@@ -4,13 +4,16 @@ import { Alert } from 'react-native';
 import {
   deleteSession,
   eventDurationMs,
+  resolveOverlappingSessions,
   updateSession,
   type EventKind,
   type ProDetails,
 } from '@/lib/activity-store';
 import { enqueueSessionDelete, enqueueSessionUpsert } from '@/lib/sync';
 import { useAppStore } from '@/state/app-state';
+import { usePersonalRegimeStore } from '@/state/personal-regime-state';
 
+import { normalizeEventTitle } from '../../helpers';
 import { type SettlingMethod } from '../../pro-details';
 import {
   buildEditableProDetails,
@@ -29,6 +32,7 @@ const EMPTY_VALUES: EntryEditorValues = {
   endDayMs: 0,
   milkInput: '',
   notesInput: '',
+  titleInput: '',
   settlingMethods: [],
   sleepPlace: 'crib',
   feedingMode: 'breast',
@@ -60,7 +64,7 @@ export function useEntryEditorForm(
   ) => setValues((current) => ({ ...current, [key]: value }));
 
   const setValidatedField = <
-    Key extends 'startInput' | 'endInput' | 'startDayMs' | 'endDayMs' | 'milkInput',
+    Key extends 'startInput' | 'endInput' | 'startDayMs' | 'endDayMs' | 'milkInput' | 'titleInput',
   >(
     key: Key,
     value: EntryEditorValues[Key],
@@ -97,6 +101,12 @@ export function useEntryEditorForm(
       return;
     }
 
+    const title = entry.kind === 'custom' ? normalizeEventTitle(values.titleInput) : entry.title;
+    if (entry.kind === 'custom' && !title) {
+      setError(t('editor.errTitleRequired'));
+      return;
+    }
+
     const milk = normalizeMilk(entry.kind, values.milkInput);
     if (milk.error) {
       setError(t('editor.errMilkRange'));
@@ -108,10 +118,31 @@ export function useEntryEditorForm(
     const notes = entry.kind === 'awake'
       ? normalizeNotes(entry.kind, values.notesInput)
       : entry.notes;
-    const update = { ...rangeResult.range, milkMl: milk.milkMl, proDetails, notes };
+    const update = { ...rangeResult.range, milkMl: milk.milkMl, proDetails, notes, title };
     const originalDate = new Date(entry.start);
 
+    const resolution = await resolveOverlappingSessions(
+      entry.kind,
+      update.start,
+      update.end,
+      entry.childId,
+      entry.id,
+    );
+    for (const session of [...resolution.updated, ...resolution.created]) {
+      const remoteId = remoteIdOf(session.childId);
+      if (remoteId) enqueueSessionUpsert(remoteId, session);
+    }
+    for (const session of resolution.deleted) {
+      const remoteId = remoteIdOf(session.childId);
+      if (remoteId) enqueueSessionDelete(remoteId, session);
+    }
+
     await updateSession(entry.id, originalDate, update);
+    if (entry.kind === 'sleep' && entry.childId) {
+      usePersonalRegimeStore
+        .getState()
+        .recordCompletedSleep(entry.childId, update.start, update.end);
+    }
     const remoteId = remoteIdOf(entry.childId);
     if (remoteId) enqueueSessionUpsert(remoteId, { ...entry, ...update });
     await props.onChanged();

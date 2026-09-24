@@ -64,14 +64,10 @@ export function formatMeasurementNumber(value: number, language: GrowthLanguageC
   }).format(value);
 }
 
-export function formatMeasurementDate(value: string, language: GrowthLanguageCode): string {
+export function formatMeasurementDate(value: string): string {
   const date = dateFromDateOnly(value);
   if (!date) return value;
-  return new Intl.DateTimeFormat(LANGUAGE_LOCALES[language], {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date);
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 export function isValidGrowthMeasurement(

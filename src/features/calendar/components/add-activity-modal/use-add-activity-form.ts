@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { eventDurationMs, type EventKind, type ProDetails } from '@/lib/activity-store';
 
-import { isEvent, type Translate } from '../../helpers';
+import { isEvent, normalizeEventTitle, type Translate } from '../../helpers';
 import { type SettlingMethod } from '../../pro-details';
 import {
   buildProDetails,
@@ -14,6 +14,7 @@ import {
 import { type AddActivityFormValues, type AddActivityModalProps } from './types';
 
 const EMPTY_FORM: AddActivityFormValues = {
+  title: '',
   startInput: '09:00',
   endInput: '09:30',
   startDayMs: 0,
@@ -61,6 +62,11 @@ export function useAddActivityForm(
     setError('');
   };
 
+  const setTitle = (value: string) => {
+    setField('title', value);
+    setError('');
+  };
+
   const toggleSettlingMethod = (method: SettlingMethod) => {
     const selected = form.settlingMethods.includes(method);
     const settlingMethods = selected
@@ -84,6 +90,12 @@ export function useAddActivityForm(
       return;
     }
 
+    const title = props.kind === 'custom' ? normalizeEventTitle(form.title) : undefined;
+    if (props.kind === 'custom' && !title) {
+      setError(t('editor.errTitleRequired'));
+      return;
+    }
+
     const details = buildProDetails({
       proActive: props.proActive,
       kind: props.kind,
@@ -98,7 +110,14 @@ export function useAddActivityForm(
 
     setSaving(true);
     try {
-      await props.onSave(props.kind, result.range.start, result.range.end, details, bottleVolume);
+      await props.onSave(
+        props.kind,
+        result.range.start,
+        result.range.end,
+        details,
+        bottleVolume,
+        title,
+      );
       props.onClose();
     } finally {
       setSaving(false);
@@ -112,6 +131,7 @@ export function useAddActivityForm(
     eventKind,
     setField,
     setTimeField,
+    setTitle,
     toggleSettlingMethod,
     submit,
   };

@@ -67,3 +67,18 @@ export function authEventRequiresGate(event: string, hasSession: boolean): boole
 export function accountOutcomeRequiresGate(outcome: AccountCheckOutcome): boolean {
   return outcome === 'definitive-auth-loss';
 }
+
+/**
+ * A refresh that fails in transit (offline at launch, a resume before the
+ * network is back) keeps the session in storage, yet getSession still answers
+ * null alongside the error. Only an empty read without an error means nothing
+ * is left to recover; a failed read is retried by auto-refresh instead.
+ */
+export function missingSessionRequiresGate(
+  outcome: AccountCheckOutcome,
+  sessionReadFailed: boolean,
+): boolean {
+  if (outcome === 'ok') return false;
+  if (outcome === 'definitive-auth-loss') return true;
+  return !sessionReadFailed;
+}

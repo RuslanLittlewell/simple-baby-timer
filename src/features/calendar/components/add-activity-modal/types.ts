@@ -21,10 +21,12 @@ export interface AddActivityModalProps {
     end: number,
     proDetails?: ProDetails,
     milkMl?: number,
+    title?: string,
   ) => Promise<void>;
 }
 
 export interface AddActivityFormValues {
+  title: string;
   startInput: string;
   endInput: string;
   startDayMs: number;

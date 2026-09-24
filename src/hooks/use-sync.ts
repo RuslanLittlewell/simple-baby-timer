@@ -17,6 +17,7 @@ import {
   accountOutcomeRequiresGate,
   authEventRequiresGate,
   isForegroundEdge,
+  missingSessionRequiresGate,
 } from '@/lib/auth-lifecycle';
 import { SingleFlightCoordinator } from '@/lib/single-flight-coordinator';
 import {
@@ -438,7 +439,7 @@ export function useSync() {
       
       queueMicrotask(() => {
         void (async () => {
-          const { data: current } = await supabase.auth.getSession();
+          const { data: current, error: sessionReadError } = await supabase.auth.getSession();
           if (
             current.session ||
             !authGeneration.isVerificationCurrent(capturedVerificationEpoch)
@@ -454,7 +455,7 @@ export function useSync() {
             return;
           }
           const outcome = await verifyAccount('auth-event');
-          if (outcome === 'ok') return;
+          if (!missingSessionRequiresGate(outcome, !!sessionReadError)) return;
           if (
             outcome === 'definitive-auth-loss' &&
             !(await confirmAccountLoss(capturedVerificationEpoch, outcome))

@@ -10,6 +10,7 @@ import { useAppStore, useT } from '@/state/app-state';
 
 import { KIND_META } from '../../constants';
 import { modalStyles } from '../../modal-styles';
+import { EventTitleField } from '../event-title-field';
 import { EditableProSection } from './editable-pro-section';
 import { EditorHeader } from './editor-header';
 import { EditorTimeFields } from './editor-time-fields';
@@ -33,6 +34,7 @@ export function EntryEditor(props: EntryEditorProps) {
   const borderColor = entry ? accent[KIND_META[entry.kind].gradKey] : theme.border;
   const showMilk = entry?.kind === 'feeding';
   const showNotes = entry?.kind === 'awake';
+  const showTitle = entry?.kind === 'custom';
 
   return (
     <Modal visible={!!entry} transparent animationType="fade" onRequestClose={props.onClose}>
@@ -76,6 +78,15 @@ export function EntryEditor(props: EntryEditorProps) {
               ) : (
                 <ReadonlyProSection details={entry?.proDetails} theme={theme} t={t} />
               ))}
+
+            {showTitle && (
+              <EventTitleField
+                value={editor.values.titleInput}
+                theme={theme}
+                onChange={(value) => editor.setValidatedField('titleInput', value)}
+                t={t}
+              />
+            )}
 
             <EditorTimeFields
               editingEvent={editor.editingEvent}

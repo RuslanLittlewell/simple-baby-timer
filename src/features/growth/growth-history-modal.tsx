@@ -147,7 +147,7 @@ export function GrowthHistoryModal({ visible, child, onClose }: GrowthHistoryMod
                         key={measurement.id}
                         accessibilityRole="button"
                         accessibilityLabel={t('growth.rowAccessibility', {
-                          date: formatMeasurementDate(measurement.measuredOn, language),
+                          date: formatMeasurementDate(measurement.measuredOn),
                           height,
                           weight,
                         })}
@@ -158,7 +158,7 @@ export function GrowthHistoryModal({ visible, child, onClose }: GrowthHistoryMod
                           pressed && styles.pressed,
                         ]}>
                         <ThemedText type="smallBold" numberOfLines={1} style={styles.rowDate}>
-                          {formatMeasurementDate(measurement.measuredOn, language)}
+                          {formatMeasurementDate(measurement.measuredOn)}
                         </ThemedText>
                         <ThemedText
                           type="small"
@@ -248,7 +248,7 @@ function GrowthMeasurementEditor({
         accessibilityLabel={t('growth.date')}
         mode="date"
         value={selectedDate}
-        displayText={formatMeasurementDate(measuredOn, language)}
+        displayText={formatMeasurementDate(measuredOn)}
         onChange={(date) => setMeasuredOn(dateOnlyFromDate(date))}
         minimumDate={birthday ? dateFromDateOnly(birthday) ?? undefined : undefined}
         maximumDate={new Date()}
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   list: {
-    flexGrow: 0,
+    flexGrow: 1,
     flexShrink: 1,
     minHeight: 0,
     maxHeight: HISTORY_LIST_MAX_HEIGHT,

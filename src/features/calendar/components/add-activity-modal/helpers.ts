@@ -60,7 +60,8 @@ export function sanitizeVolumeInput(input: string): string {
 }
 
 export function buildProDetails(input: ProDetailsInput): BuiltProDetails | undefined {
-  if (!input.proActive || input.kind === 'awake' || input.eventKind) return undefined;
+  if (!input.proActive || input.eventKind) return undefined;
+  if (input.kind === 'awake' || input.kind === 'custom') return undefined;
   if (input.kind === 'settling') return { type: 'settling', methods: input.settlingMethods };
   if (input.kind === 'sleep') return { type: 'sleep', place: input.sleepPlace };
   if (input.feedingMode === 'breast') {

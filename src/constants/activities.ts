@@ -7,6 +7,7 @@ export const ACTIVITY_GRADIENTS = {
     poop: ['#A9714B', '#5E3A21'] as const,
     diaper: ['#FFFFFF', '#D8D8DE'] as const,
     nightWaking: ['#321B55', '#160B2B'] as const,
+    custom: ['#FFFFFF', '#FFFFFF'] as const,
   },
   light: {
     settling: ['#EAF9FF', '#D2ECFA'] as const,
@@ -16,6 +17,25 @@ export const ACTIVITY_GRADIENTS = {
     poop: ['#F3E3D3', '#E8CDB0'] as const,
     diaper: ['#F2EEFC', '#E4DBF8'] as const,
     nightWaking: ['#F4F0FC', '#E7DDF6'] as const,
+    custom: ['#FFFFFF', '#FFFFFF'] as const,
+  },
+};
+
+/**
+ * Calendar blocks sit on a white timeline, where the pale light fills above
+ * wash out, so the light theme gets a deeper tint of each hue there.
+ */
+export const ACTIVITY_TIMELINE_GRADIENTS = {
+  dark: ACTIVITY_GRADIENTS.dark,
+  light: {
+    settling: ['#CDEBFA', '#B3DDF4'] as const,
+    sleep: ['#D6E0FF', '#BFCFFF'] as const,
+    feed: ['#FFEFB8', '#FFE38F'] as const,
+    awake: ['#DDF5C6', '#C8EDA8'] as const,
+    poop: ['#E8CDB0', '#D9B48E'] as const,
+    diaper: ['#E1D8F7', '#CFC1F1'] as const,
+    nightWaking: ['#E4D9F6', '#D2C1EE'] as const,
+    custom: ['#FFFFFF', '#FFFFFF'] as const,
   },
 };
 
@@ -28,6 +48,7 @@ export const ACTIVITY_FG = {
     poop: '#FFFFFF',
     diaper: '#45454B',
     nightWaking: '#F3E9FF',
+    custom: '#1C1C1E',
   },
   light: {
     settling: '#0B4D6E',
@@ -37,6 +58,7 @@ export const ACTIVITY_FG = {
     poop: '#4A2E12',
     diaper: '#4B3583',
     nightWaking: '#4B3583',
+    custom: '#1C1C1E',
   },
 } as const;
 
@@ -49,6 +71,7 @@ export const ACTIVITY_ACCENT = {
     poop: '#8B5A2B',
     diaper: '#C7C7CE',
     nightWaking: '#B996F2',
+    custom: '#FFFFFF',
   },
   light: {
     settling: '#2FA9E0',
@@ -58,6 +81,7 @@ export const ACTIVITY_ACCENT = {
     poop: '#8B5A2B',
     diaper: '#7C5CD6',
     nightWaking: '#7C5CD6',
+    custom: '#A1A1AA',
   },
 } as const;
 
