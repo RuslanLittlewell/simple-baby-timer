@@ -43,7 +43,7 @@ export function EntryEditor(props: EntryEditorProps) {
           style={modalStyles.backdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={45}
             tint="dark"
             pointerEvents="none"

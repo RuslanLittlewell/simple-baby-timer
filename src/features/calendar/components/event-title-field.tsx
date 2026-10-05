@@ -1,7 +1,7 @@
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { AppFont, Spacing } from '@/constants/theme';
 
 import { type Translate } from '../helpers';
 
@@ -47,6 +47,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
-    fontFamily: NunitoSans.regular,
+    fontFamily: AppFont.regular,
   },
 });

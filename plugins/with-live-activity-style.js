@@ -98,10 +98,67 @@ function styleDynamicIsland(source) {
   return styled;
 }
 
+const SUBTITLE_VIEW = `
+// BabyTimer: subtitles may carry "visible␟lastFeedingMs␟locale␟template" (␟ = U+001F),
+// rendered as "visible (template with live elapsed time)".
+struct LiveActivitySubtitleText: View {
+  private let visible: String
+  private let lastFeedingDate: Date?
+  private let locale: Locale
+  private let prefix: String
+  private let suffix: String
+
+  init(_ subtitle: String) {
+    let fields = subtitle.components(separatedBy: "\\u{1F}")
+    visible = fields[0]
+    if fields.count == 4, let milliseconds = Double(fields[1]) {
+      let template = fields[3].components(separatedBy: "{time}")
+      lastFeedingDate = Date(timeIntervalSince1970: milliseconds / 1000)
+      locale = Locale(identifier: fields[2])
+      prefix = template[0]
+      suffix = template.count > 1 ? template[1] : ""
+    } else {
+      lastFeedingDate = nil
+      locale = .current
+      prefix = ""
+      suffix = ""
+    }
+  }
+
+  var body: some View {
+    if let lastFeedingDate {
+      Text("\\(visible) (\\(prefix)\\(elapsedText(since: lastFeedingDate))\\(suffix))")
+        .environment(\\.locale, locale)
+    } else {
+      Text(visible)
+    }
+  }
+
+  private func elapsedText(since date: Date) -> Text {
+    if #available(iOS 18.0, *) {
+      return Text(.currentDate, format: .offset(to: date, allowedFields: [.hour, .minute], sign: .never))
+    }
+    return Text(date, style: .relative)
+  }
+}
+`;
+
+function withSubtitleText(source, fileName) {
+  return replaceRequired(source, 'Text(subtitle)', 'LiveActivitySubtitleText(subtitle)', fileName);
+}
+
+function addSubtitleView(source) {
+  return source.includes('struct LiveActivitySubtitleText') ? source : source + SUBTITLE_VIEW;
+}
+
 const transformations = {
-  'LiveActivityMediumView.swift': styleMediumView,
-  'LiveActivitySmallView.swift': styleSmallView,
-  'LiveActivityWidget.swift': styleDynamicIsland,
+  'LiveActivityMediumView.swift': (source) =>
+    withSubtitleText(styleMediumView(source), 'LiveActivityMediumView.swift'),
+  'LiveActivitySmallView.swift': (source) =>
+    withSubtitleText(styleSmallView(source), 'LiveActivitySmallView.swift'),
+  'LiveActivityWidget.swift': (source) =>
+    withSubtitleText(styleDynamicIsland(source), 'LiveActivityWidget.swift'),
+  'ViewHelpers.swift': addSubtitleView,
 };
 
 function applyLiveActivityStyles(targetDirectory) {

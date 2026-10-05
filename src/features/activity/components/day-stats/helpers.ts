@@ -41,6 +41,12 @@ function formatDateTime(timestamp: number) {
   return `${day}.${month} / ${fmtTime(timestamp)}`;
 }
 
+function formatTimeWithElapsed(timestamp: number, now: number, t: Translate) {
+  const elapsedMinutesMs = Math.floor(Math.max(0, now - timestamp) / 60000) * 60000;
+  const elapsed = formatDuration(elapsedMinutesMs, t("unit.hours"), t("unit.minutes"));
+  return `${fmtTime(timestamp)} / ${elapsed}`;
+}
+
 export function withAlpha(hex: string, alpha: number) {
   const value = hex.replace("#", "");
   const red = Number.parseInt(value.slice(0, 2), 16);
@@ -77,11 +83,15 @@ export function getFeedingMetrics(
   stats: DayStats,
   accent: StatAccents,
   t: Translate,
+  now: number,
 ): StatCardContent[] {
   return [
     {
       color: accent.feed,
-      value: stats.lastFeedingAt === null ? "—" : formatDateTime(stats.lastFeedingAt),
+      value:
+        stats.lastFeedingAt === null
+          ? "—"
+          : formatTimeWithElapsed(stats.lastFeedingAt, now, t),
       label: t("stats.lastFeeding"),
     },
     {

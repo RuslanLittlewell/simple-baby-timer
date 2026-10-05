@@ -31,7 +31,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
     <Text
       style={[
         composed,
-        type !== 'code' && { fontFamily: fontFamilyForWeight(flattened.fontWeight) },
+        type !== 'code' &&
+          !flattened.fontFamily && { fontFamily: fontFamilyForWeight(flattened.fontWeight) },
       ]}
       {...rest}
     />

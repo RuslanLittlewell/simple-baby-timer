@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { AppFont, Spacing } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
   card: { maxHeight: '88%' },
@@ -22,7 +22,7 @@ export const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
-    fontFamily: NunitoSans.regular,
+    fontFamily: AppFont.regular,
   },
   proBlock: { gap: Spacing.three },
   multiOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },

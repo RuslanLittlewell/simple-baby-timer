@@ -160,6 +160,52 @@ export function adjustmentAfterCompletedSleep(
   return { dayKey, anchors };
 }
 
+/** Sleeps interrupted for at most this long count as one sleep. */
+export const SLEEP_MERGE_GAP_MS = 15 * MINUTE_MS;
+
+/** A recorded sleep, or the running one when `end` is null. */
+export interface DaySleep {
+  start: number;
+  end: number | null;
+}
+
+export function mergeSleepFragments(
+  sleeps: DaySleep[],
+  gapMs = SLEEP_MERGE_GAP_MS,
+): DaySleep[] {
+  const merged: DaySleep[] = [];
+  for (const sleep of [...sleeps].sort((a, b) => a.start - b.start)) {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.end !== null && sleep.start - previous.end <= gapMs) {
+      previous.end = sleep.end === null ? null : Math.max(previous.end, sleep.end);
+    } else {
+      merged.push({ ...sleep });
+    }
+  }
+  return merged;
+}
+
+/**
+ * Rebuilds the day's shifts from every sleep that ended on it, so edits and
+ * deletions are reflected and a sleep that is running again after a short
+ * break no longer counts as an early wake-up.
+ */
+export function adjustmentForDay(
+  regime: PersonalRegime,
+  sleeps: DaySleep[],
+  now: number,
+): DailyRegimeAdjustment {
+  const dayKey = regimeAdjustmentDayKey(now);
+  let adjustment: DailyRegimeAdjustment = { dayKey, anchors: [] };
+  for (const sleep of mergeSleepFragments(sleeps)) {
+    if (sleep.end === null || regimeAdjustmentDayKey(sleep.end) !== dayKey) continue;
+    adjustment =
+      adjustmentAfterCompletedSleep(regime, adjustment, { start: sleep.start, end: sleep.end }) ??
+      adjustment;
+  }
+  return adjustment;
+}
+
 const wrapMinutes = (minutes: number) =>
   ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
 

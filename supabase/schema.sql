@@ -108,6 +108,7 @@ create table if not exists public.live_activity_devices (
   installation_id text not null,
   push_to_start_token text not null,
   locale text not null default 'en',
+  subtitle_format smallint not null default 1,
   updated_at timestamptz not null default now(),
   primary key (user_id, installation_id)
 );

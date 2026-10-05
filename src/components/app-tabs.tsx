@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { DynamicColorIOS, Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -28,56 +28,52 @@ export default function AppTabs() {
       labelVisibilityMode="labeled"
       rippleColor={colors.backgroundSelected}
       disableTransparentOnScrollEdge>
-      <NativeTabs.Trigger name="activity" disablePopToTop disableScrollToTop>
-        <NativeTabs.Trigger.TabBar
-          backgroundColor={colors.background}
-          iconColor={tabContentColor}
-          disableTransparentOnScrollEdge
-        />
-        <Icon
-          src={<VectorIcon family={MaterialCommunityIcons} name="timer-outline" />}
+      <NativeTabs.Trigger
+        name="activity"
+        disablePopToTop
+        disableScrollToTop
+        disableTransparentOnScrollEdge>
+        <NativeTabs.Trigger.Icon
+          src={<NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="timer-outline" />}
           selectedColor={tabContentColor}
         />
-        <Label>{t('activity.title')}</Label>
+        <NativeTabs.Trigger.Label>{t('activity.title')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="calendar" disablePopToTop disableScrollToTop>
-        <NativeTabs.Trigger.TabBar
-          backgroundColor={colors.background}
-          iconColor={tabContentColor}
-          disableTransparentOnScrollEdge
-        />
-        <Icon
-          src={<VectorIcon family={MaterialCommunityIcons} name="calendar-month" />}
+      <NativeTabs.Trigger
+        name="calendar"
+        disablePopToTop
+        disableScrollToTop
+        disableTransparentOnScrollEdge>
+        <NativeTabs.Trigger.Icon
+          src={<NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="calendar-month" />}
           selectedColor={tabContentColor}
         />
-        <Label>{t('calendar.title')}</Label>
+        <NativeTabs.Trigger.Label>{t('calendar.title')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="regimes" disablePopToTop disableScrollToTop>
-        <NativeTabs.Trigger.TabBar
-          backgroundColor={colors.background}
-          iconColor={tabContentColor}
-          disableTransparentOnScrollEdge
-        />
-        <Icon
-          src={<VectorIcon family={MaterialCommunityIcons} name="clock-outline" />}
+      <NativeTabs.Trigger
+        name="regimes"
+        disablePopToTop
+        disableScrollToTop
+        disableTransparentOnScrollEdge>
+        <NativeTabs.Trigger.Icon
+          src={<NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="clock-outline" />}
           selectedColor={tabContentColor}
         />
-        <Label>{t('regimes.title')}</Label>
+        <NativeTabs.Trigger.Label>{t('regimes.title')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="settings" disablePopToTop disableScrollToTop>
-        <NativeTabs.Trigger.TabBar
-          backgroundColor={colors.background}
-          iconColor={tabContentColor}
-          disableTransparentOnScrollEdge
-        />
-        <Icon
-          src={<VectorIcon family={MaterialCommunityIcons} name="cog-outline" />}
+      <NativeTabs.Trigger
+        name="settings"
+        disablePopToTop
+        disableScrollToTop
+        disableTransparentOnScrollEdge>
+        <NativeTabs.Trigger.Icon
+          src={<NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="cog-outline" />}
           selectedColor={tabContentColor}
         />
-        <Label>{t('settings.title')}</Label>
+        <NativeTabs.Trigger.Label>{t('settings.title')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

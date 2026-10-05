@@ -31,6 +31,44 @@ const lastFeedingTitles: Record<string, string> = {
   it: 'Ultima poppata',
 };
 
+const agoTemplates: Record<string, string> = {
+  en: '{time} ago',
+  ru: '{time} назад',
+  ua: '{time} тому',
+  pl: '{time} temu',
+  es: 'hace {time}',
+  fr: 'il y a {time}',
+  de: 'vor {time}',
+  pt: 'há {time}',
+  it: '{time} fa',
+};
+const widgetLocales: Record<string, string> = { ua: 'uk' };
+// Must match SUBTITLE_FIELD_SEPARATOR in src/lib/live-activity.ts.
+const SUBTITLE_FIELD_SEPARATOR = '\u001F';
+
+// Format 2 widgets decode the separator-joined fields; older builds would show them raw.
+const ELAPSED_SUBTITLE_FORMAT = 2;
+
+const lastFeedingSubtitle = (
+  locale: string,
+  subtitleFormat: number,
+  lastFeedingTime: string | null,
+  lastFeedingAt: number | null,
+) => {
+  const visible = `${lastFeedingTitles[locale] ?? lastFeedingTitles.en}: ${lastFeedingTime ?? '—'}`;
+  if (
+    subtitleFormat < ELAPSED_SUBTITLE_FORMAT ||
+    lastFeedingAt === null ||
+    !Number.isFinite(lastFeedingAt)
+  ) return visible;
+  return [
+    visible,
+    String(lastFeedingAt),
+    widgetLocales[locale] ?? locale,
+    agoTemplates[locale] ?? agoTemplates.en,
+  ].join(SUBTITLE_FIELD_SEPARATOR);
+};
+
 const icons: Record<string, string> = {
   settling: 'la-settling', sleep: 'la-sleep', feeding: 'la-feed', awake: 'la-awake',
 };
@@ -92,10 +130,12 @@ const stateFor = (
   kind: string,
   startedAt: number,
   locale: string,
+  subtitleFormat: number,
   lastFeedingTime: string | null,
+  lastFeedingAt: number | null,
 ) => ({
   title: titles[locale]?.[kind] ?? titles.en[kind] ?? kind,
-  subtitle: `${lastFeedingTitles[locale] ?? lastFeedingTitles.en}: ${lastFeedingTime ?? '—'}`,
+  subtitle: lastFeedingSubtitle(locale, subtitleFormat, lastFeedingTime, lastFeedingAt),
   timerEndDateInMilliseconds: null,
   progress: null,
   imageName: icons[kind],
@@ -120,7 +160,7 @@ Deno.serve(async (request) => {
 
     const body = await request.json() as {
       action: Action; childId: string; track: Track; installationId: string;
-      kind?: string; startedAt?: number; lastFeedingTime?: string | null;
+      kind?: string; startedAt?: number; lastFeedingTime?: string | null; lastFeedingAt?: number | null;
     };
     if (!['start', 'end'].includes(body.action) || !['session', 'feeding'].includes(body.track)) {
       return new Response('Invalid payload', { status: 400 });
@@ -166,7 +206,7 @@ Deno.serve(async (request) => {
       if (memberIds.length) {
         const { data: devices } = await admin
           .from('live_activity_devices')
-          .select('user_id, installation_id, push_to_start_token, locale')
+          .select('user_id, installation_id, push_to_start_token, locale, subtitle_format')
           .in('user_id', memberIds)
           .neq('installation_id', body.installationId);
         for (const device of devices ?? []) {
@@ -175,7 +215,9 @@ Deno.serve(async (request) => {
             body.kind,
             body.startedAt!,
             device.locale,
+            device.subtitle_format,
             body.lastFeedingTime ?? null,
+            body.lastFeedingAt ?? null,
           );
           const result = await sendApns(device.push_to_start_token, {
             aps: {
@@ -222,7 +264,7 @@ Deno.serve(async (request) => {
         const [{ data: companionDevices }, { data: liveRows }] = await Promise.all([
           admin
             .from('live_activity_devices')
-            .select('user_id, installation_id, locale')
+            .select('user_id, installation_id, locale, subtitle_format')
             .in('installation_id', companionInstallations),
           admin
             .from('live_sessions')
@@ -245,7 +287,9 @@ Deno.serve(async (request) => {
                 live.kind,
                 Number(live.started_at_ms),
                 device.locale,
+                device.subtitle_format,
                 body.lastFeedingTime ?? null,
+                body.lastFeedingAt ?? null,
               ),
             },
           });

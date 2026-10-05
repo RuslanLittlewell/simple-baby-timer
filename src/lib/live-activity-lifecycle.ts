@@ -14,6 +14,18 @@ export type LiveActivityPlan<TDesired extends LiveActivityIdentity> = {
 export const liveActivityKey = (item: Pick<LiveActivityIdentity, 'ownerId' | 'slot'>) =>
   `${item.ownerId}|${item.slot}`;
 
+// Stored records outlive their native activities when iOS ends them while the app
+// is not running (user dismissal, 8-hour limit, reinstall). Push-adopted placeholders
+// (startedAt 0) were just confirmed by the token listener, so they are not probed.
+export function findEndedLiveActivityKeys<TCurrent extends LiveActivityIdentity>(
+  currentList: TCurrent[],
+  isNativeActivityAlive: (current: TCurrent) => boolean,
+): string[] {
+  return currentList
+    .filter((current) => current.startedAt !== 0 && !isNativeActivityAlive(current))
+    .map(liveActivityKey);
+}
+
 export function planLiveActivityReconciliation<
   TCurrent extends LiveActivityIdentity,
   TDesired extends LiveActivityIdentity,

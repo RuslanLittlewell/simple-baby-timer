@@ -4,9 +4,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { isPersonalRegime, type PersonalRegime } from '@/lib/personal-regime';
 import {
-  adjustmentAfterCompletedSleep,
+  adjustmentForDay,
   isDailyRegimeAdjustment,
   type DailyRegimeAdjustment,
+  type DaySleep,
 } from '@/lib/personal-regime-adjustment';
 
 const STORAGE_KEY = 'babytimer.personal-regime.v1';
@@ -39,7 +40,7 @@ interface PersistedPersonalRegimeState {
 
 interface PersonalRegimeState extends PersistedPersonalRegimeState {
   setRegime: (childId: string, regime: PersonalRegime) => void;
-  recordCompletedSleep: (childId: string, start: number, end: number) => void;
+  recalculateDailyAdjustment: (childId: string, sleeps: DaySleep[], now: number) => void;
   markRun: (childId: string, day: string) => void;
   removeRegime: (childId: string) => void;
   setGhostVisible: (visible: boolean) => void;
@@ -76,16 +77,13 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
           regimes: { ...state.regimes, [childId]: regime },
           ...(state.ghostAutoShown ? {} : { ghostVisible: true, ghostAutoShown: true }),
         })),
-      recordCompletedSleep: (childId, start, end) => {
+      recalculateDailyAdjustment: (childId, sleeps, now) => {
         const state = get();
         const regime = state.regimes[childId];
         if (!regime) return;
-        const adjustment = adjustmentAfterCompletedSleep(
-          regime,
-          state.dailyAdjustments[childId],
-          { start, end },
-        );
-        if (!adjustment) return;
+        const adjustment = adjustmentForDay(regime, sleeps, now);
+        const current = state.dailyAdjustments[childId];
+        if (JSON.stringify(current) === JSON.stringify(adjustment)) return;
         set({
           dailyAdjustments: {
             ...state.dailyAdjustments,

@@ -546,6 +546,7 @@ export async function pushLiveSession(
     kind,
     startedAt: startedAtMs,
     lastFeedingTime: lastFeedingAt === null ? null : formatLiveActivityTime(lastFeedingAt),
+    lastFeedingAt,
   }).catch(() => {});
 }
 

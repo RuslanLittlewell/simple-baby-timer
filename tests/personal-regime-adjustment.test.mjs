@@ -5,6 +5,8 @@ import test from 'node:test';
 import {
   adjustedRegimeGhostSegments,
   adjustmentAfterCompletedSleep,
+  adjustmentForDay,
+  mergeSleepFragments,
   isDailyRegimeAdjustment,
   regimeAdjustmentDayKey,
   regimeAdjustmentOffset,
@@ -171,4 +173,69 @@ test('Calendar limits the adjustment to the selected child and shown local day',
   assert.match(screenSource, /adjustment=\{regimeAdjustment\}/);
   assert.match(ghostSource, /adjustment\?\.dayKey === regimeAdjustmentDayKey\(shownDay\.getTime\(\)\)/);
   assert.match(ghostSource, /adjustedRegimeGhostSegments\(regime, shownDayAdjustment\)/);
+});
+
+test('sleeps split by a short break merge into one, longer breaks do not', () => {
+  assert.deepEqual(
+    mergeSleepFragments([
+      { start: at(0, 12, 20), end: at(0, 13) },
+      { start: at(0, 12), end: at(0, 12, 10) },
+      { start: at(0, 16), end: at(0, 17) },
+    ]),
+    [
+      { start: at(0, 12), end: at(0, 13) },
+      { start: at(0, 16), end: at(0, 17) },
+    ],
+  );
+  assert.deepEqual(
+    mergeSleepFragments([
+      { start: at(0, 12), end: at(0, 13) },
+      { start: at(0, 13, 15), end: null },
+    ]),
+    [{ start: at(0, 12), end: null }],
+  );
+});
+
+test('a sleep resumed after a short break is not an early wake-up while it runs', () => {
+  const firstPart = { start: at(0, 12), end: at(0, 13) };
+  assert.deepEqual(adjustmentForDay(regime, [firstPart], at(0, 13, 5)).anchors, [
+    { afterEndMin: 14 * 60, deltaMin: -60 },
+  ]);
+  assert.deepEqual(
+    adjustmentForDay(regime, [firstPart, { start: at(0, 13, 10), end: null }], at(0, 13, 20))
+      .anchors,
+    [],
+  );
+  assert.deepEqual(
+    adjustmentForDay(
+      regime,
+      [firstPart, { start: at(0, 13, 10), end: at(0, 14, 30) }],
+      at(0, 14, 30),
+    ).anchors,
+    [{ afterEndMin: 14 * 60, deltaMin: 30 }],
+  );
+});
+
+test('the day adjustment follows edits and deletions of its sleeps', () => {
+  const night = { start: at(-1, 21), end: at(0, 6) };
+  // The early wake-up moves the first nap window to 8:00-9:00.
+  const nap = { start: at(0, 8), end: at(0, 9, 30) };
+  assert.deepEqual(adjustmentForDay(regime, [night, nap], at(0, 11)).anchors, [
+    { afterEndMin: 7 * 60, deltaMin: -60 },
+    { afterEndMin: 10 * 60, deltaMin: 30 },
+  ]);
+  assert.deepEqual(
+    adjustmentForDay(regime, [night, { ...nap, end: at(0, 8, 30) }], at(0, 11)).anchors,
+    [
+      { afterEndMin: 7 * 60, deltaMin: -60 },
+      { afterEndMin: 10 * 60, deltaMin: -30 },
+    ],
+  );
+  assert.deepEqual(adjustmentForDay(regime, [nap], at(0, 11)).anchors, [
+    { afterEndMin: 10 * 60, deltaMin: -30 },
+  ]);
+  assert.deepEqual(adjustmentForDay(regime, [], at(0, 11)), {
+    dayKey: regimeAdjustmentDayKey(at(0, 11)),
+    anchors: [],
+  });
 });
