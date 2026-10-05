@@ -48,7 +48,7 @@ export const styles = StyleSheet.create({
     paddingRight: 0,
   },
   eventStripes: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 6,
     overflow: 'hidden',
   },

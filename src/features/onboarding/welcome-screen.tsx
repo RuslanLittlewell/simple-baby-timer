@@ -39,7 +39,9 @@ export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.brand}>
           <Image source={APP_ICON} style={styles.appIcon} contentFit="contain" />
-          <ThemedText style={styles.brandText}>Simple Baby Tracker</ThemedText>
+          <ThemedText style={styles.brandText} numberOfLines={1} adjustsFontSizeToFit>
+            Dozumi - Smart Baby tracker
+          </ThemedText>
         </View>
 
         <View style={styles.center}>
@@ -136,6 +138,7 @@ const styles = StyleSheet.create({
     boxShadow: 'inset 0 0 0 2px #C4B5FD',
   },
   brandText: {
+    flexShrink: 1,
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '800',

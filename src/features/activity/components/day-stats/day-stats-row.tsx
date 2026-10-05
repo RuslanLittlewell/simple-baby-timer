@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import Animated, {
   cancelAnimation,
@@ -41,11 +41,19 @@ interface InteractiveStatCardProps extends StatCardContent {
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// Keeps the "time since last feeding" current without a running session ticker.
+const NOW_REFRESH_MS = 15_000;
 
 function StatContent({ value, label, color }: StatCardContent) {
   return (
     <>
-      <ThemedText type="smallBold" numberOfLines={1} style={{ color }}>
+      <ThemedText
+        type="smallBold"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        style={{ color }}
+      >
         {value}
       </ThemedText>
       <ThemedText
@@ -158,7 +166,13 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
   const [showAwake, setShowAwake] = useState<MetricIndex>(0);
   const [feedingView, setFeedingView] = useState<MetricIndex>(0);
   const [showPoop, setShowPoop] = useState<MetricIndex>(0);
+  const [now, setNow] = useState(Date.now);
   const dense = useDenseActivityLayout();
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), NOW_REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const handleSleepToggle = () => setShowAwake(nextMetricIndex);
   const handleFeedingToggle = () => setFeedingView(nextMetricIndex);
@@ -166,7 +180,7 @@ export function DayStatsRow({ stats }: DayStatsRowProps) {
     setShowPoop((current) => nextMetricIndex(current, 4));
 
   const sleepMetrics = getSleepMetrics(stats, accent, t);
-  const feedingMetrics = getFeedingMetrics(stats, accent, t);
+  const feedingMetrics = getFeedingMetrics(stats, accent, t, now);
   const diaperMetrics = getDiaperMetrics(stats, accent, t);
 
   const sleepMetric = sleepMetrics[showAwake];

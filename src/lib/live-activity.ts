@@ -5,7 +5,11 @@ import { Platform } from 'react-native';
 
 import { ACTIVITY_ACCENT } from '@/constants/activities';
 import { translate, type LanguageCode } from '@/i18n';
-import { liveActivityKey, planLiveActivityReconciliation } from '@/lib/live-activity-lifecycle';
+import {
+  findEndedLiveActivityKeys,
+  liveActivityKey,
+  planLiveActivityReconciliation,
+} from '@/lib/live-activity-lifecycle';
 import { type ActivityKind } from '@/lib/notifications';
 
 const STORAGE_KEY = 'babytimer.live-activities.v2';
@@ -77,15 +81,30 @@ export const formatLiveActivityTime = (timestamp: number): string => {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
+// The widget extension splits the subtitle on this separator and renders the
+// elapsed time natively, so it keeps ticking while the app is suspended.
+const SUBTITLE_FIELD_SEPARATOR = '\u001F';
+// Stored in live_activity_devices so pushes only send this encoding to builds that decode it.
+export const LIVE_ACTIVITY_SUBTITLE_FORMAT = 2;
+const WIDGET_LOCALES: Partial<Record<LanguageCode, string>> = { ua: 'uk' };
+
 export function buildLiveActivityLabels(
   language: LanguageCode,
   kind: ActivityKind,
   lastFeedingAt: number | null,
 ): Labels {
   const lastFeeding = lastFeedingAt === null ? '—' : formatLiveActivityTime(lastFeedingAt);
+  const visible = `${translate(language, 'stats.lastFeeding')}: ${lastFeeding}`;
   return {
     title: translate(language, `kind.${kind}`),
-    subtitle: `${translate(language, 'stats.lastFeeding')}: ${lastFeeding}`,
+    subtitle: lastFeedingAt === null
+      ? visible
+      : [
+        visible,
+        String(lastFeedingAt),
+        WIDGET_LOCALES[language] ?? language,
+        translate(language, 'liveActivity.ago'),
+      ].join(SUBTITLE_FIELD_SEPARATOR),
   };
 }
 
@@ -96,6 +115,15 @@ const stateFor = (kind: ActivityKind, startedAt: number, labels: Labels): LiveAc
   imageName: ICONS[kind],
   dynamicIslandImageName: ICONS[kind],
 });
+// updateActivity throws synchronously when iOS no longer knows the activity id.
+const isNativeActivityAlive = (record: StoredLiveActivity) => {
+  try {
+    LiveActivity.updateActivity(record.id, stateFor(record.kind, record.startedAt, record.labels));
+    return true;
+  } catch {
+    return false;
+  }
+};
 const stopRecord = (key: string) => {
   const record = records[key];
   if (!record) return;
@@ -203,6 +231,9 @@ export function forgetLiveActivity(id: string) {
 export function reconcileLiveActivities(desiredList: DesiredLiveActivity[]) {
   if (!liveActivitySupported) return Promise.resolve();
   return enqueue(() => {
+    for (const key of findEndedLiveActivityKeys(Object.values(records), isNativeActivityAlive)) {
+      delete records[key];
+    }
     const plan = planLiveActivityReconciliation(Object.values(records), desiredList);
     for (const key of plan.stopKeys) stopRecord(key);
     for (const { key, desired } of plan.adopt) records[key] = { ...desired, id: records[key].id };

@@ -158,7 +158,7 @@ export function ManualAddMenu({ open, top, closeLabel, t, onSelect, onClose }: M
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
   dim: {

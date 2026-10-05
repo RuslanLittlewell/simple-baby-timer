@@ -95,7 +95,7 @@ export const RegimeGhostBlocks = memo(function RegimeGhostBlocks({
 
 const styles = StyleSheet.create({
   layer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: TIMELINE_Z_INDEX.ghost,
   },
   block: {

@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { AppFont, Spacing } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
   proSection: { gap: Spacing.one },
@@ -46,7 +46,7 @@ export const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     paddingVertical: Spacing.three,
-    fontFamily: NunitoSans.bold,
+    fontFamily: AppFont.bold,
   },
   notesInput: {
     minHeight: 88,
@@ -55,7 +55,7 @@ export const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     fontSize: 16,
     lineHeight: 22,
-    fontFamily: NunitoSans.regular,
+    fontFamily: AppFont.regular,
   },
   saveButton: {
     alignItems: 'center',

@@ -2,7 +2,7 @@ import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Spacing } from "@/constants/theme";
+import { Spacing, TimerFont } from "@/constants/theme";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/state/app-state";
@@ -93,13 +93,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   timer: {
+    fontFamily: TimerFont,
     fontSize: 44,
-    lineHeight: 50,
-    fontWeight: "700",
+    lineHeight: 54,
     fontVariant: ["tabular-nums"],
   },
   timerDense: {
     fontSize: 34,
-    lineHeight: 38,
+    lineHeight: 42,
   },
 });

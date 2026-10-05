@@ -1,5 +1,5 @@
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { type AnimatedStyle } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/themed-text";
 import { useT } from "@/state/app-state";
@@ -8,7 +8,7 @@ import { withAlpha } from "../helpers";
 import { styles } from "../styles";
 
 interface ExpandedFooterProps {
-  animatedStyle: StyleProp<ViewStyle>;
+  animatedStyle: StyleProp<AnimatedStyle<ViewStyle>>;
   color: string;
   disabled: boolean;
   canSave: boolean;

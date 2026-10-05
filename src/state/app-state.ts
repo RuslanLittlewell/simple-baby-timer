@@ -319,12 +319,6 @@ const milkOf = (proDetails?: ProDetails) =>
     ? proDetails.volumeMl
     : undefined;
 
-function recordRegimeWakeUp(session: ActivitySession) {
-  if (session.kind !== 'sleep' || !session.childId) return;
-  usePersonalRegimeStore
-    .getState()
-    .recordCompletedSleep(session.childId, session.start, session.end);
-}
 
 
 
@@ -351,7 +345,6 @@ async function finalizeSession(
     proDetails: current.proDetails,
   };
   await saveSession(session);
-  recordRegimeWakeUp(session);
   pushSessionIfShared(session);
   useAppStore.setState((state) => ({ dataVersion: state.dataVersion + 1 }));
   return end;
@@ -521,7 +514,6 @@ export const useAppStore = create<AppStore>()(
           proDetails: live.proDetails,
         };
         await saveSession(session);
-        recordRegimeWakeUp(session);
         if (remoteId) enqueueSessionUpsert(remoteId, session);
         const continuesAsAwake = live.kind === 'sleep' || live.kind === 'settling';
         if (remoteId && !continuesAsAwake) {
@@ -571,7 +563,6 @@ export const useAppStore = create<AppStore>()(
               remoteLive: current.remoteLive.filter((item) => item !== remote),
             }));
             await saveSession(completed);
-            recordRegimeWakeUp(completed);
             const remoteId = remoteIdOfChild(remote.childId);
             if (remoteId) enqueueSessionUpsert(remoteId, completed);
             set((current) => ({ dataVersion: current.dataVersion + 1 }));
@@ -885,7 +876,6 @@ export const useAppStore = create<AppStore>()(
           title,
         };
         await saveSession(session);
-        recordRegimeWakeUp(session);
         pushSessionIfShared(session);
         set((state) => ({ dataVersion: state.dataVersion + 1 }));
         if (kind === 'feeding') {

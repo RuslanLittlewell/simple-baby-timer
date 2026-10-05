@@ -66,13 +66,25 @@ export const NunitoSans = {
   bold: 'NunitoSans_700Bold',
 } as const;
 
+export const GoogleSansFlex = {
+  regular: 'GoogleSansFlex_400Regular',
+  medium: 'GoogleSansFlex_500Medium',
+  semiBold: 'GoogleSansFlex_600SemiBold',
+  bold: 'GoogleSansFlex_700Bold',
+} as const;
+
+/** The family every text uses; both families are loaded, so switching is this one line. */
+export const AppFont = NunitoSans;
+
+export const TimerFont = GoogleSansFlex.bold;
+
 export function fontFamilyForWeight(weight?: TextStyle['fontWeight']): string {
-  if (weight === 'bold') return NunitoSans.bold;
+  if (weight === 'bold') return AppFont.bold;
   const numeric = typeof weight === 'number' ? weight : Number.parseInt(weight ?? '', 10);
-  if (numeric >= 700) return NunitoSans.bold;
-  if (numeric >= 600) return NunitoSans.semiBold;
-  if (numeric >= 500) return NunitoSans.medium;
-  return NunitoSans.regular;
+  if (numeric >= 700) return AppFont.bold;
+  if (numeric >= 600) return AppFont.semiBold;
+  if (numeric >= 500) return AppFont.medium;
+  return AppFont.regular;
 }
 
 export const Fonts = Platform.select({

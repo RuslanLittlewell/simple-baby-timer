@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { AppFont, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { loadChildCurrentWeek, redeemInvite, syncGrowthMeasurements } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
@@ -66,7 +66,7 @@ export function EnterCodeModal({ visible, onClose, onJoined }: EnterCodeModalPro
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={45}
           tint="dark"
           pointerEvents="none"
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
-    fontFamily: NunitoSans.bold,
+    fontFamily: AppFont.bold,
   },
   errorText: {
     fontSize: 13,

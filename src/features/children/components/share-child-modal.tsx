@@ -61,7 +61,7 @@ export function ShareChildModal({ child, onClose }: ShareChildModalProps) {
     <Modal visible={!!child} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={45}
           tint="dark"
           pointerEvents="none"

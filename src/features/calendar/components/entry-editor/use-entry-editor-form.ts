@@ -11,7 +11,6 @@ import {
 } from '@/lib/activity-store';
 import { enqueueSessionDelete, enqueueSessionUpsert } from '@/lib/sync';
 import { useAppStore } from '@/state/app-state';
-import { usePersonalRegimeStore } from '@/state/personal-regime-state';
 
 import { normalizeEventTitle } from '../../helpers';
 import { type SettlingMethod } from '../../pro-details';
@@ -138,11 +137,6 @@ export function useEntryEditorForm(
     }
 
     await updateSession(entry.id, originalDate, update);
-    if (entry.kind === 'sleep' && entry.childId) {
-      usePersonalRegimeStore
-        .getState()
-        .recordCompletedSleep(entry.childId, update.start, update.end);
-    }
     const remoteId = remoteIdOf(entry.childId);
     if (remoteId) enqueueSessionUpsert(remoteId, { ...entry, ...update });
     await props.onChanged();

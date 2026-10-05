@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Baby Tracker",
+    "name": "Dozumi",
     "slug": "BabyTimer",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "babytimer",
@@ -51,8 +51,20 @@
         }
       ],
       "./plugins/with-live-activity-style",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/reminder_silent.wav"
+          ]
+        }
+      ],
       "expo-apple-authentication",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

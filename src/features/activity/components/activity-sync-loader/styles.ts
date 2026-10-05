@@ -22,6 +22,6 @@ export const styles = StyleSheet.create({
     height: LOADER_HEIGHT,
   },
   layer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
 });

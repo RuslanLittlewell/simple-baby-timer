@@ -15,7 +15,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
 import { WheelSheetHost } from '@/components/wheel-sheet';
-import { NunitoSans, Spacing } from '@/constants/theme';
+import { AppFont, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   dateFromDateOnly,
@@ -94,7 +94,7 @@ export function GrowthHistoryModal({ visible, child, onClose }: GrowthHistoryMod
           style={styles.backdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <BlurView
-            experimentalBlurMethod="dimezisBlurView"
+            blurMethod="dimezisBlurView"
             intensity={45}
             tint="dark"
             pointerEvents="none"
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    fontFamily: NunitoSans.bold,
+    fontFamily: AppFont.bold,
     fontVariant: ['tabular-nums'],
   },
   editorActions: {

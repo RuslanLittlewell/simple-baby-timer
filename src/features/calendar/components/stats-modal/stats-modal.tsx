@@ -208,7 +208,7 @@ export function StatsModal({ visible, onClose }: StatsModalProps) {
       
       <View style={[modalStyles.backdrop, styles.backdrop]}>
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={45}
           tint="dark"
           pointerEvents="none"

@@ -3,7 +3,10 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { planLiveActivityReconciliation } from '../src/lib/live-activity-lifecycle.ts';
+import {
+  findEndedLiveActivityKeys,
+  planLiveActivityReconciliation,
+} from '../src/lib/live-activity-lifecycle.ts';
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
 const require = createRequire(import.meta.url);
@@ -14,6 +17,22 @@ const desired = (overrides = {}) => ({
   kind: 'sleep',
   startedAt: 100,
   ...overrides,
+});
+
+test('records whose native activity ended are found so they can be restarted', () => {
+  const alive = desired({ ownerId: 'child-1', id: 'alive' });
+  const ended = desired({ ownerId: 'child-2', id: 'ended' });
+  const placeholder = desired({ ownerId: 'child-3', startedAt: 0, id: 'pushed' });
+  const probed = [];
+  const keys = findEndedLiveActivityKeys([alive, ended, placeholder], (record) => {
+    probed.push(record.id);
+    return record.id !== 'ended';
+  });
+  assert.deepEqual(keys, ['child-2|session']);
+  assert.deepEqual(probed, ['alive', 'ended']);
+
+  const plan = planLiveActivityReconciliation([alive], [alive, desired({ ownerId: 'child-2' })]);
+  assert.deepEqual(plan.start.map((item) => item.ownerId), ['child-2']);
 });
 
 test('stale persisted activity is stopped when no mode is active', () => {
@@ -71,15 +90,30 @@ test('live activity presentation includes mode color, roomier padding, and last 
   );
   const push = read('../supabase/functions/live-activity-push/index.ts');
 
-  assert.match(liveActivity, /subtitle: `\$\{translate\(language, 'stats\.lastFeeding'\)\}: \$\{lastFeeding\}`/);
+  assert.match(liveActivity, /const visible = `\$\{translate\(language, 'stats\.lastFeeding'\)\}: \$\{lastFeeding\}`/);
+  assert.match(liveActivity, /translate\(language, 'liveActivity\.ago'\)/);
   assert.match(liveActivity, /padding: \{ vertical: 14, horizontal: 16 \}/);
   assert.match(liveActivity, /LiveActivity\.updateActivity/);
+  assert.match(liveActivity, /findEndedLiveActivityKeys\(Object\.values\(records\), isNativeActivityAlive\)/);
   assert.match(appState, /getLatestFeedingStart/);
   assert.match(appState, /updateLiveActivityLastFeeding/);
   assert.match(syncHook, /buildLiveActivityLabels/);
   assert.match(mediumView, /Circle\(\)[\s\S]*?fill\(progressViewTint/);
   assert.match(smallView, /Circle\(\)[\s\S]*?fill\(progressViewTint/);
   assert.match(widget, /dynamicIslandExpandedLeading\([\s\S]*?progressViewTint/);
+  for (const view of [mediumView, smallView, widget]) {
+    assert.match(view, /LiveActivitySubtitleText\(subtitle\)/);
+    assert.doesNotMatch(view, /\bText\(subtitle\)/);
+  }
+  const viewHelpers = liveActivityStyle.transformations['ViewHelpers.swift'](
+    read(`${nativeSourceDirectory}ViewHelpers.swift`),
+  );
+  assert.match(viewHelpers, /struct LiveActivitySubtitleText/);
+  assert.match(viewHelpers, /components\(separatedBy: "\\u\{1F\}"\)/);
+  assert.match(push, /lastFeedingSubtitle\(locale, subtitleFormat, lastFeedingTime, lastFeedingAt\)/);
+  assert.match(push, /subtitleFormat < ELAPSED_SUBTITLE_FORMAT/);
+  assert.equal((push.match(/locale, subtitle_format'\)/g) ?? []).length, 2);
+  assert.match(read('../src/lib/live-activity-sync.ts'), /subtitle_format: LIVE_ACTIVITY_SUBTITLE_FORMAT/);
   assert.ok(appConfig.expo.plugins.includes('./plugins/with-live-activity-style'));
   assert.match(push, /const lastFeedingTitles/);
   assert.match(push, /paddingDetails: \{ vertical: 14, horizontal: 16 \}/);

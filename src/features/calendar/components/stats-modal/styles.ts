@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 import { Spacing } from "@/constants/theme";
 
 export const styles = StyleSheet.create({
-  absoluteFill: StyleSheet.absoluteFillObject,
+  absoluteFill: StyleSheet.absoluteFill,
   backdrop: { padding: Spacing.two },
   card: { maxWidth: 560, height: "82%", padding: Spacing.three },
   tabs: {

@@ -90,6 +90,20 @@ export function dayKeyFromDate(date: Date): string {
 
 const storageKey = (dayKey: string) => `${PREFIX}${dayKey}`;
 
+const sessionChangeListeners = new Set<() => void>();
+
+/** Called after every write to the stored history, local or synced. */
+export function subscribeToSessionChanges(listener: () => void): () => void {
+  sessionChangeListeners.add(listener);
+  return () => {
+    sessionChangeListeners.delete(listener);
+  };
+}
+
+const notifySessionsChanged = () => {
+  for (const listener of sessionChangeListeners) listener();
+};
+
 export async function getSessionsInRange(
   startMs: number,
   endMs: number,
@@ -250,11 +264,13 @@ export async function claimUnownedSessions(childId: string): Promise<void> {
     }
   } catch {
   }
+  notifySessionsChanged();
 }
 
 export async function deleteAllSessions(): Promise<void> {
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
   if (keys.length) await AsyncStorage.multiRemove(keys);
+  notifySessionsChanged();
 }
 
 export async function deleteSessionsForChild(childId: string): Promise<void> {
@@ -275,6 +291,7 @@ export async function deleteSessionsForChild(childId: string): Promise<void> {
     if (next.length) await AsyncStorage.setItem(key, JSON.stringify(next));
     else await AsyncStorage.removeItem(key);
   }
+  notifySessionsChanged();
 }
 
 export async function mergeRemoteSessions(
@@ -318,6 +335,7 @@ export async function mergeRemoteSessions(
   for (const key of dirty) {
     await AsyncStorage.setItem(key, JSON.stringify(buckets.get(key) ?? []));
   }
+  if (dirty.size) notifySessionsChanged();
 }
 
 export async function saveSession(session: ActivitySession): Promise<void> {
@@ -331,6 +349,7 @@ export async function saveSession(session: ActivitySession): Promise<void> {
     await AsyncStorage.setItem(key, JSON.stringify(list));
   } catch {
   }
+  notifySessionsChanged();
 }
 
 export async function deleteSession(sessionId: string, originalDate: Date): Promise<void> {
@@ -340,6 +359,7 @@ export async function deleteSession(sessionId: string, originalDate: Date): Prom
 
   const list = JSON.parse(raw) as ActivitySession[];
   await AsyncStorage.setItem(key, JSON.stringify(list.filter((s) => s.id !== sessionId)));
+  notifySessionsChanged();
 }
 
 export async function updateSession(
@@ -366,6 +386,7 @@ export async function updateSession(
       .map((session) => (session.id === sessionId ? updated : session))
       .sort((a, b) => a.start - b.start);
     await AsyncStorage.setItem(oldKey, JSON.stringify(next));
+    notifySessionsChanged();
     return;
   }
 
@@ -378,4 +399,5 @@ export async function updateSession(
   targetList.push(updated);
   targetList.sort((a, b) => a.start - b.start);
   await AsyncStorage.setItem(newKey, JSON.stringify(targetList));
+  notifySessionsChanged();
 }

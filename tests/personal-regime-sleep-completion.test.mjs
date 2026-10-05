@@ -2,44 +2,35 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const source = readFileSync(
-  new URL('../src/state/app-state.ts', import.meta.url),
-  'utf8',
-);
+const read = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
 
-test('durably finalized local sleeps record a regime wake-up', () => {
-  const finalize = source.slice(
-    source.indexOf('async function finalizeSession'),
-    source.indexOf('function remoteIdOfChild'),
-  );
-
-  assert.match(finalize, /await saveSession\(session\);\s*recordRegimeWakeUp\(session\);/);
-  assert.match(source, /if \(session\.kind !== 'sleep' \|\| !session\.childId\) return;/);
+test('every write to the session history notifies its listeners', () => {
+  const store = read('../src/lib/activity-store.ts');
+  for (const name of [
+    'claimUnownedSessions',
+    'deleteAllSessions',
+    'deleteSessionsForChild',
+    'mergeRemoteSessions',
+    'saveSession',
+    'deleteSession',
+    'updateSession',
+  ]) {
+    const start = store.indexOf(`export async function ${name}(`);
+    const body = store.slice(start, store.indexOf('\nexport ', start + 1));
+    assert.match(body, /notifySessionsChanged\(\)/, name);
+  }
 });
 
-test('explicit shared sleep completion records the same wake-up adjustment', () => {
-  const stopRemote = source.slice(
-    source.indexOf('stopRemoteActivity: async'),
-    source.indexOf('transitionMainActivity: async'),
-  );
-  const transitionStart = source.indexOf('transitionMainActivity: async', source.indexOf('stopRemoteActivity: async'));
-  const transitionRemote = source.slice(
-    transitionStart,
-    source.indexOf('setSleepMinutes:', transitionStart),
-  );
+test('the day adjustment is rebuilt from history instead of per completed sleep', () => {
+  const appState = read('../src/state/app-state.ts');
+  const editor = read('../src/features/calendar/components/entry-editor/use-entry-editor-form.ts');
+  const hook = read('../src/hooks/use-regime-day-adjustment.ts');
+  const layout = read('../src/app/_layout.tsx');
 
-  assert.match(stopRemote, /await saveSession\(session\);\s*recordRegimeWakeUp\(session\);/);
-  assert.match(
-    transitionRemote,
-    /await saveSession\(completed\);\s*recordRegimeWakeUp\(completed\);/,
-  );
-});
-
-test('manual sleep history does not re-anchor the live daily plan', () => {
-  const manual = source.slice(
-    source.indexOf('addManualActivity: async'),
-    source.indexOf('startActivity: async'),
-  );
-
-  assert.doesNotMatch(manual, /recordRegimeWakeUp/);
+  assert.doesNotMatch(appState, /recordRegimeWakeUp|recordCompletedSleep/);
+  assert.doesNotMatch(editor, /recordCompletedSleep/);
+  assert.match(hook, /subscribeToSessionChanges\(scheduleRecalculation\)/);
+  assert.match(hook, /state\.session !== previous\.session \|\| state\.remoteLive !== previous\.remoteLive/);
+  assert.match(hook, /recalculateDailyAdjustment\(childId, sleeps, now\)/);
+  assert.match(layout, /useRegimeDayAdjustment\(\);/);
 });

@@ -1,9 +1,9 @@
 import { StyleSheet } from "react-native";
 
-import { NunitoSans, Spacing } from "@/constants/theme";
+import { AppFont, Spacing } from "@/constants/theme";
 
 export const styles = StyleSheet.create({
-  absoluteFill: StyleSheet.absoluteFillObject,
+  absoluteFill: StyleSheet.absoluteFill,
   backdrop: {
     flex: 1,
     backgroundColor: "transparent",
@@ -44,7 +44,7 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 18,
     fontWeight: "700",
-    fontFamily: NunitoSans.bold,
+    fontFamily: AppFont.bold,
   },
   dateInput: {
     borderRadius: Spacing.three,
@@ -73,7 +73,7 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 18,
     fontWeight: "700",
-    fontFamily: NunitoSans.bold,
+    fontFamily: AppFont.bold,
     fontVariant: ["tabular-nums"],
   },
   saveButton: {

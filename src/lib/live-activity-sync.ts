@@ -5,6 +5,7 @@ import { type LanguageCode } from '@/i18n';
 import { getUserId, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import {
   forgetLiveActivity,
+  LIVE_ACTIVITY_SUBTITLE_FORMAT,
   liveActivitySupported,
   rememberRemoteLiveActivity,
 } from '@/lib/live-activity';
@@ -42,6 +43,7 @@ async function registerDevice(pushToStartToken: string, locale: LanguageCode) {
       installation_id: installationId,
       push_to_start_token: pushToStartToken,
       locale,
+      subtitle_format: LIVE_ACTIVITY_SUBTITLE_FORMAT,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,installation_id' },
@@ -123,7 +125,12 @@ export async function dispatchLiveActivityPush(
   action: 'start' | 'end',
   childId: string,
   track: 'session' | 'feeding',
-  payload?: { kind: string; startedAt: number; lastFeedingTime: string | null },
+  payload?: {
+    kind: string;
+    startedAt: number;
+    lastFeedingTime: string | null;
+    lastFeedingAt: number | null;
+  },
 ) {
   if (!liveActivitySupported || !isSupabaseConfigured) return;
   const installationId = await getLiveActivityInstallationId();
