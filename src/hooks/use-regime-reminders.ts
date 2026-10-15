@@ -23,11 +23,11 @@ export async function reconcileRegimeReminders(now = Date.now()): Promise<void> 
   const regimeState = usePersonalRegimeStore.getState();
   const child = children.find((item) => item.id === activeChildId);
   const regime = child ? regimeState.regimes[child.id] : undefined;
-  const adjustment = child ? regimeState.dailyAdjustments[child.id] : undefined;
+  const progress = child ? regimeState.dayProgress[child.id] : undefined;
   const hasAccess = hasProAccess(appState);
   const wanted =
     regime && regimeState.ghostVisible && hasAccess && !authRequired
-      ? planRegimeReminders(regime, now, undefined, adjustment)
+      ? planRegimeReminders(regime, now, undefined, progress)
       : [];
 
   const kept: ScheduledRegimeReminder[] = [];
@@ -78,13 +78,13 @@ export function useRegimeReminders(): void {
   const regime = usePersonalRegimeStore((state) =>
     activeChildId ? state.regimes[activeChildId] : undefined,
   );
-  const adjustment = usePersonalRegimeStore((state) =>
-    activeChildId ? state.dailyAdjustments[activeChildId] : undefined,
+  const progress = usePersonalRegimeStore((state) =>
+    activeChildId ? state.dayProgress[activeChildId] : undefined,
   );
 
   useEffect(() => {
     void queueRegimeReminderSync();
-  }, [activeChildId, adjustment, authRequired, ghostVisible, language, proAccess, regime]);
+  }, [activeChildId, authRequired, ghostVisible, language, proAccess, progress, regime]);
 
   useEffect(() => {
     // Only a day of reminders is ever pending, so coming back arms the next.

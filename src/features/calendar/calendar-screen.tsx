@@ -76,8 +76,8 @@ export default function CalendarScreen() {
   const regime = usePersonalRegimeStore((state) =>
     activeChildId ? state.regimes[activeChildId] : undefined,
   );
-  const regimeAdjustment = usePersonalRegimeStore((state) =>
-    activeChildId ? state.dailyAdjustments[activeChildId] : undefined,
+  const regimeDayProgress = usePersonalRegimeStore((state) =>
+    activeChildId ? state.dayProgress[activeChildId] : undefined,
   );
   const ghostVisible = usePersonalRegimeStore((state) => state.ghostVisible);
   const setGhostVisible = usePersonalRegimeStore((state) => state.setGhostVisible);
@@ -447,7 +447,7 @@ export default function CalendarScreen() {
                 {ghostVisible && regime && (
                   <RegimeGhostBlocks
                     regime={regime}
-                    adjustment={regimeAdjustment}
+                    progress={regimeDayProgress}
                     shownDay={shownDay}
                     hourHeight={hourHeight}
                   />

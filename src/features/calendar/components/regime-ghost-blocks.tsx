@@ -6,9 +6,10 @@ import { Spacing, type ThemeMode } from '@/constants/theme';
 import { formatMin } from '@/features/regimes/helpers';
 import { type PersonalRegime } from '@/lib/personal-regime';
 import {
-  adjustedRegimeGhostSegments,
+  planRegimeDay,
   regimeAdjustmentDayKey,
-  type DailyRegimeAdjustment,
+  regimeGhostSegments,
+  type RegimeDayProgress,
 } from '@/lib/personal-regime-adjustment';
 import { useAppStore, useT } from '@/state/app-state';
 
@@ -44,28 +45,27 @@ const GHOST_PALETTE: Record<ThemeMode, GhostPalette> = {
 
 interface RegimeGhostBlocksProps {
   regime: PersonalRegime;
-  adjustment?: DailyRegimeAdjustment;
+  progress?: RegimeDayProgress;
   shownDay: Date;
   hourHeight: number;
 }
 
 export const RegimeGhostBlocks = memo(function RegimeGhostBlocks({
   regime,
-  adjustment,
+  progress,
   shownDay,
   hourHeight,
 }: RegimeGhostBlocksProps) {
   const themeMode = useAppStore((state) => state.themeMode);
   const t = useT();
   const palette = GHOST_PALETTE[themeMode];
-  const shownDayAdjustment =
-    adjustment?.dayKey === regimeAdjustmentDayKey(shownDay.getTime())
-      ? adjustment
-      : undefined;
+  // Only the day the progress belongs to is replanned; any other day shows the learned schedule.
+  const shownDayProgress =
+    progress?.dayKey === regimeAdjustmentDayKey(shownDay.getTime()) ? progress : undefined;
 
   return (
     <View pointerEvents="none" style={styles.layer}>
-      {adjustedRegimeGhostSegments(regime, shownDayAdjustment).map((segment) => {
+      {regimeGhostSegments(planRegimeDay(regime, shownDayProgress)).map((segment) => {
         const top = minutesToPixels(segment.startMin, hourHeight);
         const height = minutesToPixels(segment.endMin - segment.startMin, hourHeight);
         const sleep = segment.kind === 'sleep';

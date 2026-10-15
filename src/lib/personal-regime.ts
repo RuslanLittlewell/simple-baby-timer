@@ -2,6 +2,10 @@
  * A personal schedule built from a child's own records: the medians of the
  * cleanly logged days of the last weeks, laid out on a single day. It describes
  * the rhythm the child already has; it does not search for a better one.
+ *
+ * The day is a chain of wake windows and naps, as the child lives it: each nap
+ * follows the previous wake-up by the usual wake window, stretched evenly so
+ * the chain reaches the usual bedtime.
  */
 
 export const PERSONAL_REGIME_MIN_AGE_MONTHS = 2;
@@ -27,7 +31,8 @@ const MIN_DAY_COVERAGE = 0.85;
 const MIN_DAY_LENGTH_MIN = 8 * 60;
 const MAX_DAY_LENGTH_MIN = 18 * 60;
 const MIN_TYPICAL_DAYS = 3;
-const MIN_PLAN_WAKE_WINDOW_MIN = 30;
+/** No plan has the child awake for less than this before the preparation starts. */
+const MIN_AWAKE_BEFORE_SETTLING_MIN = 30;
 const MAX_SETTLING_MS = 3 * HOUR_MS;
 const SETTLING_LINK_MS = 10 * MINUTE_MS;
 const MIN_SETTLING_SAMPLES = 3;
@@ -60,6 +65,17 @@ export type PersonalRegimeResult =
   | { ok: true; regime: PersonalRegime }
   | { ok: false; reason: 'notEnoughData'; cleanDays: number };
 
+/**
+ * A day as a chain: the minutes awake before each nap and then before the
+ * night - one more than there are naps - and how long each nap lasts.
+ */
+export interface RegimeRhythm {
+  wakeWindows: number[];
+  napDurations: number[];
+}
+
+type RegimeSettling = Pick<PersonalRegime, 'napSettlingMin' | 'bedtimeSettlingMin'>;
+
 export type RegimeGhostKind = 'sleep' | 'settling';
 
 export interface RegimeGhostSegment {
@@ -72,12 +88,12 @@ export interface RegimeGhostSegment {
   plannedEndMin: number;
 }
 
-interface SleepBlock {
+export interface SleepBlock {
   start: number;
   end: number;
 }
 
-interface Night {
+export interface Night {
   bed: number;
   wake: number;
   first: number;
@@ -146,8 +162,11 @@ function nightGapAllowanceMs(gapStart: number): number {
   return 45 * MINUTE_MS;
 }
 
-/** The night that starts on the evening of `dayMs`: the sleep holding 03:00, widened across wakings. */
-function findNight(blocks: SleepBlock[], dayMs: number): Night | null {
+/**
+ * The night that starts on the evening of `dayMs`: the sleep holding 03:00,
+ * widened across wakings. `blocks` are sorted and do not overlap.
+ */
+export function findNight(blocks: SleepBlock[], dayMs: number): Night | null {
   const midnight = localTime(dayMs, 1, 0);
   const anchor = localTime(dayMs, 1, 3);
   let first = blocks.findIndex((b) => b.start <= anchor && anchor <= b.end);
@@ -281,24 +300,74 @@ function settlingMinutes(
   return durations.length >= MIN_SETTLING_SAMPLES ? roundMinutes(median(durations)) : null;
 }
 
-/** Keeps the naps in order, apart from each other and clear of bedtime. */
+const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+
+/** The shortest wake window before a sleep with this much preparation. */
+const minWakeWindow = (settlingMin: number | null) =>
+  (settlingMin ?? 0) + MIN_AWAKE_BEFORE_SETTLING_MIN;
+
+/** The schedule read back as its chain of wake windows and naps. */
+export function regimeRhythm(regime: PersonalRegime): RegimeRhythm {
+  const wakeWindows: number[] = [];
+  let awakeFrom = regime.wakeMin;
+  for (const nap of regime.naps) {
+    wakeWindows.push(nap.startMin - awakeFrom);
+    awakeFrom = nap.endMin;
+  }
+  wakeWindows.push(regime.bedMin - awakeFrom);
+  return { wakeWindows, napDurations: regime.naps.map((nap) => nap.endMin - nap.startMin) };
+}
+
+/** How much every wake window has to stretch for the chain to last `minutes`. */
+export function rhythmStretch(rhythm: RegimeRhythm, minutes: number): number {
+  const awake = sum(rhythm.wakeWindows);
+  return awake > 0 ? (minutes - sum(rhythm.napDurations)) / awake : 1;
+}
+
+/**
+ * Lays the naps out one after another from a wake-up, each wake window
+ * stretched by `stretch` but never shorter than the preparation plus some
+ * time awake, and says when the night then begins.
+ */
+export function chainNaps(
+  fromMin: number,
+  rhythm: RegimeRhythm,
+  stretch: number,
+  settling: RegimeSettling,
+): { naps: PersonalRegimeNap[]; bedMin: number } {
+  // Rounding never takes the time awake below the floor.
+  const sleepAfter = (awakeFrom: number, wakeWindow: number, settlingMin: number | null) =>
+    Math.max(
+      roundMinutes(awakeFrom + wakeWindow * stretch),
+      Math.ceil((awakeFrom + minWakeWindow(settlingMin)) / ROUND_MIN) * ROUND_MIN,
+    );
+  const naps: PersonalRegimeNap[] = [];
+  let awakeFrom = fromMin;
+  rhythm.napDurations.forEach((duration, index) => {
+    const startMin = sleepAfter(awakeFrom, rhythm.wakeWindows[index], settling.napSettlingMin);
+    const endMin = startMin + Math.max(ROUND_MIN, roundMinutes(duration));
+    naps.push({ startMin, endMin });
+    awakeFrom = endMin;
+  });
+  const bedMin = sleepAfter(
+    awakeFrom,
+    rhythm.wakeWindows[rhythm.napDurations.length],
+    settling.bedtimeSettlingMin,
+  );
+  return { naps, bedMin };
+}
+
+/** Chains the naps from the wake-up to bedtime, leaving a proper wake window before the night. */
 function layoutNaps(
-  typicalNaps: { startMin: number; durationMin: number }[],
+  rhythm: RegimeRhythm,
   wakeMin: number,
   bedMin: number,
+  settling: RegimeSettling,
 ): PersonalRegimeNap[] {
-  const naps: PersonalRegimeNap[] = [];
-  let earliestStart = wakeMin + MIN_PLAN_WAKE_WINDOW_MIN;
-  for (const nap of typicalNaps) {
-    const roundedStart = roundMinutes(nap.startMin);
-    const startMin = Math.max(roundedStart, earliestStart);
-    const endMin = Math.max(
-      startMin + ROUND_MIN,
-      roundMinutes(nap.startMin + nap.durationMin) + startMin - roundedStart,
-    );
-    if (endMin + MIN_PLAN_WAKE_WINDOW_MIN > bedMin) break;
-    naps.push({ startMin, endMin });
-    earliestStart = endMin + MIN_PLAN_WAKE_WINDOW_MIN;
+  const stretch = Math.max(0, rhythmStretch(rhythm, bedMin - wakeMin));
+  const { naps } = chainNaps(wakeMin, rhythm, stretch, settling);
+  while (naps.length && bedMin - naps[naps.length - 1].endMin < minWakeWindow(settling.bedtimeSettlingMin)) {
+    naps.pop();
   }
   return naps;
 }
@@ -325,10 +394,30 @@ export function buildPersonalRegime(
     typicalDays.length >= MIN_TYPICAL_DAYS
       ? typicalDays
       : days.filter((day) => day.naps.length >= napCount);
-  const typicalNaps = Array.from({ length: napCount }, (_, index) => ({
-    startMin: median(napSource.map((day) => minuteOfDay(day.naps[index].onset))),
-    durationMin: median(napSource.map((day) => (day.naps[index].end - day.naps[index].onset) / MINUTE_MS)),
-  }));
+  // Wake windows are taken as they were lived: clock times of later naps
+  // drift with every earlier one, the gaps between them do not.
+  const minutesAwakeBefore = (day: CleanDay, index: number) =>
+    (day.naps[index].onset - (index ? day.naps[index - 1].end : day.wake)) / MINUTE_MS;
+  const lastStretchDays = napCount ? days.filter((day) => day.naps.length) : days;
+  const rhythm: RegimeRhythm = {
+    wakeWindows: [
+      ...Array.from({ length: napCount }, (_, index) =>
+        median(napSource.map((day) => minutesAwakeBefore(day, index))),
+      ),
+      median(
+        lastStretchDays.map(
+          (day) => (day.bedOnset - (day.naps.at(-1)?.end ?? day.wake)) / MINUTE_MS,
+        ),
+      ),
+    ],
+    napDurations: Array.from({ length: napCount }, (_, index) =>
+      median(napSource.map((day) => (day.naps[index].end - day.naps[index].onset) / MINUTE_MS)),
+    ),
+  };
+  const settling: RegimeSettling = {
+    napSettlingMin: settlingMinutes(settlings, days.flatMap((day) => day.naps.map((nap) => nap.start))),
+    bedtimeSettlingMin: settlingMinutes(settlings, days.map((day) => day.bedStart)),
+  };
 
   return {
     ok: true,
@@ -337,34 +426,10 @@ export function buildPersonalRegime(
       basedOnDays: days.length,
       wakeMin,
       bedMin,
-      naps: layoutNaps(typicalNaps, wakeMin, bedMin),
-      napSettlingMin: settlingMinutes(settlings, days.flatMap((day) => day.naps.map((nap) => nap.start))),
-      bedtimeSettlingMin: settlingMinutes(settlings, days.map((day) => day.bedStart)),
+      naps: layoutNaps(rhythm, wakeMin, bedMin, settling),
+      ...settling,
     },
   };
-}
-
-/** The schedule as blocks on one calendar day: last night's tail, the naps, tonight's start. */
-export function regimeGhostSegments(regime: PersonalRegime): RegimeGhostSegment[] {
-  const planned: { kind: RegimeGhostKind; startMin: number; endMin: number }[] = [];
-  const addSleep = (startMin: number, endMin: number, settlingMin: number | null) => {
-    if (settlingMin) planned.push({ kind: 'settling', startMin: startMin - settlingMin, endMin: startMin });
-    planned.push({ kind: 'sleep', startMin, endMin });
-  };
-  addSleep(regime.bedMin - DAY_MINUTES, regime.wakeMin, regime.bedtimeSettlingMin);
-  for (const nap of regime.naps) addSleep(nap.startMin, nap.endMin, regime.napSettlingMin);
-  addSleep(regime.bedMin, regime.wakeMin + DAY_MINUTES, regime.bedtimeSettlingMin);
-
-  const wrap = (minutes: number) => ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-  return planned
-    .map((segment) => ({
-      kind: segment.kind,
-      startMin: Math.max(0, segment.startMin),
-      endMin: Math.min(DAY_MINUTES, segment.endMin),
-      plannedStartMin: wrap(segment.startMin),
-      plannedEndMin: wrap(segment.endMin),
-    }))
-    .filter((segment) => segment.endMin > segment.startMin);
 }
 
 export function hasRegimeHistory(sessions: RegimeSourceSession[], now = Date.now()): boolean {

@@ -3,7 +3,7 @@
  * block it plans, so the preparation starts on time instead of the sleep.
  */
 import type { PersonalRegime } from './personal-regime';
-import type { DailyRegimeAdjustment } from './personal-regime-adjustment';
+import { planRegimeDay, type RegimeDayProgress } from './personal-regime-adjustment.ts';
 
 /** How long before the settling block the reminder arrives. */
 export const REGIME_REMINDER_LEAD_MIN = 30;
@@ -21,35 +21,14 @@ export interface RegimeReminderPlan {
 
 const wrapMinutes = (minutes: number) => ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
 
-const adjustmentOffset = (
-  adjustment: DailyRegimeAdjustment | undefined,
-  baseMinute: number,
-) =>
-  adjustment?.anchors.reduce(
-    (total, anchor) => total + (anchor.afterEndMin <= baseMinute ? anchor.deltaMin : 0),
-    0,
-  ) ?? 0;
-
 /**
- * Where the preparation for each sleep begins. Without a recorded settling
- * the sleep is its own beginning, and the lead time still comes before it.
+ * Where the preparation for each sleep of the day begins. Without a recorded
+ * settling the sleep is its own beginning, and the lead time still comes
+ * before it. Last night belongs to the day before.
  */
-const settlingStarts = (
-  regime: PersonalRegime,
-  adjustment?: DailyRegimeAdjustment,
-): number[] => {
-  const naps = regime.naps.map(
-    (nap) =>
-      nap.startMin -
-      (regime.napSettlingMin ?? 0) +
-      adjustmentOffset(adjustment, nap.startMin),
-  );
-  return [
-    ...naps,
-    regime.bedMin -
-      (regime.bedtimeSettlingMin ?? 0) +
-      adjustmentOffset(adjustment, regime.bedMin),
-  ];
+const settlingStarts = (regime: PersonalRegime, progress?: RegimeDayProgress): number[] => {
+  const plan = planRegimeDay(regime, progress);
+  return [...plan.naps, plan.tonight].map((sleep) => sleep.settlingStartMin);
 };
 
 const localMidnight = (now: number, dayOffset: number) => {
@@ -72,16 +51,15 @@ export function planRegimeReminders(
   regime: PersonalRegime,
   now: number,
   horizonMs = DAY_MS,
-  adjustment?: DailyRegimeAdjustment,
+  progress?: RegimeDayProgress,
 ): RegimeReminderPlan[] {
   const plans: RegimeReminderPlan[] = [];
   for (const dayOffset of [0, 1]) {
     const midnight = localMidnight(now, dayOffset);
-    const dayAdjustment =
-      dayOffset === 0 && adjustment?.dayKey === localDayKey(now)
-        ? adjustment
-        : undefined;
-    for (const settlingStartMin of settlingStarts(regime, dayAdjustment)) {
+    // Today follows how the day has gone; tomorrow starts from the learned schedule.
+    const dayProgress =
+      dayOffset === 0 && progress?.dayKey === localDayKey(now) ? progress : undefined;
+    for (const settlingStartMin of settlingStarts(regime, dayProgress)) {
       const at = midnight + (settlingStartMin - REGIME_REMINDER_LEAD_MIN) * MINUTE_MS;
       if (at <= now || at > now + horizonMs) continue;
       plans.push({ at, settlingStartMin: wrapMinutes(settlingStartMin) });

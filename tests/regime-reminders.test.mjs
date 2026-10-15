@@ -86,31 +86,48 @@ test('nothing is planned for a schedule whose blocks have passed', () => {
   assert.deepEqual(planRegimeReminders({ ...regime, naps: [] }, at(0, 22), 60 * 60_000), []);
 });
 
-test('today reminders follow the adjusted plan while tomorrow stays unchanged', () => {
-  const adjustment = {
+test('today reminders follow the re-planned day while tomorrow stays unchanged', () => {
+  // Up at 06:00 instead of 07:00: the first nap comes two hours later as
+  // usual, the later wake windows stretch to keep the 21:00 night.
+  const progress = {
     dayKey: regimeAdjustmentDayKey(at(0, 6)),
-    anchors: [{ afterEndMin: 7 * 60, deltaMin: -60 }],
+    awakeSinceMin: 6 * 60,
+    napsTaken: 0,
+    asleepSinceMin: null,
   };
-  const plans = planRegimeReminders(regime, at(0, 6), 30 * 60 * 60_000, adjustment);
+  const plans = planRegimeReminders(regime, at(0, 6), 30 * 60 * 60_000, progress);
 
+  assert.deepEqual(
+    plans.map((plan) => regimeReminderTime(plan.settlingStartMin)),
+    ['07:30', '10:45', '15:00', '20:30', '08:30', '11:30'],
+  );
   assert.deepEqual(times(plans), times([
     { at: at(0, 7) },
-    { at: at(0, 10) },
-    { at: at(0, 14) },
-    { at: at(0, 19) },
+    { at: at(0, 10, 15) },
+    { at: at(0, 14, 30) },
+    { at: at(0, 20) },
     { at: at(1, 8) },
     { at: at(1, 11) },
   ]));
-  assert.deepEqual(
-    plans.map((plan) => regimeReminderTime(plan.settlingStartMin)),
-    ['07:30', '10:30', '14:30', '19:30', '08:30', '11:30'],
-  );
 });
 
-test('an adjustment from another local day is ignored', () => {
+test('no reminder is planned for a nap that is already running', () => {
+  const plans = planRegimeReminders(regime, at(0, 9, 30), 24 * 60 * 60_000, {
+    dayKey: regimeAdjustmentDayKey(at(0, 9, 30)),
+    awakeSinceMin: 7 * 60,
+    napsTaken: 0,
+    asleepSinceMin: 9 * 60,
+  });
+
+  assert.equal(regimeReminderTime(plans[0].settlingStartMin), '11:30');
+});
+
+test('progress from another local day is ignored', () => {
   const plans = planRegimeReminders(regime, at(0, 6), 24 * 60 * 60_000, {
     dayKey: regimeAdjustmentDayKey(at(-1, 6)),
-    anchors: [{ afterEndMin: 7 * 60, deltaMin: -60 }],
+    awakeSinceMin: 6 * 60,
+    napsTaken: 0,
+    asleepSinceMin: null,
   });
 
   assert.equal(new Date(plans[0].at).getHours(), 8);
