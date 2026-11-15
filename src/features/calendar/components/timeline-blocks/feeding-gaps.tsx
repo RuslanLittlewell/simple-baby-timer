@@ -2,14 +2,18 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
+import { Spacing } from "@/constants/theme";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 
 import { TIMELINE_Z_INDEX } from "../../constants";
-import { formatDuration, laneLeft, type Translate } from "../../helpers";
+import { formatDuration, type Translate } from "../../helpers";
 import { feedingGaps, type FeedingInterval } from "./helpers";
 
-// Wide enough for the longest localized duration; the line runs down its middle.
+// Wide enough for the longest localized duration.
 const GAP_WIDTH = 120;
+// The line runs near the right edge of the feeding blocks, set in from it.
+const GAP_RIGHT_INSET = 12;
+const LINE_RIGHT_INSET = 20;
 const LINE_WIDTH = 1.5;
 const LABEL_MIN_HEIGHT = 18;
 
@@ -60,9 +64,9 @@ export const FeedingGaps = memo(function FeedingGaps({
 const styles = StyleSheet.create({
   gap: {
     position: "absolute",
-    left: laneLeft("feeding"),
+    right: Spacing.two + GAP_RIGHT_INSET,
     width: GAP_WIDTH,
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "center",
     // Level with the feeding blocks, which are drawn later and so stay on top.
     zIndex: TIMELINE_Z_INDEX.event + 1,
@@ -73,6 +77,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
+    right: LINE_RIGHT_INSET,
     width: LINE_WIDTH,
     overflow: "hidden",
   },
