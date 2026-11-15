@@ -29,6 +29,7 @@ import {
   partitionDeletedRows,
   type CalendarWeek,
 } from '@/lib/activity-history-loading';
+import { StoredList, withoutSent } from '@/lib/stored-list';
 import { useGrowthStore } from '@/state/growth-state';
 
 const QUEUE_KEY = 'babytimer.sync.queue.v1';
@@ -45,6 +46,14 @@ const LEGACY_WEEK_FRESHNESS_PREFIX = 'babytimer.sync.week-freshness.v1.';
 const legacyWeekFreshnessKey = (remoteId: string) => `${LEGACY_WEEK_FRESHNESS_PREFIX}${remoteId}`;
 const DAY_FRESHNESS_PREFIX = 'babytimer.sync.day-freshness.v1.';
 const dayFreshnessKey = (remoteId: string) => `${DAY_FRESHNESS_PREFIX}${remoteId}`;
+const CHANGE_CURSOR_PREFIX = 'babytimer.sync.change-cursor.v1.';
+const changeCursorKey = (remoteId: string) => `${CHANGE_CURSOR_PREFIX}${remoteId}`;
+/**
+ * A row's `updated_at` is its transaction's start time, so a row can become
+ * visible after a later-stamped one was already read. Each pull therefore
+ * re-reads this much before its cursor; merging the same row twice is harmless.
+ */
+const CHANGE_CURSOR_OVERLAP_MS = 5 * 60_000;
 export const CURRENT_DAY_FRESHNESS_MS = 60_000;
 export const EMPTY_RANGE_FRESHNESS_MS = 5 * 60_000;
 const UPSERT_CHUNK = 500;
@@ -94,12 +103,24 @@ function rowsToLocalChanges(rows: SessionRow[], localChildId: string) {
   };
 }
 
+/**
+ * Applies downloaded rows and reports how many changed the stored history.
+ * A row whose local edit is still waiting to be uploaded is skipped: the copy
+ * on this device is the newer one, and the server's would silently revert it.
+ */
 export async function mergeRemoteSessionRows(
   rows: SessionRow[],
   localChildId: string,
-): Promise<void> {
-  const { upserts, deletedIds } = rowsToLocalChanges(rows, localChildId);
-  await mergeRemoteSessions(upserts, deletedIds);
+): Promise<number> {
+  if (!rows.length) return 0;
+  const pending = new Set(
+    (await uploadQueue.read()).map((op) => `${op.remoteChildId}/${op.session.id}`),
+  );
+  const settledRows = pending.size
+    ? rows.filter((row) => !pending.has(`${row.child_id}/${row.id}`))
+    : rows;
+  const { upserts, deletedIds } = rowsToLocalChanges(settledRows, localChildId);
+  return mergeRemoteSessions(upserts, deletedIds);
 }
 
 interface QueuedOp {
@@ -135,31 +156,40 @@ async function upsertSessionRows(rows: ReturnType<typeof toRow>[]): Promise<void
   if (result.error) throw result.error;
 }
 
-const readQueue = async (): Promise<QueuedOp[]> => {
-  try {
-    const raw = await AsyncStorage.getItem(QUEUE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
+/**
+ * Records waiting to be uploaded. Its changes take turns: several records saved
+ * together, or a save landing while an upload was in flight, used to overwrite
+ * each other here, and a record was dropped before it ever reached the server.
+ */
+const uploadQueue = new StoredList<QueuedOp>(AsyncStorage, QUEUE_KEY);
 
-const writeQueue = (queue: QueuedOp[]) =>
-  AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+const sameQueuedRecord = (a: QueuedOp, b: QueuedOp) =>
+  a.session.id === b.session.id && a.remoteChildId === b.remoteChildId;
+
+const queueFailureListeners = new Set<() => void>();
+
+/** Called when queued records could not be uploaded and are still waiting. */
+export function subscribeToQueueFailures(listener: () => void): () => void {
+  queueFailureListeners.add(listener);
+  return () => {
+    queueFailureListeners.delete(listener);
+  };
+}
 
 async function enqueue(op: QueuedOp): Promise<void> {
   if (!isSupabaseConfigured) return;
-  const queue = await readQueue();
-  const next = queue.filter(
-    (item) => !(item.session.id === op.session.id && item.remoteChildId === op.remoteChildId),
-  );
-  next.push(op);
-  await writeQueue(next);
-  flushQueue().catch(() => {});
+  await uploadQueue.update((queue) => [
+    ...queue.filter((item) => !sameQueuedRecord(item, op)),
+    op,
+  ]);
+  flushQueue().catch(() => {
+    for (const listener of queueFailureListeners) listener();
+  });
 }
 
 export async function clearSyncState(): Promise<void> {
+  // A queue write still in flight would otherwise bring the queue back afterwards.
+  await uploadQueue.settled();
   const keys = await AsyncStorage.getAllKeys();
   weekLoads.clear();
   await AsyncStorage.multiRemove([
@@ -171,6 +201,7 @@ export async function clearSyncState(): Promise<void> {
     ...keys.filter((key) => key.startsWith(LEGACY_WEEK_FRESHNESS_PREFIX)),
     ...keys.filter((key) => key.startsWith(DAY_FRESHNESS_PREFIX)),
     ...keys.filter((key) => key.startsWith(EMPTY_RANGES_PREFIX)),
+    ...keys.filter((key) => key.startsWith(CHANGE_CURSOR_PREFIX)),
   ]);
 }
 
@@ -385,23 +416,54 @@ export async function activateTestPro(): Promise<number> {
   return renewsAt;
 }
 
-let flushing = false;
+async function flushQueuePass(): Promise<void> {
+  const queue = await uploadQueue.read();
+  if (!queue.length) return;
+  await requireSession();
 
-export async function flushQueue(): Promise<void> {
-  if (!isSupabaseConfigured || flushing) return;
-  flushing = true;
-  try {
-    const queue = await readQueue();
-    if (!queue.length) return;
-    await requireSession();
-    for (let i = 0; i < queue.length; i += UPSERT_CHUNK) {
-      const chunk = queue.slice(i, i + UPSERT_CHUNK);
-      await upsertSessionRows(chunk.map(toRow));
-      await writeQueue(queue.slice(i + UPSERT_CHUNK));
-    }
-  } finally {
-    flushing = false;
+  // One child's rows being refused must not hold back every other child's.
+  const byChild = new Map<string, QueuedOp[]>();
+  for (const op of queue) {
+    byChild.set(op.remoteChildId, [...(byChild.get(op.remoteChildId) ?? []), op]);
   }
+
+  let failure: unknown;
+  for (const ops of byChild.values()) {
+    try {
+      for (let i = 0; i < ops.length; i += UPSERT_CHUNK) {
+        const chunk = ops.slice(i, i + UPSERT_CHUNK);
+        await upsertSessionRows(chunk.map(toRow));
+        // Only what was just sent leaves the queue: a record edited again while
+        // the request was in flight keeps its newer copy for the next pass.
+        await uploadQueue.update((current) => withoutSent(current, chunk));
+      }
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure) throw failure;
+}
+
+let flushInFlight: Promise<void> | null = null;
+let flushRequestedAgain = false;
+
+/** Uploads the queued records. A call made during an upload runs one more pass after it. */
+export function flushQueue(): Promise<void> {
+  if (!isSupabaseConfigured) return Promise.resolve();
+  if (flushInFlight) {
+    flushRequestedAgain = true;
+    return flushInFlight;
+  }
+  const run = (async () => {
+    do {
+      flushRequestedAgain = false;
+      await flushQueuePass();
+    } while (flushRequestedAgain);
+  })().finally(() => {
+    flushInFlight = null;
+  });
+  flushInFlight = run;
+  return run;
 }
 
 export async function syncChildToCloud(child: Child): Promise<string> {
@@ -608,9 +670,9 @@ export async function leaveChild(remoteId: string): Promise<void> {
     legacyWeekFreshnessKey(remoteId),
     dayFreshnessKey(remoteId),
     emptyRangesKey(remoteId),
+    changeCursorKey(remoteId),
   ]);
-  const queue = await readQueue();
-  await writeQueue(queue.filter((op) => op.remoteChildId !== remoteId));
+  await uploadQueue.update((queue) => queue.filter((op) => op.remoteChildId !== remoteId));
 }
 
 async function fetchHistoryPages(
@@ -640,7 +702,9 @@ async function fetchHistoryPages(
         startMs: Number(row.start_ms),
       }));
     },
-    (rows) => mergeRemoteSessionRows(rows, localChildId),
+    async (rows) => {
+      await mergeRemoteSessionRows(rows, localChildId);
+    },
   );
 }
 
@@ -681,6 +745,112 @@ export async function isChildCurrentDayFresh(
   return dayFreshness.isFresh(remoteId, day.key, maxAgeMs);
 }
 
+interface ChangeCursor {
+  localChildId: string;
+  /** The server's own `updated_at` text, kept verbatim so no precision is lost. */
+  updatedAt: string;
+}
+
+async function readChangeCursor(
+  remoteId: string,
+  localChildId: string,
+): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(changeCursorKey(remoteId));
+    const parsed = raw ? (JSON.parse(raw) as Partial<ChangeCursor>) : null;
+    if (
+      !parsed ||
+      parsed.localChildId !== localChildId ||
+      typeof parsed.updatedAt !== 'string' ||
+      !Number.isFinite(Date.parse(parsed.updatedAt))
+    ) return null;
+    return parsed.updatedAt;
+  } catch {
+    return null;
+  }
+}
+
+const writeChangeCursor = (remoteId: string, localChildId: string, updatedAt: string) =>
+  AsyncStorage.setItem(
+    changeCursorKey(remoteId),
+    JSON.stringify({ localChildId, updatedAt } satisfies ChangeCursor),
+  );
+
+/**
+ * Downloads every record of the child that was added, edited or deleted on the
+ * server since the last pull, whichever day it belongs to. Week downloads are
+ * remembered as done, and realtime misses whatever happens while the app is
+ * closed or offline, so without this a change made by another caregiver to an
+ * already downloaded day never arrived.
+ */
+export async function pullChildChanges(
+  remoteId: string,
+  localChildId: string,
+): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  return weekLoads.run(`${remoteId}/changes`, async () => {
+    await requireSession();
+    const cursor = await readChangeCursor(remoteId, localChildId);
+
+    if (cursor === null) {
+      // Nothing says how stale the downloaded weeks are, so they are forgotten
+      // and download once more; from this point on changes are followed.
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('updated_at')
+        .eq('child_id', remoteId)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const latest = (data?.[0] as { updated_at?: string } | undefined)?.updated_at;
+      await loadedWeeks.reset(remoteId, localChildId);
+      await writeChangeCursor(
+        remoteId,
+        localChildId,
+        typeof latest === 'string' ? latest : new Date(0).toISOString(),
+      );
+      return 0;
+    }
+
+    let since = new Date(Date.parse(cursor) - CHANGE_CURSOR_OVERLAP_MS).toISOString();
+    let newest = cursor;
+    let changed = 0;
+    // Rows already merged from the page boundary's timestamp, which the next page repeats.
+    let boundaryIds = new Set<string>();
+    for (;;) {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('child_id', remoteId)
+        .gte('updated_at', since)
+        .order('updated_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(HISTORY_PAGE_SIZE);
+      if (error) throw error;
+      const page = (data ?? []) as SessionRow[];
+      const rows = page.filter((row) => !boundaryIds.has(row.id));
+      if (rows.length) {
+        changed += await mergeRemoteSessionRows(rows, localChildId);
+        const last = page[page.length - 1].updated_at;
+        if (Date.parse(last) >= Date.parse(newest)) newest = last;
+      }
+      if (page.length < HISTORY_PAGE_SIZE) break;
+      const last = page[page.length - 1].updated_at;
+      // A full page stamped with a single instant cannot be stepped through by
+      // timestamp; such a bulk write is left to the week downloads.
+      if (last === since && !rows.length) break;
+      boundaryIds = new Set(
+        [...(last === since ? boundaryIds : []), ...page
+          .filter((row) => row.updated_at === last)
+          .map((row) => row.id)],
+      );
+      since = last;
+    }
+    if (newest !== cursor) await writeChangeCursor(remoteId, localChildId, newest);
+    return changed;
+  });
+}
+
 export async function loadChildHistoryRange(
   remoteId: string,
   localChildId: string,
@@ -696,10 +866,7 @@ export async function loadChildHistoryRange(
   return counts.reduce((sum, count) => sum + count, 0);
 }
 
-/**
- * Loads a long span one week at a time: each merge reads and rewrites the
- * shared day buckets, so weeks merged in parallel can overwrite each other.
- */
+/** Loads a long span one week at a time, so a large history is not requested all at once. */
 export async function syncChildHistory(
   remoteId: string,
   localChildId: string,

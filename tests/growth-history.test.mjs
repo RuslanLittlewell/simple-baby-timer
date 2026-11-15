@@ -48,8 +48,13 @@ test('history modal shows latest row at the bottom and provides shared add/edit 
   assert.match(modal, /onLayout=\{scrollToLatest\}/);
   assert.match(modal, /onContentSizeChange=\{scrollToLatest\}/);
   assert.match(modal, /scrollToEnd\(\{ animated: false \}\)/);
-  assert.match(modal, /maxHeight: '72%'/);
-  assert.match(modal, /const HISTORY_VISIBLE_ROW_COUNT = 4/);
+  assert.match(modal, /maxHeight: '90%'/);
+  assert.match(modal, /const HISTORY_VISIBLE_ROW_COUNT = 3/);
+  assert.match(modal, /<GestureHandlerRootView style=\{styles\.gestureRoot\}>/);
+  assert.ok(
+    modal.indexOf('<GrowthChart measurements={measurements} />') <
+      modal.indexOf('ref={historyScrollRef}'),
+  );
   assert.match(modal, /const HISTORY_ROW_HEIGHT = 52/);
   assert.match(modal, /HISTORY_VISIBLE_ROW_COUNT \* HISTORY_ROW_HEIGHT/);
   assert.match(modal, /list:[\s\S]*?maxHeight: HISTORY_LIST_MAX_HEIGHT/);

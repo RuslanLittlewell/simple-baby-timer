@@ -55,3 +55,48 @@ export function eventStripeCount(
 ): number {
   return Math.ceil((blockWidth + 2 * eventHeight) / stripePitch);
 }
+
+export interface FeedingInterval {
+  start: number;
+  end: number;
+}
+
+export interface FeedingGap {
+  /** When the earlier feeding ended. */
+  from: number;
+  /** When the next feeding started. */
+  to: number;
+  top: number;
+  height: number;
+}
+
+/**
+ * Breaks between consecutive feedings, laid out for the shown day. A break is
+ * measured in full even when one of its feedings belongs to a neighbouring day,
+ * while its line is clipped to the part that falls inside the shown day.
+ */
+export function feedingGaps(
+  feedings: FeedingInterval[],
+  dayStartMs: number,
+  hourHeight: number,
+): FeedingGap[] {
+  const ordered = [...feedings].sort((a, b) => a.start - b.start);
+  const gaps: FeedingGap[] = [];
+  let previousEnd: number | null = null;
+
+  for (const feeding of ordered) {
+    if (previousEnd !== null && feeding.start - previousEnd >= 60_000) {
+      const layout = sessionLayout(previousEnd, feeding.start, dayStartMs, hourHeight);
+      if (layout) {
+        gaps.push({
+          from: previousEnd,
+          to: feeding.start,
+          top: layout.top,
+          height: layout.spanHeight,
+        });
+      }
+    }
+    previousEnd = Math.max(previousEnd ?? feeding.end, feeding.end);
+  }
+  return gaps;
+}

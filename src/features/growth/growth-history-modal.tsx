@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ThemedText } from '@/components/themed-text';
 import { WheelField } from '@/components/wheel-field';
@@ -32,13 +33,15 @@ import { type Child } from '@/lib/children';
 import { useAppStore, useT } from '@/state/app-state';
 import { useGrowthStore } from '@/state/growth-state';
 
+import { GrowthChart } from './growth-chart';
+
 interface GrowthHistoryModalProps {
   visible: boolean;
   child: Child | null;
   onClose: () => void;
 }
 
-const HISTORY_VISIBLE_ROW_COUNT = 4;
+const HISTORY_VISIBLE_ROW_COUNT = 3;
 const HISTORY_ROW_HEIGHT = 52;
 const HISTORY_LIST_MAX_HEIGHT =
   HISTORY_VISIBLE_ROW_COUNT * HISTORY_ROW_HEIGHT +
@@ -89,117 +92,121 @@ export function GrowthHistoryModal({ visible, child, onClose }: GrowthHistoryMod
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <WheelSheetHost>
-        <KeyboardAvoidingView
-          style={styles.backdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <BlurView
-            blurMethod="dimezisBlurView"
-            intensity={45}
-            tint="dark"
-            pointerEvents="none"
-            style={StyleSheet.absoluteFill}
-          />
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-          <View style={[styles.card, { backgroundColor: theme.background }]}> 
-            <View style={styles.header}>
-              <ThemedText style={styles.title}>
-                {editing
-                  ? t(editing === 'new' ? 'growth.add' : 'growth.edit')
-                  : t('growth.title')}
-              </ThemedText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('editor.cancel')}
-                onPress={editing ? () => setEditing(null) : onClose}
-                hitSlop={10}
-                style={({ pressed }) => pressed && styles.pressed}>
-                <MaterialCommunityIcons
-                  name={editing ? 'arrow-left' : 'close'}
-                  size={24}
-                  color={theme.text}
-                />
-              </Pressable>
-            </View>
-
-            {child && editing ? (
-              <GrowthMeasurementEditor
-                child={child}
-                measurement={editing === 'new' ? null : editing}
-                onCancel={() => setEditing(null)}
-                onSave={saveMeasurement}
-              />
-            ) : (
-              <>
-                <ScrollView
-                  ref={historyScrollRef}
-                  style={styles.list}
-                  contentContainerStyle={measurements.length ? styles.listContent : styles.emptyContent}
-                  keyboardShouldPersistTaps="handled"
-                  onLayout={scrollToLatest}
-                  onContentSizeChange={scrollToLatest}
-                  showsVerticalScrollIndicator>
-                  {measurements.length ? measurements.map((measurement) => {
-                    const height = formatMeasurementNumber(measurement.heightCm, language);
-                    const weight = formatMeasurementNumber(measurement.weightKg, language);
-                    return (
-                      <Pressable
-                        key={measurement.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('growth.rowAccessibility', {
-                          date: formatMeasurementDate(measurement.measuredOn),
-                          height,
-                          weight,
-                        })}
-                        onPress={() => setEditing(measurement)}
-                        style={({ pressed }) => [
-                          styles.row,
-                          { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-                          pressed && styles.pressed,
-                        ]}>
-                        <ThemedText type="smallBold" numberOfLines={1} style={styles.rowDate}>
-                          {formatMeasurementDate(measurement.measuredOn)}
-                        </ThemedText>
-                        <ThemedText
-                          type="small"
-                          themeColor="textSecondary"
-                          numberOfLines={1}
-                          style={styles.rowValues}>
-                          {weight} {t('unit.kg')} · {height} {t('unit.cm')}
-                        </ThemedText>
-                        <MaterialCommunityIcons
-                          name="pencil-outline"
-                          size={18}
-                          color={theme.textSecondary}
-                          style={styles.rowEditIcon}
-                        />
-                      </Pressable>
-                    );
-                  }) : (
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                      {t('growth.empty')}
-                    </ThemedText>
-                  )}
-                </ScrollView>
+      {/* A modal is its own window on Android, so the chart's touch needs its own gesture root. */}
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <WheelSheetHost>
+          <KeyboardAvoidingView
+            style={styles.backdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <BlurView
+              blurMethod="dimezisBlurView"
+              intensity={45}
+              tint="dark"
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+            <View style={[styles.card, { backgroundColor: theme.background }]}> 
+              <View style={styles.header}>
+                <ThemedText style={styles.title}>
+                  {editing
+                    ? t(editing === 'new' ? 'growth.add' : 'growth.edit')
+                    : t('growth.title')}
+                </ThemedText>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={t('growth.add')}
-                  onPress={() => setEditing('new')}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    { backgroundColor: theme.text },
-                    pressed && styles.pressed,
-                  ]}>
-                  <MaterialCommunityIcons name="plus" size={20} color={theme.background} />
-                  <ThemedText style={[styles.primaryButtonText, { color: theme.background }]}>
-                    {t('growth.add')}
-                  </ThemedText>
+                  accessibilityLabel={t('editor.cancel')}
+                  onPress={editing ? () => setEditing(null) : onClose}
+                  hitSlop={10}
+                  style={({ pressed }) => pressed && styles.pressed}>
+                  <MaterialCommunityIcons
+                    name={editing ? 'arrow-left' : 'close'}
+                    size={24}
+                    color={theme.text}
+                  />
                 </Pressable>
-              </>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </WheelSheetHost>
+              </View>
+
+              {child && editing ? (
+                <GrowthMeasurementEditor
+                  child={child}
+                  measurement={editing === 'new' ? null : editing}
+                  onCancel={() => setEditing(null)}
+                  onSave={saveMeasurement}
+                />
+              ) : (
+                <>
+                  <GrowthChart measurements={measurements} />
+                  <ScrollView
+                    ref={historyScrollRef}
+                    style={styles.list}
+                    contentContainerStyle={measurements.length ? styles.listContent : styles.emptyContent}
+                    keyboardShouldPersistTaps="handled"
+                    onLayout={scrollToLatest}
+                    onContentSizeChange={scrollToLatest}
+                    showsVerticalScrollIndicator>
+                    {measurements.length ? measurements.map((measurement) => {
+                      const height = formatMeasurementNumber(measurement.heightCm, language);
+                      const weight = formatMeasurementNumber(measurement.weightKg, language);
+                      return (
+                        <Pressable
+                          key={measurement.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('growth.rowAccessibility', {
+                            date: formatMeasurementDate(measurement.measuredOn),
+                            height,
+                            weight,
+                          })}
+                          onPress={() => setEditing(measurement)}
+                          style={({ pressed }) => [
+                            styles.row,
+                            { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+                            pressed && styles.pressed,
+                          ]}>
+                          <ThemedText type="smallBold" numberOfLines={1} style={styles.rowDate}>
+                            {formatMeasurementDate(measurement.measuredOn)}
+                          </ThemedText>
+                          <ThemedText
+                            type="small"
+                            themeColor="textSecondary"
+                            numberOfLines={1}
+                            style={styles.rowValues}>
+                            {weight} {t('unit.kg')} · {height} {t('unit.cm')}
+                          </ThemedText>
+                          <MaterialCommunityIcons
+                            name="pencil-outline"
+                            size={18}
+                            color={theme.textSecondary}
+                            style={styles.rowEditIcon}
+                          />
+                        </Pressable>
+                      );
+                    }) : (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                        {t('growth.empty')}
+                      </ThemedText>
+                    )}
+                  </ScrollView>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('growth.add')}
+                    onPress={() => setEditing('new')}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      { backgroundColor: theme.text },
+                      pressed && styles.pressed,
+                    ]}>
+                    <MaterialCommunityIcons name="plus" size={20} color={theme.background} />
+                    <ThemedText style={[styles.primaryButtonText, { color: theme.background }]}>
+                      {t('growth.add')}
+                    </ThemedText>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </WheelSheetHost>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -318,6 +325,9 @@ function GrowthMeasurementEditor({
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     alignItems: 'center',
@@ -328,7 +338,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 440,
-    maxHeight: '72%',
+    maxHeight: '90%',
     minHeight: 320,
     borderRadius: Spacing.four,
     borderWidth: 1,

@@ -104,6 +104,33 @@ const notifySessionsChanged = () => {
   for (const listener of sessionChangeListeners) listener();
 };
 
+let storeWriteTail: Promise<unknown> = Promise.resolve();
+
+/**
+ * Every write reads a day bucket, changes it and stores it back, so writes that
+ * ran side by side (a sync merge, a realtime row, a local save) used to store
+ * stale copies over each other and silently drop sessions. They now run one at
+ * a time. The lock is not re-entrant: never call a locked writer from inside one.
+ */
+function withStoreLock<T>(write: () => Promise<T>): Promise<T> {
+  const run = storeWriteTail.then(write, write);
+  storeWriteTail = run.catch(() => {});
+  return run;
+}
+
+const sessionSignature = (session: ActivitySession) =>
+  JSON.stringify([
+    session.id,
+    session.kind,
+    session.start,
+    session.end,
+    session.milkMl ?? null,
+    session.proDetails ?? null,
+    session.notes ?? null,
+    session.title ?? null,
+    session.childId ?? null,
+  ]);
+
 export async function getSessionsInRange(
   startMs: number,
   endMs: number,
@@ -246,7 +273,39 @@ export async function getLatestFeedingStart(
 }
 
 export async function claimUnownedSessions(childId: string): Promise<void> {
-  try {
+  return withStoreLock(async () => {
+    try {
+      const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+      if (!keys.length) return;
+      const storedDays = await AsyncStorage.multiGet(keys);
+      for (const [key, raw] of storedDays) {
+        if (!raw) continue;
+        let list: ActivitySession[];
+        try {
+          list = JSON.parse(raw) as ActivitySession[];
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(list) || !list.some((s) => !s.childId)) continue;
+        const next = list.map((s) => (s.childId ? s : { ...s, childId }));
+        await AsyncStorage.setItem(key, JSON.stringify(next));
+      }
+    } catch {
+    }
+    notifySessionsChanged();
+  });
+}
+
+export async function deleteAllSessions(): Promise<void> {
+  return withStoreLock(async () => {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+    notifySessionsChanged();
+  });
+}
+
+export async function deleteSessionsForChild(childId: string): Promise<void> {
+  return withStoreLock(async () => {
     const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
     if (!keys.length) return;
     const storedDays = await AsyncStorage.multiGet(keys);
@@ -258,108 +317,110 @@ export async function claimUnownedSessions(childId: string): Promise<void> {
       } catch {
         continue;
       }
-      if (!Array.isArray(list) || !list.some((s) => !s.childId)) continue;
-      const next = list.map((s) => (s.childId ? s : { ...s, childId }));
-      await AsyncStorage.setItem(key, JSON.stringify(next));
+      if (!Array.isArray(list)) continue;
+      const next = list.filter((session) => session.childId !== childId);
+      if (next.length === list.length) continue;
+      if (next.length) await AsyncStorage.setItem(key, JSON.stringify(next));
+      else await AsyncStorage.removeItem(key);
     }
-  } catch {
-  }
-  notifySessionsChanged();
+    notifySessionsChanged();
+  });
 }
 
-export async function deleteAllSessions(): Promise<void> {
-  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
-  if (keys.length) await AsyncStorage.multiRemove(keys);
-  notifySessionsChanged();
-}
-
-export async function deleteSessionsForChild(childId: string): Promise<void> {
-  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
-  if (!keys.length) return;
-  const storedDays = await AsyncStorage.multiGet(keys);
-  for (const [key, raw] of storedDays) {
-    if (!raw) continue;
-    let list: ActivitySession[];
-    try {
-      list = JSON.parse(raw) as ActivitySession[];
-    } catch {
-      continue;
-    }
-    if (!Array.isArray(list)) continue;
-    const next = list.filter((session) => session.childId !== childId);
-    if (next.length === list.length) continue;
-    if (next.length) await AsyncStorage.setItem(key, JSON.stringify(next));
-    else await AsyncStorage.removeItem(key);
-  }
-  notifySessionsChanged();
-}
-
+/** Applies downloaded rows and reports how many of them actually changed the stored history. */
 export async function mergeRemoteSessions(
   upserts: ActivitySession[],
   deletedIds: string[],
-): Promise<void> {
-  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
-  const storedDays = await AsyncStorage.multiGet(keys);
-  const buckets = new Map<string, ActivitySession[]>();
-  for (const [key, raw] of storedDays) {
-    if (!raw) continue;
-    try {
-      const parsed = JSON.parse(raw) as ActivitySession[];
-      if (Array.isArray(parsed)) buckets.set(key, parsed);
-    } catch {
-    }
-  }
-
-  const dirty = new Set<string>();
-  const removeById = (id: string) => {
-    for (const [key, list] of buckets) {
-      const next = list.filter((s) => s.id !== id);
-      if (next.length !== list.length) {
-        buckets.set(key, next);
-        dirty.add(key);
+): Promise<number> {
+  return withStoreLock(async () => {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+    const storedDays = await AsyncStorage.multiGet(keys);
+    const buckets = new Map<string, ActivitySession[]>();
+    for (const [key, raw] of storedDays) {
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw) as ActivitySession[];
+        if (Array.isArray(parsed)) buckets.set(key, parsed);
+      } catch {
       }
     }
-  };
 
-  for (const id of deletedIds) removeById(id);
-  for (const session of upserts) {
-    removeById(session.id);
-    const key = storageKey(dayKeyFromDate(new Date(session.start)));
-    const list = buckets.get(key) ?? [];
-    list.push(session);
-    list.sort((a, b) => a.start - b.start);
-    buckets.set(key, list);
-    dirty.add(key);
-  }
+    const dirty = new Set<string>();
+    const removeById = (id: string) => {
+      let removed = false;
+      for (const [key, list] of buckets) {
+        const next = list.filter((s) => s.id !== id);
+        if (next.length !== list.length) {
+          buckets.set(key, next);
+          dirty.add(key);
+          removed = true;
+        }
+      }
+      return removed;
+    };
 
-  for (const key of dirty) {
-    await AsyncStorage.setItem(key, JSON.stringify(buckets.get(key) ?? []));
-  }
-  if (dirty.size) notifySessionsChanged();
+    let changed = 0;
+    for (const id of deletedIds) {
+      if (removeById(id)) changed += 1;
+    }
+    for (const session of upserts) {
+      const key = storageKey(dayKeyFromDate(new Date(session.start)));
+      const signature = sessionSignature(session);
+      const stored = [...buckets].flatMap(([bucketKey, list]) =>
+        list.filter((item) => item.id === session.id).map((item) => ({ bucketKey, item })),
+      );
+      // Rewriting an identical row would only cause needless writes and redraws.
+      if (
+        stored.length === 1 &&
+        stored[0].bucketKey === key &&
+        sessionSignature(stored[0].item) === signature
+      ) continue;
+
+      removeById(session.id);
+      const list = buckets.get(key) ?? [];
+      list.push(session);
+      list.sort((a, b) => a.start - b.start);
+      buckets.set(key, list);
+      dirty.add(key);
+      changed += 1;
+    }
+
+    for (const key of dirty) {
+      const list = buckets.get(key) ?? [];
+      if (list.length) await AsyncStorage.setItem(key, JSON.stringify(list));
+      else await AsyncStorage.removeItem(key);
+    }
+    if (dirty.size) notifySessionsChanged();
+    return changed;
+  });
 }
 
 export async function saveSession(session: ActivitySession): Promise<void> {
-  const key = storageKey(dayKeyFromDate(new Date(session.start)));
-  try {
-    const raw = await AsyncStorage.getItem(key);
-    const list: ActivitySession[] = raw ? JSON.parse(raw) : [];
-    const existing = list.findIndex((item) => item.id === session.id);
-    if (existing === -1) list.push(session);
-    else list[existing] = session;
-    await AsyncStorage.setItem(key, JSON.stringify(list));
-  } catch {
-  }
-  notifySessionsChanged();
+  return withStoreLock(async () => {
+    const key = storageKey(dayKeyFromDate(new Date(session.start)));
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      const list: ActivitySession[] = raw ? JSON.parse(raw) : [];
+      const existing = list.findIndex((item) => item.id === session.id);
+      if (existing === -1) list.push(session);
+      else list[existing] = session;
+      await AsyncStorage.setItem(key, JSON.stringify(list));
+    } catch {
+    }
+    notifySessionsChanged();
+  });
 }
 
 export async function deleteSession(sessionId: string, originalDate: Date): Promise<void> {
-  const key = storageKey(dayKeyFromDate(originalDate));
-  const raw = await AsyncStorage.getItem(key);
-  if (!raw) return;
+  return withStoreLock(async () => {
+    const key = storageKey(dayKeyFromDate(originalDate));
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return;
 
-  const list = JSON.parse(raw) as ActivitySession[];
-  await AsyncStorage.setItem(key, JSON.stringify(list.filter((s) => s.id !== sessionId)));
-  notifySessionsChanged();
+    const list = JSON.parse(raw) as ActivitySession[];
+    await AsyncStorage.setItem(key, JSON.stringify(list.filter((s) => s.id !== sessionId)));
+    notifySessionsChanged();
+  });
 }
 
 export async function updateSession(
@@ -371,33 +432,35 @@ export async function updateSession(
     notes?: string;
   },
 ): Promise<void> {
-  const oldKey = storageKey(dayKeyFromDate(originalDate));
-  const newKey = storageKey(dayKeyFromDate(new Date(updates.start)));
+  return withStoreLock(async () => {
+    const oldKey = storageKey(dayKeyFromDate(originalDate));
+    const newKey = storageKey(dayKeyFromDate(new Date(updates.start)));
 
-  const raw = await AsyncStorage.getItem(oldKey);
-  if (!raw) return;
-  const list = JSON.parse(raw) as ActivitySession[];
-  const existing = list.find((session) => session.id === sessionId);
-  if (!existing) return;
-  const updated = { ...existing, ...updates };
+    const raw = await AsyncStorage.getItem(oldKey);
+    if (!raw) return;
+    const list = JSON.parse(raw) as ActivitySession[];
+    const existing = list.find((session) => session.id === sessionId);
+    if (!existing) return;
+    const updated = { ...existing, ...updates };
 
-  if (newKey === oldKey) {
-    const next = list
-      .map((session) => (session.id === sessionId ? updated : session))
-      .sort((a, b) => a.start - b.start);
-    await AsyncStorage.setItem(oldKey, JSON.stringify(next));
+    if (newKey === oldKey) {
+      const next = list
+        .map((session) => (session.id === sessionId ? updated : session))
+        .sort((a, b) => a.start - b.start);
+      await AsyncStorage.setItem(oldKey, JSON.stringify(next));
+      notifySessionsChanged();
+      return;
+    }
+
+    await AsyncStorage.setItem(
+      oldKey,
+      JSON.stringify(list.filter((session) => session.id !== sessionId)),
+    );
+    const targetRaw = await AsyncStorage.getItem(newKey);
+    const targetList: ActivitySession[] = targetRaw ? JSON.parse(targetRaw) : [];
+    targetList.push(updated);
+    targetList.sort((a, b) => a.start - b.start);
+    await AsyncStorage.setItem(newKey, JSON.stringify(targetList));
     notifySessionsChanged();
-    return;
-  }
-
-  await AsyncStorage.setItem(
-    oldKey,
-    JSON.stringify(list.filter((session) => session.id !== sessionId)),
-  );
-  const targetRaw = await AsyncStorage.getItem(newKey);
-  const targetList: ActivitySession[] = targetRaw ? JSON.parse(targetRaw) : [];
-  targetList.push(updated);
-  targetList.sort((a, b) => a.start - b.start);
-  await AsyncStorage.setItem(newKey, JSON.stringify(targetList));
-  notifySessionsChanged();
+  });
 }

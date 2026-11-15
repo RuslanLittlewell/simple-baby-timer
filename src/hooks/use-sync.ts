@@ -32,6 +32,8 @@ import {
   loadChildCurrentWeek,
   loadChildCurrentWeekRemainder,
   mergeRemoteSessionRows,
+  pullChildChanges,
+  subscribeToQueueFailures,
   type SessionRow,
   syncChildToCloud,
   syncChildProfile,
@@ -140,6 +142,21 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     }
     finishActivityGate(generation);
 
+    // Follows every record changed on the server since the last pass, on any
+    // day, before the week below decides whether it still needs downloading.
+    let pulledChanges = true;
+    let pulled = 0;
+    for (const child of useAppStore.getState().children) {
+      if (!child.remoteId) continue;
+      try {
+        pulled += await pullChildChanges(child.remoteId, child.id);
+      } catch {
+        pulledChanges = false;
+      }
+      if (!isCurrentAuth()) return 'unavailable';
+    }
+    if (pulled > 0) useAppStore.getState().bumpDataVersion();
+
     const activeWeekCompletion = activeChild?.remoteId
       ? (historyResult.status === 'fulfilled'
           ? loadChildCurrentWeekRemainder(activeChild.remoteId, activeChild.id)
@@ -150,7 +167,8 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     if (userId) await identifyPurchaser(userId);
     if (!isCurrentAuth()) return 'unavailable';
 
-    await flushQueue();
+    // A refused upload must not cost the rest of the pass; it is retried later.
+    const uploaded = await flushQueue().then(() => true, () => false);
     if (!isCurrentAuth()) return 'unavailable';
 
     // Pro comes from the profile alone; RevenueCat reaches it through the server.
@@ -201,11 +219,38 @@ async function performSyncPass(generation: number): Promise<SyncOutcome> {
     if (applied > 0) bumpDataVersion();
     await refreshLive();
     if (!isCurrentAuth()) return 'unavailable';
-    return 'success';
+    return uploaded && pulledChanges ? 'success' : 'failed';
   } catch {
     
     return 'failed';
   }
+}
+
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const MAX_RETRIES = 10;
+let retryAttempt = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelSyncRetry() {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retryAttempt = 0;
+}
+
+/**
+ * A pass that fails is otherwise not repeated until the app next returns to
+ * the foreground, which left records waiting for hours while the app stayed
+ * open. Retries are spaced out, bounded, and never raise the activity gate.
+ */
+function scheduleSyncRetry() {
+  if (!isSupabaseConfigured || retryTimer || retryAttempt >= MAX_RETRIES) return;
+  const delay = RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)];
+  retryAttempt += 1;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (AppState.currentState !== 'active') return;
+    void syncNow({ background: true });
+  }, delay);
 }
 
 const syncCoordinator = new SingleFlightCoordinator(async (generation) => {
@@ -213,18 +258,27 @@ const syncCoordinator = new SingleFlightCoordinator(async (generation) => {
   criticalRefreshes.delete(generation);
   logAuthDiagnostic('sync-result', { outcome, syncGeneration: generation });
   finishActivityGate(generation);
+  if (outcome === 'success' || outcome === 'auth-required') cancelSyncRetry();
+  else scheduleSyncRetry();
 });
 
 
 
 
 export async function syncNow(
-  { fresh = false, force = false }: { fresh?: boolean; force?: boolean } = {},
+  {
+    fresh = false,
+    force = false,
+    background = false,
+  }: { fresh?: boolean; force?: boolean; background?: boolean } = {},
 ): Promise<void> {
   const state = useAppStore.getState();
   const activeChild = state.children.find((child) => child.id === state.activeChildId);
+  // A background retry works from what is already on screen, so it is treated
+  // like fresh local history: no gate, and the changed records are still pulled.
   const locallyFresh =
-    !force && !!activeChild?.remoteId && await isChildCurrentDayFresh(activeChild.remoteId);
+    background ||
+    (!force && !!activeChild?.remoteId && await isChildCurrentDayFresh(activeChild.remoteId));
   return syncCoordinator.request(fresh, (generation) => {
     const gated = !locallyFresh;
     logAuthDiagnostic('sync-request', { fresh, syncGeneration: generation });
@@ -361,8 +415,14 @@ function scheduleLiveRefresh() {
 
 async function applyRealtimeSessionRow(row: Record<string, unknown>, localChildId: string) {
   if (typeof row.id !== 'string' || typeof row.kind !== 'string') return;
-  await mergeRemoteSessionRows([row as unknown as SessionRow], localChildId);
-  useAppStore.getState().bumpDataVersion();
+  const changed = await mergeRemoteSessionRows([row as unknown as SessionRow], localChildId);
+  if (changed > 0) useAppStore.getState().bumpDataVersion();
+}
+
+/** Realtime does not replay what was sent while the channel was down, so a (re)joined channel catches up. */
+async function catchUpChild(remoteId: string, localChildId: string) {
+  const changed = await pullChildChanges(remoteId, localChildId);
+  if (changed > 0) useAppStore.getState().bumpDataVersion();
 }
 
 
@@ -376,6 +436,8 @@ export function useSync() {
     if (!authed) return;
     return subscribeToLiveActivityPushTokens(language);
   }, [authed, language]);
+
+  useEffect(() => subscribeToQueueFailures(scheduleSyncRetry), []);
 
   
   useEffect(() => {
@@ -491,6 +553,7 @@ export function useSync() {
         nextAppState: nextState,
       });
       if (isForegroundEdge(previous, nextState)) {
+        cancelSyncRetry();
         void startForegroundAuth(true);
       } else if (previous === 'active') {
         void supabase.auth.stopAutoRefresh();
@@ -557,7 +620,12 @@ export function useSync() {
               );
             },
           )
-          .subscribe(),
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              void catchUpChild(remoteId, localChildId).catch(() => {});
+              scheduleLiveRefresh();
+            }
+          }),
       );
     }
 

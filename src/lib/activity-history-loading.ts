@@ -148,6 +148,16 @@ export class LoadedWeekRegistry {
     return (await this.weeksOf(remoteChildId, localChildId)).has(weekKey);
   }
 
+  /** Forgets every downloaded week of the child, so each one is downloaded again. */
+  reset(remoteChildId: string, localChildId: string): Promise<void> {
+    const write = this.writeTail.then(async () => {
+      const record: LoadedWeekRecord = { localChildId, weeks: [] };
+      await this.storage.setItem(this.keyForChild(remoteChildId), JSON.stringify(record));
+    });
+    this.writeTail = write.catch(() => {});
+    return write;
+  }
+
   mark(remoteChildId: string, localChildId: string, weekKey: string): Promise<void> {
     const write = this.writeTail.then(async () => {
       const loaded = await this.weeksOf(remoteChildId, localChildId);

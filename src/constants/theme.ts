@@ -122,5 +122,6 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+// iOS screens run under the translucent tab bar; Android's tab bar takes its own space.
+export const BottomTabInset = Platform.select({ ios: 50, android: 0 }) ?? 0;
 export const MaxContentWidth = 800;

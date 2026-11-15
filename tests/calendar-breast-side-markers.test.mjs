@@ -8,6 +8,7 @@ import {
   durationBlockHeight,
   eventBlockHeight,
   eventStripeCount,
+  feedingGaps,
   minutesToPixels,
   sessionLayout,
 } from '../src/features/calendar/components/timeline-blocks/helpers.ts';
@@ -148,4 +149,69 @@ test('event presentation expressions are named before rendering', () => {
   assert.match(source, /const stripeSkew = isPoop/);
   assert.match(source, /color=\{iconColor\}/);
   assert.match(source, /skewX: stripeSkew/);
+});
+
+test('feeding gaps measure the break between one feeding ending and the next starting', () => {
+  const dayStart = new Date(2026, 10, 15).getTime();
+  const at = (hours, minutes = 0) => dayStart + (hours * 60 + minutes) * 60_000;
+
+  const gaps = feedingGaps(
+    [
+      { start: at(12), end: at(12, 20) },
+      { start: at(9), end: at(9, 30) },
+      // Overlaps the 12:00 feeding, so no gap is drawn between them.
+      { start: at(12, 10), end: at(12, 40) },
+      { start: at(15), end: at(15, 10) },
+    ],
+    dayStart,
+    60,
+  );
+
+  assert.deepEqual(gaps, [
+    { from: at(9, 30), to: at(12), top: 570, height: 150 },
+    { from: at(12, 40), to: at(15), top: 760, height: 140 },
+  ]);
+});
+
+test('a feeding gap crossing midnight keeps its full duration and is clipped to the shown day', () => {
+  const dayStart = new Date(2026, 10, 15).getTime();
+  const at = (hours, minutes = 0) => dayStart + (hours * 60 + minutes) * 60_000;
+
+  const gaps = feedingGaps(
+    [
+      { start: at(-2), end: at(-1) },
+      { start: at(3), end: at(3, 30) },
+      { start: at(26), end: at(27) },
+      { start: at(30), end: at(31) },
+    ],
+    dayStart,
+    60,
+  );
+
+  assert.deepEqual(gaps, [
+    { from: at(-1), to: at(3), top: 0, height: 180 },
+    { from: at(3, 30), to: at(26), top: 210, height: 1230 },
+  ]);
+});
+
+test('feedings without a real break between them, or with a single feeding, draw no gap', () => {
+  const dayStart = new Date(2026, 10, 15).getTime();
+  const at = (hours, minutes = 0) => dayStart + (hours * 60 + minutes) * 60_000;
+
+  assert.deepEqual(feedingGaps([], dayStart, 60), []);
+  assert.deepEqual(feedingGaps([{ start: at(9), end: at(9, 30) }], dayStart, 60), []);
+  assert.deepEqual(
+    feedingGaps(
+      [
+        { start: at(9), end: at(9, 30) },
+        { start: at(9, 30) + 30_000, end: at(10) },
+        // Entirely on the next day, so its break is not part of the shown one.
+        { start: at(25), end: at(26) },
+        { start: at(28), end: at(29) },
+      ],
+      dayStart,
+      60,
+    ).map((gap) => [gap.from, gap.to]),
+    [[at(10), at(25)]],
+  );
 });

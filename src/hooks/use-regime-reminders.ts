@@ -48,7 +48,7 @@ export async function reconcileRegimeReminders(now = Date.now()): Promise<void> 
       {
         title: translate(language, 'notif.regimeSettling.title'),
         body: translate(language, 'notif.regimeSettling.body', {
-          time: regimeReminderTime(plan.settlingStartMin),
+          time: regimeReminderTime(plan.sleepStartMin),
         }),
       },
       (plan.at - now) / 1000,
