@@ -27,21 +27,15 @@ const wrapMinutes = (minutes: number) => ((minutes % DAY_MINUTES) + DAY_MINUTES)
  * preparation" block the calendar draws, or a default stretch before the
  * sleep when no settling has been recorded and the calendar draws none.
  */
-const sleepPreparations = (
-  regime: PersonalRegime,
-  adjustment?: DailyRegimeAdjustment,
-) => {
-  const preparation = (baseStartMin: number, settlingMin: number | null) => {
-    const sleepStartMin = baseStartMin + adjustmentOffset(adjustment, baseStartMin);
-    return {
-      sleepStartMin,
-      preparationStartMin: sleepStartMin - (settlingMin || REGIME_DEFAULT_PREPARATION_MIN),
-    };
-  };
-  return [
-    ...regime.naps.map((nap) => preparation(nap.startMin, regime.napSettlingMin)),
-    preparation(regime.bedMin, regime.bedtimeSettlingMin),
-  ];
+const sleepPreparations = (regime: PersonalRegime, progress?: RegimeDayProgress) => {
+  const plan = planRegimeDay(regime, progress);
+  return [...plan.naps, plan.tonight].map((sleep) => ({
+    sleepStartMin: sleep.startMin,
+    preparationStartMin:
+      sleep.settlingStartMin < sleep.startMin
+        ? sleep.settlingStartMin
+        : sleep.startMin - REGIME_DEFAULT_PREPARATION_MIN,
+  }));
 };
 
 const localMidnight = (now: number, dayOffset: number) => {
@@ -69,11 +63,10 @@ export function planRegimeReminders(
   const plans: RegimeReminderPlan[] = [];
   for (const dayOffset of [0, 1]) {
     const midnight = localMidnight(now, dayOffset);
-    const dayAdjustment =
-      dayOffset === 0 && adjustment?.dayKey === localDayKey(now)
-        ? adjustment
-        : undefined;
-    for (const { sleepStartMin, preparationStartMin } of sleepPreparations(regime, dayAdjustment)) {
+    // Today follows how the day has gone; tomorrow starts from the learned schedule.
+    const dayProgress =
+      dayOffset === 0 && progress?.dayKey === localDayKey(now) ? progress : undefined;
+    for (const { sleepStartMin, preparationStartMin } of sleepPreparations(regime, dayProgress)) {
       const at = midnight + preparationStartMin * MINUTE_MS;
       if (at <= now || at > now + horizonMs) continue;
       plans.push({ at, sleepStartMin: wrapMinutes(sleepStartMin) });

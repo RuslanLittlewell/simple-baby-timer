@@ -7,8 +7,9 @@ import {
   regimeReminderTime,
 } from '../src/lib/regime-reminders.ts';
 import {
-  adjustedRegimeGhostSegments,
+  planRegimeDay,
   regimeAdjustmentDayKey,
+  regimeGhostSegments,
 } from '../src/lib/personal-regime-adjustment.ts';
 
 process.env.TZ = 'Europe/Berlin';
@@ -46,14 +47,16 @@ test('a reminder comes exactly when the sleep preparation begins', () => {
 });
 
 test('reminders fire at the start of the preparation blocks the calendar shows', () => {
-  const adjustment = {
+  const progress = {
     dayKey: regimeAdjustmentDayKey(at(0, 6)),
-    anchors: [{ afterEndMin: 7 * 60, deltaMin: -45 }],
+    awakeSinceMin: 6 * 60,
+    napsTaken: 0,
+    asleepSinceMin: null,
   };
-  const preparationStarts = adjustedRegimeGhostSegments(regime, adjustment)
-    .filter((segment) => segment.kind === 'settling' && segment.startMin > regime.wakeMin)
+  const preparationStarts = regimeGhostSegments(planRegimeDay(regime, progress))
+    .filter((segment) => segment.kind === 'settling' && segment.startMin > progress.awakeSinceMin)
     .map((segment) => at(0, 0, segment.startMin));
-  const plans = planRegimeReminders(regime, at(0, 6), 17 * 60 * 60_000, adjustment);
+  const plans = planRegimeReminders(regime, at(0, 6), 17 * 60 * 60_000, progress);
 
   assert.equal(plans.length, 4);
   assert.deepEqual(times(plans), times(preparationStarts.map((start) => ({ at: start }))));
@@ -117,19 +120,15 @@ test('today reminders follow the re-planned day while tomorrow stays unchanged',
   };
   const plans = planRegimeReminders(regime, at(0, 6), 30 * 60 * 60_000, progress);
 
-  assert.deepEqual(
-    plans.map((plan) => regimeReminderTime(plan.settlingStartMin)),
-    ['07:30', '10:45', '15:00', '20:30', '08:30', '11:30'],
-  );
   assert.deepEqual(times(plans), times([
     { at: at(0, 7, 30) },
-    { at: at(0, 10, 30) },
-    { at: at(0, 14, 30) },
-    { at: at(0, 19, 30) },
+    { at: at(0, 10, 45) },
+    { at: at(0, 15) },
+    { at: at(0, 20, 30) },
     { at: at(1, 8, 30) },
     { at: at(1, 11, 30) },
   ]));
-  assert.deepEqual(sleepTimes(plans), ['08:00', '11:00', '15:00', '20:00', '09:00', '12:00']);
+  assert.deepEqual(sleepTimes(plans), ['08:00', '11:15', '15:30', '21:00', '09:00', '12:00']);
 });
 
 test('no reminder is planned for a nap that is already running', () => {
@@ -140,7 +139,8 @@ test('no reminder is planned for a nap that is already running', () => {
     asleepSinceMin: 9 * 60,
   });
 
-  assert.equal(regimeReminderTime(plans[0].settlingStartMin), '11:30');
+  assert.deepEqual(times(plans.slice(0, 1)), times([{ at: at(0, 11, 30) }]));
+  assert.equal(regimeReminderTime(plans[0].sleepStartMin), '12:00');
 });
 
 test('progress from another local day is ignored', () => {
