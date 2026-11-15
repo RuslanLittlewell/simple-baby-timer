@@ -1,55 +1,41 @@
 /**
- * The notifications of the personal schedule: a nudge before every settling
- * block it plans, so the preparation starts on time instead of the sleep.
+ * The notifications of the personal schedule: a nudge the moment every sleep
+ * preparation it plans begins, so the preparation starts on time instead of
+ * the sleep.
  */
 import type { PersonalRegime } from './personal-regime';
-import type { DailyRegimeAdjustment } from './personal-regime-adjustment';
+import { planRegimeDay, type RegimeDayProgress } from './personal-regime-adjustment.ts';
 
-/** How long before the settling block the reminder arrives. */
-export const REGIME_REMINDER_LEAD_MIN = 30;
+/** How long the preparation lasts for a sleep with no recorded settling. */
+export const REGIME_DEFAULT_PREPARATION_MIN = 30;
 
 const MINUTE_MS = 60_000;
 const DAY_MINUTES = 24 * 60;
 const DAY_MS = DAY_MINUTES * MINUTE_MS;
 
 export interface RegimeReminderPlan {
-  /** When the notification fires. */
+  /** When the notification fires: the start of the sleep preparation. */
   at: number;
-  /** Minutes after local midnight the settling block starts. */
-  settlingStartMin: number;
+  /** Minutes after local midnight the sleep itself is planned. */
+  sleepStartMin: number;
 }
 
 const wrapMinutes = (minutes: number) => ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
 
-const adjustmentOffset = (
-  adjustment: DailyRegimeAdjustment | undefined,
-  baseMinute: number,
-) =>
-  adjustment?.anchors.reduce(
-    (total, anchor) => total + (anchor.afterEndMin <= baseMinute ? anchor.deltaMin : 0),
-    0,
-  ) ?? 0;
-
 /**
- * Where the preparation for each sleep begins. Without a recorded settling
- * the sleep is its own beginning, and the lead time still comes before it.
+ * Each sleep and where its preparation begins: the start of the "Sleep
+ * preparation" block the calendar draws, or a default stretch before the
+ * sleep when no settling has been recorded and the calendar draws none.
  */
-const settlingStarts = (
-  regime: PersonalRegime,
-  adjustment?: DailyRegimeAdjustment,
-): number[] => {
-  const naps = regime.naps.map(
-    (nap) =>
-      nap.startMin -
-      (regime.napSettlingMin ?? 0) +
-      adjustmentOffset(adjustment, nap.startMin),
-  );
-  return [
-    ...naps,
-    regime.bedMin -
-      (regime.bedtimeSettlingMin ?? 0) +
-      adjustmentOffset(adjustment, regime.bedMin),
-  ];
+const sleepPreparations = (regime: PersonalRegime, progress?: RegimeDayProgress) => {
+  const plan = planRegimeDay(regime, progress);
+  return [...plan.naps, plan.tonight].map((sleep) => ({
+    sleepStartMin: sleep.startMin,
+    preparationStartMin:
+      sleep.settlingStartMin < sleep.startMin
+        ? sleep.settlingStartMin
+        : sleep.startMin - REGIME_DEFAULT_PREPARATION_MIN,
+  }));
 };
 
 const localMidnight = (now: number, dayOffset: number) => {
@@ -72,27 +58,26 @@ export function planRegimeReminders(
   regime: PersonalRegime,
   now: number,
   horizonMs = DAY_MS,
-  adjustment?: DailyRegimeAdjustment,
+  progress?: RegimeDayProgress,
 ): RegimeReminderPlan[] {
   const plans: RegimeReminderPlan[] = [];
   for (const dayOffset of [0, 1]) {
     const midnight = localMidnight(now, dayOffset);
-    const dayAdjustment =
-      dayOffset === 0 && adjustment?.dayKey === localDayKey(now)
-        ? adjustment
-        : undefined;
-    for (const settlingStartMin of settlingStarts(regime, dayAdjustment)) {
-      const at = midnight + (settlingStartMin - REGIME_REMINDER_LEAD_MIN) * MINUTE_MS;
+    // Today follows how the day has gone; tomorrow starts from the learned schedule.
+    const dayProgress =
+      dayOffset === 0 && progress?.dayKey === localDayKey(now) ? progress : undefined;
+    for (const { sleepStartMin, preparationStartMin } of sleepPreparations(regime, dayProgress)) {
+      const at = midnight + preparationStartMin * MINUTE_MS;
       if (at <= now || at > now + horizonMs) continue;
-      plans.push({ at, settlingStartMin: wrapMinutes(settlingStartMin) });
+      plans.push({ at, sleepStartMin: wrapMinutes(sleepStartMin) });
     }
   }
   return plans.sort((a, b) => a.at - b.at);
 }
 
-/** The settling time as the notification spells it out. */
-export function regimeReminderTime(settlingStartMin: number): string {
-  const minutes = wrapMinutes(settlingStartMin);
+/** A planned time of day as the notification spells it out. */
+export function regimeReminderTime(minutesAfterMidnight: number): string {
+  const minutes = wrapMinutes(minutesAfterMidnight);
   const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
   return `${hours}:${String(minutes % 60).padStart(2, '0')}`;
 }

@@ -4,10 +4,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { isPersonalRegime, type PersonalRegime } from '@/lib/personal-regime';
 import {
-  adjustmentForDay,
-  isDailyRegimeAdjustment,
-  type DailyRegimeAdjustment,
+  isRegimeDayProgress,
+  regimeDayProgress,
   type DaySleep,
+  type RegimeDayProgress,
 } from '@/lib/personal-regime-adjustment';
 
 const STORAGE_KEY = 'babytimer.personal-regime.v1';
@@ -22,7 +22,8 @@ export interface ScheduledRegimeReminder {
 
 interface PersistedPersonalRegimeState {
   regimes: Record<string, PersonalRegime>;
-  dailyAdjustments: Record<string, DailyRegimeAdjustment>;
+  /** How each child's current day has gone, which the rest of today's plan follows. */
+  dayProgress: Record<string, RegimeDayProgress>;
   /**
    * Local day of each child's last finished rebuild, so the daily run happens
    * once whichever of its triggers fires first.
@@ -40,7 +41,7 @@ interface PersistedPersonalRegimeState {
 
 interface PersonalRegimeState extends PersistedPersonalRegimeState {
   setRegime: (childId: string, regime: PersonalRegime) => void;
-  recalculateDailyAdjustment: (childId: string, sleeps: DaySleep[], now: number) => void;
+  recordDayProgress: (childId: string, sleeps: DaySleep[], now: number) => void;
   markRun: (childId: string, day: string) => void;
   removeRegime: (childId: string) => void;
   setGhostVisible: (visible: boolean) => void;
@@ -67,7 +68,7 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
   persist(
     (set, get) => ({
       regimes: {},
-      dailyAdjustments: {},
+      dayProgress: {},
       lastRunDay: {},
       ghostVisible: false,
       ghostAutoShown: false,
@@ -77,19 +78,13 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
           regimes: { ...state.regimes, [childId]: regime },
           ...(state.ghostAutoShown ? {} : { ghostVisible: true, ghostAutoShown: true }),
         })),
-      recalculateDailyAdjustment: (childId, sleeps, now) => {
+      recordDayProgress: (childId, sleeps, now) => {
         const state = get();
-        const regime = state.regimes[childId];
-        if (!regime) return;
-        const adjustment = adjustmentForDay(regime, sleeps, now);
-        const current = state.dailyAdjustments[childId];
-        if (JSON.stringify(current) === JSON.stringify(adjustment)) return;
-        set({
-          dailyAdjustments: {
-            ...state.dailyAdjustments,
-            [childId]: adjustment,
-          },
-        });
+        if (!state.regimes[childId]) return;
+        const progress = regimeDayProgress(sleeps, now);
+        const current = state.dayProgress[childId];
+        if (JSON.stringify(current) === JSON.stringify(progress)) return;
+        set({ dayProgress: { ...state.dayProgress, [childId]: progress } });
       },
       markRun: (childId, day) =>
         set((state) => ({ lastRunDay: { ...state.lastRunDay, [childId]: day } })),
@@ -97,16 +92,15 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
         set((state) => {
           const { [childId]: _removed, ...regimes } = state.regimes;
           const { [childId]: _removedRun, ...lastRunDay } = state.lastRunDay;
-          const { [childId]: _removedAdjustment, ...dailyAdjustments } =
-            state.dailyAdjustments;
-          return { regimes, lastRunDay, dailyAdjustments };
+          const { [childId]: _removedProgress, ...dayProgress } = state.dayProgress;
+          return { regimes, lastRunDay, dayProgress };
         }),
       setGhostVisible: (ghostVisible) => set({ ghostVisible, ghostAutoShown: true }),
       setSettlingReminders: (settlingReminders) => set({ settlingReminders }),
       clear: () =>
         set({
           regimes: {},
-          dailyAdjustments: {},
+          dayProgress: {},
           lastRunDay: {},
           ghostVisible: false,
           ghostAutoShown: false,
@@ -120,14 +114,14 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
       migrate: (persisted) => persisted as PersistedPersonalRegimeState,
       partialize: ({
         regimes,
-        dailyAdjustments,
+        dayProgress,
         lastRunDay,
         ghostVisible,
         ghostAutoShown,
         settlingReminders,
       }): PersistedPersonalRegimeState => ({
         regimes,
-        dailyAdjustments,
+        dayProgress,
         lastRunDay,
         ghostVisible,
         ghostAutoShown,
@@ -150,19 +144,21 @@ export const usePersonalRegimeStore = create<PersonalRegimeState>()(
               ),
             )
           : {};
-        const dailyAdjustments =
-          saved.dailyAdjustments && typeof saved.dailyAdjustments === 'object'
+        // Day adjustments of earlier versions are dropped: today's progress
+        // is read off the sleeps again as soon as the app starts.
+        const dayProgress =
+          saved.dayProgress && typeof saved.dayProgress === 'object'
             ? Object.fromEntries(
-                Object.entries(saved.dailyAdjustments).filter(
-                  (entry): entry is [string, DailyRegimeAdjustment] =>
-                    isDailyRegimeAdjustment(entry[1]),
+                Object.entries(saved.dayProgress).filter(
+                  (entry): entry is [string, RegimeDayProgress] =>
+                    isRegimeDayProgress(entry[1]),
                 ),
               )
             : {};
         return {
           ...current,
           regimes,
-          dailyAdjustments,
+          dayProgress,
           lastRunDay,
           ghostVisible: saved.ghostVisible === true,
           ghostAutoShown: saved.ghostAutoShown === true,

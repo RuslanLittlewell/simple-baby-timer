@@ -21,7 +21,7 @@ test('every write to the session history notifies its listeners', () => {
   }
 });
 
-test('the day adjustment is rebuilt from history instead of per completed sleep', () => {
+test('the day progress is rebuilt from history instead of per completed sleep', () => {
   const appState = read('../src/state/app-state.ts');
   const editor = read('../src/features/calendar/components/entry-editor/use-entry-editor-form.ts');
   const hook = read('../src/hooks/use-regime-day-adjustment.ts');
@@ -31,6 +31,6 @@ test('the day adjustment is rebuilt from history instead of per completed sleep'
   assert.doesNotMatch(editor, /recordCompletedSleep/);
   assert.match(hook, /subscribeToSessionChanges\(scheduleRecalculation\)/);
   assert.match(hook, /state\.session !== previous\.session \|\| state\.remoteLive !== previous\.remoteLive/);
-  assert.match(hook, /recalculateDailyAdjustment\(childId, sleeps, now\)/);
+  assert.match(hook, /recordDayProgress\(childId, sleeps, now\)/);
   assert.match(layout, /useRegimeDayAdjustment\(\);/);
 });

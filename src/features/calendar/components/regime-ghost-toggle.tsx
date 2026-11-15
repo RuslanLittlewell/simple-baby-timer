@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomTabInset, PurpleGradient, Spacing } from '@/constants/theme';
@@ -12,8 +12,11 @@ interface RegimeGhostToggleProps {
 }
 
 export function RegimeGhostToggle({ active, accessibilityLabel, onPress }: RegimeGhostToggleProps) {
-  // The timeline runs under the tab bar, which sits above the home indicator.
+  // On iOS the timeline runs under the tab bar, which sits above the home indicator.
+  // On Android the screen already ends above the tab bar and the navigation buttons.
   const { bottom: bottomInset } = useSafeAreaInsets();
+  const bottom =
+    Platform.OS === 'ios' ? bottomInset + BottomTabInset + Spacing.three : Spacing.three;
   return (
     <Pressable
       accessibilityRole="switch"
@@ -23,7 +26,7 @@ export function RegimeGhostToggle({ active, accessibilityLabel, onPress }: Regim
       hitSlop={8}
       style={({ pressed }) => [
         styles.button,
-        { bottom: bottomInset + BottomTabInset + Spacing.three },
+        { bottom },
         !active && styles.inactive,
         pressed && styles.pressed,
       ]}>

@@ -7,8 +7,8 @@ import {
   buildPersonalRegime,
   hasRegimeHistory,
   isPersonalRegime,
-  regimeGhostSegments,
 } from '../src/lib/personal-regime.ts';
+import { planRegimeDay, regimeGhostSegments } from '../src/lib/personal-regime-adjustment.ts';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -94,6 +94,40 @@ test('awake left running through sleeps is cut around them and the day is kept',
   assert.deepEqual(result, buildPersonalRegime(days(-FULL_HISTORY_DAYS, -1), NOW));
 });
 
+test('wake windows come from the gaps the child had, not from clock medians', () => {
+  // The second nap starts at 11, 12 or 13 and lasts 30, 150 or 90 minutes,
+  // but the third always follows it after 90 minutes awake. Medians of clock
+  // times would put a 150-minute gap before the third nap.
+  const secondNaps = [
+    [[11, 0], [11, 30], [13, 0], [14, 0]],
+    [[12, 0], [14, 30], [16, 0], [17, 0]],
+    [[13, 0], [14, 30], [16, 0], [17, 0]],
+  ];
+  const varyingDay = (day) => {
+    const [napStart, napEnd, lastStart, lastEnd] = secondNaps[((day % 3) + 3) % 3];
+    return [
+      entry('awake', day, [7, 0], [9, 0]),
+      entry('sleep', day, [9, 0], [10, 0]),
+      entry('awake', day, [10, 0], napStart),
+      entry('sleep', day, napStart, napEnd),
+      entry('awake', day, napEnd, lastStart),
+      entry('sleep', day, lastStart, lastEnd),
+      entry('awake', day, lastEnd, [19, 0]),
+      entry('sleep', day, [19, 0], [7, 0], day + 1),
+    ];
+  };
+  const { regime } = buildPersonalRegime(days(-FULL_HISTORY_DAYS, -1, varyingDay), NOW);
+
+  // Wake windows of 120, 120, 90 and 120 minutes, stretched evenly from the
+  // 07:00 wake-up to the 19:00 bedtime.
+  assert.deepEqual(regime.naps, [
+    { startMin: 9 * 60 + 15, endMin: 10 * 60 + 15 },
+    { startMin: 12 * 60 + 30, endMin: 14 * 60 },
+    { startMin: 15 * 60 + 40, endMin: 16 * 60 + 40 },
+  ]);
+  assert.equal(regime.bedMin, 19 * 60);
+});
+
 test('days without their naps logged are left out', () => {
   const sessions = days(-FULL_HISTORY_DAYS, -1, (day) =>
     day >= -10 && day <= -5
@@ -139,31 +173,12 @@ test('a bedtime after midnight is kept past the end of the day', () => {
   assert.equal(result.regime.bedMin, 24 * 60 + 15);
   assert.equal(result.regime.naps.length, 5);
 
-  const segments = regimeGhostSegments(result.regime);
+  const segments = regimeGhostSegments(planRegimeDay(result.regime));
   assert.deepEqual(segments.slice(0, 2), [
     { kind: 'settling', startMin: 0, endMin: 15, plannedStartMin: 24 * 60 - 15, plannedEndMin: 15 },
     { kind: 'sleep', startMin: 15, endMin: 7 * 60, plannedStartMin: 15, plannedEndMin: 7 * 60 },
   ]);
   assert.ok(segments.every((s) => s.endMin <= 24 * 60));
-});
-
-test('ghost segments clip last and next night to the shown day', () => {
-  const segments = regimeGhostSegments({
-    computedAt: NOW,
-    basedOnDays: 10,
-    wakeMin: 7 * 60,
-    bedMin: 21 * 60,
-    naps: [{ startMin: 9 * 60, endMin: 10 * 60 }],
-    napSettlingMin: 20,
-    bedtimeSettlingMin: 30,
-  });
-  assert.deepEqual(segments, [
-    { kind: 'sleep', startMin: 0, endMin: 420, plannedStartMin: 1260, plannedEndMin: 420 },
-    { kind: 'settling', startMin: 520, endMin: 540, plannedStartMin: 520, plannedEndMin: 540 },
-    { kind: 'sleep', startMin: 540, endMin: 600, plannedStartMin: 540, plannedEndMin: 600 },
-    { kind: 'settling', startMin: 1230, endMin: 1260, plannedStartMin: 1230, plannedEndMin: 1260 },
-    { kind: 'sleep', startMin: 1260, endMin: 1440, plannedStartMin: 1260, plannedEndMin: 420 },
-  ]);
 });
 
 test('history qualifies only once sleep was logged three weeks ago', () => {

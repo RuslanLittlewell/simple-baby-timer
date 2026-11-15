@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect } from "react";
 import {
   type GestureResponderEvent,
+  Platform,
   Pressable,
   StyleSheet,
 } from "react-native";
@@ -109,6 +110,7 @@ export function ActivityRow({
           { borderColor: withAlpha(accent, 0.68) },
           compact && styles.rowCompact,
           dense && styles.rowDense,
+          compact && Platform.OS === "android" && styles.rowCompactAndroid,
           (dimmed || disabled) && styles.rowDimmed,
         ]}
       >
@@ -134,7 +136,14 @@ export function ActivityRow({
           size={dense ? 22 : compact ? 24 : 26}
           color={accent}
         />
-        <ThemedText style={[styles.label, { color: fg }]} numberOfLines={1}>
+        <ThemedText
+          style={[
+            styles.label,
+            compact && Platform.OS === "android" && styles.labelCompactAndroid,
+            { color: fg },
+          ]}
+          numberOfLines={1}
+        >
           {label}
         </ThemedText>
         <Pressable
@@ -180,10 +189,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
     borderRadius: 20,
   },
+  // Android phones are narrower, so the feeding label needs the room to stay whole.
+  rowCompactAndroid: {
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.two,
+  },
   label: {
     flex: 1,
     fontSize: 14,
     fontWeight: "700",
+  },
+  labelCompactAndroid: {
+    fontSize: 13,
   },
   pressed: {
     opacity: 0.7,

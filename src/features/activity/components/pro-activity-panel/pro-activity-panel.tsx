@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Keyboard, View, type LayoutChangeEvent } from "react-native";
+import { Keyboard, Platform, View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   cancelAnimation,
   interpolate,
@@ -34,8 +34,10 @@ import {
 } from "./helpers";
 import { styles } from "./styles";
 
-
-
+// The expanded card is laid out for the four rows at their full height. When
+// Android draws shorter rows, the card grows upward over the status card to
+// that height instead of squeezing its content into a scroll.
+const EXPANDED_MIN_HEIGHT = 4 * CARD_HEIGHT + 3 * Spacing.one;
 
 interface Rect {
   x: number;
@@ -315,6 +317,12 @@ export function ProActivityPanel({
       : measuredRect
     : undefined;
 
+  const expandedHeight =
+    Platform.OS === "android"
+      ? Math.max(panelSize.height, EXPANDED_MIN_HEIGHT)
+      : panelSize.height;
+  const expandedRise = expandedHeight - panelSize.height;
+
   const overlayStyle = useAnimatedStyle(() => {
     const origin = originRect ?? {
       x: 0,
@@ -324,7 +332,7 @@ export function ProActivityPanel({
     };
     return {
       left: interpolate(expansion.value, [0, 1], [origin.x, 0]),
-      top: interpolate(expansion.value, [0, 1], [origin.y, 0]),
+      top: interpolate(expansion.value, [0, 1], [origin.y, -expandedRise]),
       width: interpolate(
         expansion.value,
         [0, 1],
@@ -333,12 +341,12 @@ export function ProActivityPanel({
       height: interpolate(
         expansion.value,
         [0, 1],
-        [origin.height, panelSize.height],
+        [origin.height, expandedHeight],
       ),
       borderRadius: cardRadius,
       transform: [{ translateY: -lift.value }],
     };
-  }, [cardRadius, originRect, panelSize]);
+  }, [cardRadius, expandedHeight, expandedRise, originRect, panelSize]);
 
   const detailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(expansion.value, [0.88, 0.995], [0, 1], "clamp"),

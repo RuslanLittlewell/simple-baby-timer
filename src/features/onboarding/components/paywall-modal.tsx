@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,7 @@ import {
   PACKAGE_TYPE,
   fetchOffering,
   freeTrialDays,
+  openSubscriptionManagement,
   purchase,
   purchasesSupported,
   restorePurchases,
@@ -105,6 +107,8 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
   const t = useT();
   const setProStatus = useAppStore((state) => state.setProStatus);
   const trialUsed = useAppStore((state) => state.trialUsed);
+  // Only a paid subscription has a renewal date; the account trial has nothing to manage.
+  const canManage = useAppStore((state) => purchasesSupported && state.proRenewsAt !== undefined);
   const [activationPending, setActivationPending] = useState(false);
   const accountId = useAppStore((state) => state.accountId);
   const startTrial = useAppStore((state) => state.startTrial);
@@ -389,8 +393,19 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
             <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
               {trialDays
                 ? t('paywall.trialTerms', { days: String(trialDays) })
-                : t('paywall.renewalTerms')}
+                : t(Platform.OS === 'android' ? 'paywall.renewalTermsAndroid' : 'paywall.renewalTerms')}
             </ThemedText>
+          )}
+
+          {canManage && (
+            <Pressable
+              disabled={busy}
+              onPress={() => void openSubscriptionManagement().catch(() => {})}
+              hitSlop={8}>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.legalLink}>
+                {t('paywall.manage')}
+              </ThemedText>
+            </Pressable>
           )}
 
           <Pressable disabled={busy} onPress={restore} hitSlop={8}>

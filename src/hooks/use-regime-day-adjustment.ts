@@ -37,7 +37,7 @@ async function recalculatePass(): Promise<void> {
     const { session, remoteLive } = useAppStore.getState();
     const running = runningSleepStart(childId, session, remoteLive);
     if (running !== null) sleeps.push({ start: running, end: null });
-    usePersonalRegimeStore.getState().recalculateDailyAdjustment(childId, sleeps, now);
+    usePersonalRegimeStore.getState().recordDayProgress(childId, sleeps, now);
   }
 }
 
@@ -53,8 +53,9 @@ function scheduleRecalculation() {
 }
 
 /**
- * Keeps today's regime shifts in step with the recorded sleeps: any added,
- * edited, deleted or synced sleep, and any sleep starting or stopping, rebuilds them.
+ * Keeps today's plan in step with the recorded sleeps: any added, edited,
+ * deleted or synced sleep, and any sleep starting or stopping, reads the
+ * day's progress off them again.
  */
 export function useRegimeDayAdjustment(): void {
   useEffect(() => {

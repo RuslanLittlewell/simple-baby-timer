@@ -30,7 +30,26 @@ const anonKey =
 export const isSupabaseConfigured = url.length > 0 && anonKey.length > 0;
 const isServerRendering = Platform.OS === 'web' && typeof window === 'undefined';
 
+const REQUEST_TIMEOUT_MS = 20_000;
+
+/**
+ * A request on a dead connection can hang without ever failing. Synchronization
+ * runs one pass at a time, so a single hung request used to stall it until the
+ * app was restarted; a request that takes this long is failed instead.
+ */
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const caller = init?.signal;
+  if (caller?.aborted) controller.abort();
+  else caller?.addEventListener('abort', () => controller.abort(), { once: true });
+  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+};
+
 export const supabase = createClient(url || 'https://placeholder.supabase.co', anonKey || 'anon', {
+  global: { fetch: fetchWithTimeout },
   auth: {
     storage: isServerRendering ? undefined : AsyncStorage,
     autoRefreshToken: !isServerRendering,

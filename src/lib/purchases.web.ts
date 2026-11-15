@@ -49,6 +49,8 @@ export async function restorePurchases(): Promise<ProEntitlement> {
   return { active: false };
 }
 
+export async function openSubscriptionManagement(): Promise<void> {}
+
 export const freeTrialDays = (pack: PurchasesPackage): number | null => {
   const intro = pack.product.introPrice;
   if (!intro || intro.price !== 0) return null;

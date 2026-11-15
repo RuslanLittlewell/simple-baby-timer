@@ -134,6 +134,21 @@ create table if not exists public.invites (
   expires_at timestamptz not null default now() + interval '7 days'
 );
 
+-- Since 2026-10-30 Supabase no longer gives new "public" tables Data API access,
+-- so a fresh project needs these. The app only calls the API signed in; RLS picks the rows.
+grant select, insert, update, delete on
+  public.profiles,
+  public.children,
+  public.child_members,
+  public.sessions,
+  public.live_sessions,
+  public.live_activity_devices,
+  public.live_activity_instances,
+  public.invites
+to authenticated, service_role;
+
+grant select, insert, update, delete on public.child_measurements to service_role;
+
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin

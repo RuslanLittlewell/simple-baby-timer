@@ -156,8 +156,10 @@ test('entry editor keeps stable exports, focused ownership, and side-effect orde
   assert.match(hookSource, /props\.proActive[\s\S]*?buildEditableProDetails[\s\S]*?: entry\.proDetails/);
 
   const saveSource = hookSource.slice(hookSource.indexOf('const saveEntry'), hookSource.indexOf('const confirmDelete'));
-  assert.ok(saveSource.indexOf('await updateSession') < saveSource.indexOf('enqueueSessionUpsert'));
-  assert.ok(saveSource.indexOf('enqueueSessionUpsert') < saveSource.indexOf('await props.onChanged'));
+  // Overlap resolution uploads the neighbours it trimmed first; the edited entry itself follows its local write.
+  const entryUpload = saveSource.lastIndexOf('enqueueSessionUpsert');
+  assert.ok(saveSource.indexOf('await updateSession(entry.id') < entryUpload);
+  assert.ok(entryUpload < saveSource.indexOf('await props.onChanged'));
   assert.ok(saveSource.indexOf('await props.onChanged') < saveSource.indexOf('props.onClose'));
   const deleteSource = hookSource.slice(hookSource.indexOf('const confirmDelete'));
   assert.ok(deleteSource.indexOf('await deleteSession') < deleteSource.indexOf('enqueueSessionDelete'));

@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,9 +10,9 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useProPaywall } from '@/hooks/use-pro-paywall';
 import { useTheme } from '@/hooks/use-theme';
-import { getSessionsForDay, type ActivitySession, type SessionKind } from '@/lib/activity-store';
+import { getSessionsInRange, type ActivitySession, type SessionKind } from '@/lib/activity-store';
 import { selectActiveChildProAccess } from '@/lib/pro-access';
-import { loadChildHistoryRange } from '@/lib/sync';
+import { loadChildHistoryRange, syncChildHistory } from '@/lib/sync';
 import { useAppStore, useT } from '@/state/app-state';
 import { usePersonalRegimeStore } from '@/state/personal-regime-state';
 
@@ -23,14 +23,29 @@ import { MonthView } from './components/month-view';
 import { RegimeGhostBlocks } from './components/regime-ghost-blocks';
 import { RegimeGhostToggle } from './components/regime-ghost-toggle';
 import { StatsModal } from './components/stats-modal/stats-modal';
-import { LiveBlocks, TimelineBlocks, type LiveBlock } from './components/timeline-blocks';
+import {
+  FeedingGaps,
+  LiveBlocks,
+  TimelineBlocks,
+  type LiveBlock,
+} from './components/timeline-blocks';
 import { TimelineGrid } from './components/timeline-grid';
 import { WeekView } from './components/week-view';
 import { ZoomBadge } from './components/zoom-badge';
 import { GUTTER, NOW_COLOR, SCROLL_BOTTOM_PAD, TIMELINE_Z_INDEX } from './constants';
-import { isSameDay, pad2, startOfWeek } from './helpers';
+import { isSameDay, pad2, shiftDayMs, startOfWeek } from './helpers';
 import { timelineFocusTargetY } from './timeline-focus';
 import { usePinchZoom } from './use-pinch-zoom';
+
+async function loadDaySessions(day: Date, childId?: string | null) {
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const dayEnd = shiftDayMs(dayStart, 1);
+  const nearby = await getSessionsInRange(shiftDayMs(dayStart, -1), shiftDayMs(dayStart, 2), childId);
+  return {
+    sessions: nearby.filter((item) => item.start < dayEnd && item.end > dayStart),
+    nearbyFeedings: nearby.filter((item) => item.kind === 'feeding'),
+  };
+}
 
 export default function CalendarScreen() {
   const theme = useTheme();
@@ -61,6 +76,8 @@ export default function CalendarScreen() {
   const t = useT();
   const openPaywall = useProPaywall();
   const [sessions, setSessions] = useState<ActivitySession[]>([]);
+  // Feedings of the shown day and its neighbours, so a break that crosses midnight is measured in full.
+  const [nearbyFeedings, setNearbyFeedings] = useState<ActivitySession[]>([]);
   const [statsVisible, setStatsVisible] = useState(false);
   const [entryToEdit, setEntryToEdit] = useState<ActivitySession | null>(null);
   const [manualMenuOpen, setManualMenuOpen] = useState(false);
@@ -76,8 +93,8 @@ export default function CalendarScreen() {
   const regime = usePersonalRegimeStore((state) =>
     activeChildId ? state.regimes[activeChildId] : undefined,
   );
-  const regimeAdjustment = usePersonalRegimeStore((state) =>
-    activeChildId ? state.dailyAdjustments[activeChildId] : undefined,
+  const regimeDayProgress = usePersonalRegimeStore((state) =>
+    activeChildId ? state.dayProgress[activeChildId] : undefined,
   );
   const ghostVisible = usePersonalRegimeStore((state) => state.ghostVisible);
   const setGhostVisible = usePersonalRegimeStore((state) => state.setGhostVisible);
@@ -107,8 +124,10 @@ export default function CalendarScreen() {
 
   useEffect(() => {
     let alive = true;
-    getSessionsForDay(shownDay, activeChildId).then((list) => {
-      if (alive) setSessions(list);
+    loadDaySessions(shownDay, activeChildId).then((loaded) => {
+      if (!alive) return;
+      setSessions(loaded.sessions);
+      setNearbyFeedings(loaded.nearbyFeedings);
     });
     return () => {
       alive = false;
@@ -117,17 +136,19 @@ export default function CalendarScreen() {
 
   useEffect(() => {
     if (!activeChild?.remoteId) return;
+    // Neighbouring days are included so a feeding break crossing midnight is not
+    // left unmeasured at a week boundary; weeks are merged one at a time.
     const startMs = new Date(
       shownDay.getFullYear(),
       shownDay.getMonth(),
-      shownDay.getDate(),
+      shownDay.getDate() - 1,
     ).getTime();
     const endMs = new Date(
       shownDay.getFullYear(),
       shownDay.getMonth(),
-      shownDay.getDate() + 1,
+      shownDay.getDate() + 2,
     ).getTime();
-    void loadChildHistoryRange(activeChild.remoteId, activeChild.id, startMs, endMs)
+    void syncChildHistory(activeChild.remoteId, activeChild.id, startMs, endMs)
       .then((applied) => {
         if (applied > 0) bumpDataVersion();
       })
@@ -157,7 +178,9 @@ export default function CalendarScreen() {
   ]);
 
   const refreshSessions = useCallback(async () => {
-    setSessions(await getSessionsForDay(shownDay, activeChildId));
+    const loaded = await loadDaySessions(shownDay, activeChildId);
+    setSessions(loaded.sessions);
+    setNearbyFeedings(loaded.nearbyFeedings);
   }, [shownDay, activeChildId]);
 
   const openEntryEditor = useCallback((entry: ActivitySession) => setEntryToEdit(entry), []);
@@ -333,6 +356,21 @@ export default function CalendarScreen() {
     });
   }
 
+  const liveFeedingStart = [feeding, ...remoteLiveItems].find(
+    (item) =>
+      item?.kind === 'feeding' &&
+      !(activeChildId && item.childId && item.childId !== activeChildId),
+  )?.startedAt;
+  const feedingIntervals = useMemo(
+    () => [
+      ...nearbyFeedings,
+      ...(liveFeedingStart === undefined
+        ? []
+        : [{ start: liveFeedingStart, end: Number.MAX_SAFE_INTEGER }]),
+    ],
+    [nearbyFeedings, liveFeedingStart],
+  );
+
   const zoomLabel =
     gridStep === 60 ? `1 ${t('unit.hours')}` : `${gridStep} ${t('unit.minutes')}`;
 
@@ -436,6 +474,13 @@ export default function CalendarScreen() {
 
                 <LiveBlocks blocks={liveBlocks} t={t} />
 
+                <FeedingGaps
+                  feedings={feedingIntervals}
+                  hourHeight={hourHeight}
+                  dayStartMs={dayStartMs}
+                  t={t}
+                />
+
                 <TimelineBlocks
                   sessions={sessions}
                   hourHeight={hourHeight}
@@ -447,7 +492,7 @@ export default function CalendarScreen() {
                 {ghostVisible && regime && (
                   <RegimeGhostBlocks
                     regime={regime}
-                    adjustment={regimeAdjustment}
+                    progress={regimeDayProgress}
                     shownDay={shownDay}
                     hourHeight={hourHeight}
                   />
