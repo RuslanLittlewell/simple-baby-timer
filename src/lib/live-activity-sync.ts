@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LiveActivity from 'expo-live-activity';
+import { Platform } from 'react-native';
 
 import { type LanguageCode } from '@/i18n';
 import { getUserId, isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -132,7 +133,7 @@ export async function dispatchLiveActivityPush(
     lastFeedingAt: number | null;
   },
 ) {
-  if (!liveActivitySupported || !isSupabaseConfigured) return;
+  if (!isSupabaseConfigured || Platform.OS === 'web') return;
   const installationId = await getLiveActivityInstallationId();
   const { error } = await supabase.functions.invoke('live-activity-push', {
     body: { action, childId, track, installationId, ...payload },
