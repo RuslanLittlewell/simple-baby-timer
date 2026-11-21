@@ -1,6 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Constants from "expo-constants";
-import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -109,14 +108,11 @@ export function MobileMenu() {
         style={({ pressed }) => [styles.trigger, pressed && styles.pressed]}
       >
         {proAccess && (
-          <LinearGradient
-            colors={["#4C1D95", "#7C3AED", "#C026D3"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.proBadge}
-          >
-            <ThemedText style={styles.proBadgeText}>Premium</ThemedText>
-          </LinearGradient>
+          <View style={[styles.proBadge, { borderColor: theme.premiumBorder }]}>
+            <ThemedText numberOfLines={1} style={[styles.proBadgeText, { color: theme.premium }]}>
+              Premium
+            </ThemedText>
+          </View>
         )}
         <MaterialCommunityIcons name="menu" size={28} color={theme.text} />
       </Pressable>
@@ -252,30 +248,21 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.two,
+    gap: 12,
+    minHeight: 44,
   },
   proBadge: {
-    minWidth: 72,
-    height: 28,
+    minHeight: 30,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "rgba(196,181,253,0.42)",
-    paddingHorizontal: Spacing.two,
-    overflow: "hidden",
-    shadowColor: "#6D4BD1",
-    shadowOpacity: 0.24,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    paddingHorizontal: 14,
   },
   proBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "600",
-    letterSpacing: 0.2,
   },
   modal: {
     flex: 1,

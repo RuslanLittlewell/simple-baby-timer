@@ -6,15 +6,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   View,
-  type LayoutChangeEvent,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuroraBackground } from "@/components/aurora-background";
 import { MobileMenu } from "@/components/mobile-menu";
+import { SlimSwitch } from "@/components/slim-switch";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
 import { Spacing } from "@/constants/theme";
 import { computeDayStats } from "@/features/calendar/helpers";
 import { BabySvg } from "@/features/children/components/baby-svg";
@@ -22,8 +22,7 @@ import {
   CHILD_GRADIENT_FG,
   CHILD_GRADIENTS,
 } from "@/features/children/constants";
-import { useActivityColors } from "@/hooks/use-activity-colors";
-import { formatHm } from "@/i18n";
+import { useTheme } from "@/hooks/use-theme";
 import {
   getAllSessionsForChild,
   type ActivitySession,
@@ -43,16 +42,10 @@ import { ActivityActionsSyncLoader } from "../components/activity-sync-loader/ac
 import { ActivityRow } from "../components/activity-row";
 import { DayStatsRow } from "../components/day-stats/day-stats-row";
 import { EventTile } from "../components/event-tile";
-import { FloatingIcons } from "../components/floating-icons";
 import { ProActivityPanel } from "../components/pro-activity-panel/pro-activity-panel";
 import { StartTimePicker } from "../components/start-time-picker";
 import { StatusCard } from "../components/status-card";
 import { ACTIVITIES, EVENTS, FEEDING, MAIN_ACTIVITIES } from "../constants";
-import {
-  ActivityDensityContext,
-  densityForHeight,
-  useWindowActivityDensity,
-} from "../use-compact-activity-layout";
 import { styles } from "./styles";
 
 
@@ -75,18 +68,12 @@ export default function ActivityScreen() {
     (state) => state.activitySyncStatus === "syncing",
   );
   const syncPresentation = activitySyncPresentation(activitySyncing);
-  const sleepMinutes = useAppStore((state) => state.sleepMinutes);
-  const awakeMinutes = useAppStore((state) => state.awakeMinutes);
-  const sleepNotificationsEnabled = useAppStore(
-    (state) => state.sleepNotificationsEnabled,
-  );
-  const awakeNotificationsEnabled = useAppStore(
-    (state) => state.awakeNotificationsEnabled,
-  );
   const logEvent = useAppStore((state) => state.logEvent);
   const addManualActivity = useAppStore((state) => state.addManualActivity);
   const setActiveProDetails = useAppStore((state) => state.setActiveProDetails);
   const proAccess = useAppStore(selectActiveChildProAccess);
+  const simpleActivityMode = useAppStore((state) => state.simpleActivityMode);
+  const setSimpleActivityMode = useAppStore((state) => state.setSimpleActivityMode);
   const language = useAppStore((state) => state.language);
   const children = useAppStore((state) => state.children);
   const selectChild = useAppStore((state) => state.selectChild);
@@ -95,15 +82,7 @@ export default function ActivityScreen() {
   const activeChild = children.find((child) => child.id === activeChildId);
   const t = useT();
   const focused = useIsFocused();
-  const { float } = useActivityColors();
-  const { top: topInset } = useSafeAreaInsets();
-  const windowDensity = useWindowActivityDensity();
-  const [screenHeight, setScreenHeight] = useState<number | null>(null);
-  const density =
-    Platform.OS === "android" && screenHeight !== null
-      ? densityForHeight(screenHeight - topInset)
-      : windowDensity;
-  const { dense } = density;
+  const theme = useTheme();
   const [nowTs, setNowTs] = useState(Date.now());
   const [proExpanded, setProExpanded] = useState(false);
   const [proDismissSignal, setProDismissSignal] = useState(0);
@@ -193,25 +172,6 @@ export default function ActivityScreen() {
     : undefined;
   const elapsed = primary ? secondsSince(primary.startedAt) : 0;
   const concurrentFeeding = !!(mainSession && feedingSession);
-  const floatingKinds = active
-    ? [
-        { icon: active.icon, color: float[active.gradKey] },
-        ...(concurrentFeeding && active.gradKey !== "feed"
-          ? [{ icon: FEEDING.icon, color: float.feed }]
-          : []),
-      ]
-    : [];
-  
-  
-  let statusNote = "";
-  if (primary?.kind === "sleep" && sleepNotificationsEnabled)
-    statusNote = t("activity.noteSleep", {
-      time: formatHm(sleepMinutes, language),
-    });
-  else if (primary?.kind === "awake" && awakeNotificationsEnabled)
-    statusNote = t("activity.noteAwake", {
-      time: formatHm(awakeMinutes, language),
-    });
 
   const childAge = activeChild?.birthday
     ? formatAge(activeChild.birthday, language)
@@ -302,97 +262,100 @@ export default function ActivityScreen() {
     void logEvent(kind);
   };
 
-  // Only the expanded panel's notes bring up the keyboard here, and the keyboard
-  // shrinks the screen; the rows keep their size until the panel closes.
-  const handleScreenLayout = (event: LayoutChangeEvent) => {
-    if (proExpanded) return;
-    setScreenHeight(event.nativeEvent.layout.height);
-  };
-
   return (
-    <ActivityDensityContext.Provider value={density}>
-      <ThemedView
-        gradient
-        style={styles.container}
-        onTouchEnd={handlePanelTouch}
-      >
-        <AuroraBackground />
-        {floatingKinds.length > 0 && <FloatingIcons kinds={floatingKinds} />}
-        <SafeAreaView
-          style={[styles.safeArea, dense && styles.safeAreaDense]}
-          edges={["top", "left", "right"]}
-          onLayout={Platform.OS === "android" ? handleScreenLayout : undefined}
+    <View
+      style={[styles.container, { backgroundColor: theme.screen }]}
+      onTouchEnd={handlePanelTouch}
+    >
+      <AuroraBackground opacity={0.5} />
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Spacing.two}
+          style={styles.keyboard}
         >
-          <View style={[styles.header, dense && styles.headerDense]}>
-            {activeChild ? (
-              <View style={styles.profileStack}>
-                <Pressable
-                  accessibilityLabel={activeChild.name}
-                  onPress={() => router.navigate("/children")}
-                  style={({ pressed }) => [pressed && styles.pressed]}
-                >
-                  <LinearGradient
-                    colors={CHILD_GRADIENTS[activeChild.gradientKey]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.childChip, dense && styles.childChipDense]}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              {activeChild ? (
+                <View style={styles.profileStack}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      childAge ? `${activeChild.name}, ${childAge}` : activeChild.name
+                    }
+                    onPress={() => router.navigate("/children")}
+                    style={({ pressed }) => [styles.profile, pressed && styles.pressed]}
                   >
-                    <BabySvg
-                      size={20}
-                      faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
-                      featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
-                    />
-                    <View style={styles.childInfo}>
-                      <ThemedText
-                        type="smallBold"
-                        numberOfLines={1}
-                        style={[
-                          styles.childName,
-                          { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
-                        ]}
-                      >
-                        {activeChild.name}{childAge ? " |" : ""}
+                    <LinearGradient
+                      colors={CHILD_GRADIENTS[activeChild.gradientKey]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.avatar}
+                    >
+                      <BabySvg
+                        size={34}
+                        faceColor={CHILD_GRADIENT_FG[activeChild.gradientKey]}
+                        featureColor={CHILD_GRADIENTS[activeChild.gradientKey][1]}
+                      />
+                    </LinearGradient>
+                    <View style={styles.profileText}>
+                      <ThemedText numberOfLines={1} style={styles.childName}>
+                        {activeChild.name}
                       </ThemedText>
                       {childAge && (
                         <ThemedText
-                          type="small"
-                          numberOfLines={1}
-                          style={[
-                            styles.childAge,
-                            { color: CHILD_GRADIENT_FG[activeChild.gradientKey] },
-                          ]}
+                          numberOfLines={2}
+                          themeColor="textMuted"
+                          style={styles.childAge}
                         >
                           {childAge}
                         </ThemedText>
                       )}
                     </View>
-                  </LinearGradient>
-                </Pressable>
-                <GrowthSummary
-                  measurement={latestGrowth}
-                  onPress={() => setGrowthHistoryOpen(true)}
-                />
+                  </Pressable>
+                  <GrowthSummary
+                    measurement={latestGrowth}
+                    onPress={() => setGrowthHistoryOpen(true)}
+                  />
+                </View>
+              ) : (
+                <View />
+              )}
+              <View style={styles.menuSlot}>
+                <MobileMenu />
               </View>
-            ) : (
-              <View />
-            )}
-            <MobileMenu />
-          </View>
-
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Spacing.two}
-            style={[styles.center, dense && styles.centerDense]}
-          >
-            <DayStatsRow stats={dayStats} />
+            </View>
 
             <StatusCard
               primaryKind={primary?.kind ?? null}
               gradKey={active?.gradKey ?? null}
               elapsed={elapsed}
-              statusNote={statusNote}
+              startedAt={primary?.startedAt ?? null}
               feedingActive={concurrentFeeding}
             />
+
+            <DayStatsRow stats={dayStats} />
+
+            <View style={styles.sectionHeader}>
+              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>
+                {t("activity.track")}
+              </ThemedText>
+              {proAccess && (
+                <SlimSwitch
+                  value={simpleActivityMode}
+                  label={t("activity.simple")}
+                  labelColor={theme.textMuted}
+                  activeColor={theme.statusAccent}
+                  inactiveColor={theme.backgroundSelected}
+                  onValueChange={setSimpleActivityMode}
+                />
+              )}
+            </View>
 
             <View style={styles.activityActionsRegion}>
               <ActivityActionsSyncLoader
@@ -403,6 +366,7 @@ export default function ActivityScreen() {
                 <View style={styles.list}>
                 <ProActivityPanel
                   disabled={syncPresentation.activityActionsDisabled}
+                  simple={simpleActivityMode}
                   feedingActive={!!feedingSession}
                   settlingActive={mainSession?.kind === "settling"}
                   sleepActive={mainSession?.kind === "sleep"}
@@ -469,21 +433,21 @@ export default function ActivityScreen() {
                 </View>
               )}
             </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-        {pendingStart && (
-          <StartTimePicker
-            runningStartedAt={mainSession?.startedAt}
-            onConfirm={(startedAt) => void confirmPendingStart(startedAt)}
-            onDismiss={dismissPendingStart}
-          />
-        )}
-        <GrowthHistoryModal
-          visible={growthHistoryOpen}
-          child={activeChild ?? null}
-          onClose={() => setGrowthHistoryOpen(false)}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+      {pendingStart && (
+        <StartTimePicker
+          runningStartedAt={mainSession?.startedAt}
+          onConfirm={(startedAt) => void confirmPendingStart(startedAt)}
+          onDismiss={dismissPendingStart}
         />
-      </ThemedView>
-    </ActivityDensityContext.Provider>
+      )}
+      <GrowthHistoryModal
+        visible={growthHistoryOpen}
+        child={activeChild ?? null}
+        onClose={() => setGrowthHistoryOpen(false)}
+      />
+    </View>
   );
 }

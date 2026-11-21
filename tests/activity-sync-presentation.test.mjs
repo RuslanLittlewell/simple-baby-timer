@@ -54,7 +54,7 @@ test("sync loader is centered over activity actions outside the header", () => {
 
   const loaderIndex = screenSource.indexOf("<ActivityActionsSyncLoader");
   const actionsIndex = screenSource.indexOf("styles.activityActionsRegion");
-  const headerStart = screenSource.indexOf("style={[styles.header");
+  const headerStart = screenSource.indexOf("style={styles.header}");
   const headerEnd = screenSource.indexOf("</View>", headerStart);
 
   assert.ok(actionsIndex > 0 && loaderIndex > actionsIndex);

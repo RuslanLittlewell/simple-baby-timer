@@ -1,20 +1,13 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
-import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/themed-text";
 import { type DayStats } from "@/features/calendar/helpers";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/state/app-state";
-import { useDenseActivityLayout } from "../../use-compact-activity-layout";
+
+import { ActivityIcon } from "../activity-icon";
 
 import {
   getDiaperMetrics,
@@ -24,7 +17,6 @@ import {
   nextMetricIndex,
   type MetricIndex,
   type StatCardContent,
-  withAlpha,
 } from "./helpers";
 import { styles } from "./styles";
 
@@ -32,190 +24,121 @@ interface DayStatsRowProps {
   stats: DayStats;
 }
 
-interface InteractiveStatCardProps extends StatCardContent {
-  dense: boolean;
+interface StatColumnProps extends StatCardContent {
   accessibilityHint: string;
   selectedIndex: number;
-  optionCount?: number;
+  optionCount: number;
   onPress: () => void;
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-// Keeps the "time since last feeding" current without a running session ticker.
 const NOW_REFRESH_MS = 15_000;
 
-function StatContent({ value, label, color }: StatCardContent) {
-  return (
-    <>
-      <ThemedText
-        type="smallBold"
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-        style={{ color }}
-      >
-        {value}
-      </ThemedText>
-      <ThemedText
-        type="small"
-        themeColor="textSecondary"
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.8}
-        style={styles.metricLabel}
-      >
-        {label}
-      </ThemedText>
-    </>
-  );
-}
-
-function InteractiveStatCard({
+function StatColumn({
+  icon,
   value,
   label,
   color,
   accessibilityHint,
   selectedIndex,
-  optionCount = 2,
+  optionCount,
   onPress,
-  dense,
-}: InteractiveStatCardProps) {
+}: StatColumnProps) {
   const theme = useTheme();
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    cancelAnimation(scale);
-    scale.value = withTiming(0.96, { duration: 90 });
-  };
-
-  const handlePressOut = () => {
-    cancelAnimation(scale);
-    scale.value = withSpring(1, { damping: 12, stiffness: 260, mass: 0.5 });
-  };
 
   return (
-    <AnimatedPressable
+    <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
       accessibilityHint={accessibilityHint}
       onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[
-        styles.card,
-        styles.interactiveCard,
-        dense && styles.interactiveCardDense,
-        {
-          backgroundColor: theme.backgroundElement,
-          shadowColor: theme.text,
-        },
-        animatedStyle,
-      ]}
+      style={({ pressed }) => [styles.column, pressed && styles.pressed]}
     >
-      <View
-        style={[
-          styles.interactiveContent,
-          dense && styles.interactiveContentDense,
-        ]}
-        pointerEvents="none"
+      <ActivityIcon name={icon} size={20} color={color} />
+      <ThemedText
+        numberOfLines={2}
+        style={[styles.label, { color: theme.textMuted }]}
       >
-        <View style={[styles.badgeSlot, dense && styles.badgeSlotDense]}>
-          <View
-            style={[
-              styles.swapBadge,
-              { backgroundColor: withAlpha(color, 0.14) },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="swap-horizontal"
-              size={12}
-              color={color}
-              style={selectedIndex > 0 && styles.swapIconAlternate}
+        {label}
+      </ThemedText>
+      <ThemedText numberOfLines={2} style={styles.value}>
+        {value}
+      </ThemedText>
+      <View style={styles.positionIndicator}>
+        {Array.from({ length: optionCount }, (_, index) => {
+          const active = index === selectedIndex;
+          return (
+            <View
+              key={index}
+              style={[
+                styles.positionPill,
+                active ? styles.positionPillActive : styles.positionPillInactive,
+                { backgroundColor: active ? color : theme.hairline },
+              ]}
             />
-          </View>
-        </View>
-        <StatContent value={value} label={label} color={color} />
-        <View style={styles.positionIndicator}>
-          {Array.from({ length: optionCount }, (_, index) => {
-            const active = index === selectedIndex;
-            return (
-              <View
-                key={index}
-                style={[
-                  styles.positionPill,
-                  active
-                    ? styles.positionPillActive
-                    : styles.positionPillInactive,
-                  { backgroundColor: active ? color : theme.border },
-                ]}
-              />
-            );
-          })}
-        </View>
+          );
+        })}
       </View>
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
 export function DayStatsRow({ stats }: DayStatsRowProps) {
   const t = useT();
-  const { accent } = useActivityColors();
+  const theme = useTheme();
+  const { surfaces } = useActivityColors();
   const [showAwake, setShowAwake] = useState<MetricIndex>(0);
   const [feedingView, setFeedingView] = useState<MetricIndex>(0);
   const [showPoop, setShowPoop] = useState<MetricIndex>(0);
   const [now, setNow] = useState(Date.now);
-  const dense = useDenseActivityLayout();
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), NOW_REFRESH_MS);
     return () => clearInterval(id);
   }, []);
 
-  const handleSleepToggle = () => setShowAwake(nextMetricIndex);
-  const handleFeedingToggle = () => setFeedingView(nextMetricIndex);
-  const handleDiaperToggle = () =>
-    setShowPoop((current) => nextMetricIndex(current, 4));
+  const iconColors = {
+    sleep: surfaces.sleep.tint,
+    awake: surfaces.awake.tint,
+    feed: surfaces.feed.tint,
+    diaper: surfaces.diaper.tint,
+    poop: surfaces.poop.tint,
+  };
 
-  const sleepMetrics = getSleepMetrics(stats, accent, t);
-  const feedingMetrics = getFeedingMetrics(stats, accent, t, now);
-  const diaperMetrics = getDiaperMetrics(stats, accent, t);
+  const sleepMetrics = getSleepMetrics(stats, iconColors, t);
+  const feedingMetrics = getFeedingMetrics(stats, iconColors, t, now);
+  const diaperMetrics = getDiaperMetrics(stats, iconColors, t);
 
-  const sleepMetric = sleepMetrics[showAwake];
-  const feedingMetric = feedingMetrics[feedingView];
-  const diaperMetric = diaperMetrics[showPoop];
-
-  const sleepHint = getNextMetricHint(sleepMetrics, showAwake, t);
-  const feedingHint = getNextMetricHint(feedingMetrics, feedingView, t);
-  const diaperHint = getNextMetricHint(diaperMetrics, showPoop, t);
+  const divider = <View style={[styles.divider, { backgroundColor: theme.hairline }]} />;
 
   return (
-    <View style={styles.row}>
-      <InteractiveStatCard
-        dense={dense}
-        {...sleepMetric}
-        accessibilityHint={sleepHint}
+    <View
+      style={[
+        styles.panel,
+        { backgroundColor: theme.panel, borderColor: theme.hairline },
+      ]}
+    >
+      <StatColumn
+        {...sleepMetrics[showAwake]}
+        accessibilityHint={getNextMetricHint(sleepMetrics, showAwake, t)}
         selectedIndex={showAwake}
-        optionCount={3}
-        onPress={handleSleepToggle}
+        optionCount={sleepMetrics.length}
+        onPress={() => setShowAwake((current) => nextMetricIndex(current, sleepMetrics.length))}
       />
-      <InteractiveStatCard
-        dense={dense}
-        {...feedingMetric}
-        accessibilityHint={feedingHint}
+      {divider}
+      <StatColumn
+        {...feedingMetrics[feedingView]}
+        accessibilityHint={getNextMetricHint(feedingMetrics, feedingView, t)}
         selectedIndex={feedingView}
-        optionCount={3}
-        onPress={handleFeedingToggle}
+        optionCount={feedingMetrics.length}
+        onPress={() => setFeedingView((current) => nextMetricIndex(current, feedingMetrics.length))}
       />
-      <InteractiveStatCard
-        dense={dense}
-        {...diaperMetric}
-        accessibilityHint={diaperHint}
+      {divider}
+      <StatColumn
+        {...diaperMetrics[showPoop]}
+        accessibilityHint={getNextMetricHint(diaperMetrics, showPoop, t)}
         selectedIndex={showPoop}
-        optionCount={4}
-        onPress={handleDiaperToggle}
+        optionCount={diaperMetrics.length}
+        onPress={() => setShowPoop((current) => nextMetricIndex(current, diaperMetrics.length))}
       />
     </View>
   );

@@ -5,9 +5,12 @@ import {
   type Translate,
 } from "@/features/calendar/helpers";
 
+import { type IconName } from "../../constants";
+
 export type MetricIndex = 0 | 1 | 2 | 3;
 
 export interface StatCardContent {
+  icon: IconName;
   value: string;
   label: string;
   color: string;
@@ -47,14 +50,6 @@ function formatTimeWithElapsed(timestamp: number, now: number, t: Translate) {
   return `${fmtTime(timestamp)} / ${elapsed}`;
 }
 
-export function withAlpha(hex: string, alpha: number) {
-  const value = hex.replace("#", "");
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-  return `rgba(${red},${green},${blue},${alpha})`;
-}
-
 export function getSleepMetrics(
   stats: DayStats,
   accent: StatAccents,
@@ -62,16 +57,19 @@ export function getSleepMetrics(
 ): StatCardContent[] {
   return [
     {
+      icon: "moon-waning-crescent",
       color: accent.sleep,
       value: stats.lastSleepAt === null ? "—" : formatDateTime(stats.lastSleepAt),
       label: t("kind.lastSleep"),
     },
     {
+      icon: "moon-waning-crescent",
       color: accent.sleep,
       value: formatDuration(stats.sleepMs, t("unit.hours"), t("unit.minutes")),
       label: t("kind.sleep"),
     },
     {
+      icon: "white-balance-sunny",
       color: accent.awake,
       value: formatDuration(stats.awakeMs, t("unit.hours"), t("unit.minutes")),
       label: t("kind.awake"),
@@ -87,6 +85,7 @@ export function getFeedingMetrics(
 ): StatCardContent[] {
   return [
     {
+      icon: "baby-bottle-outline",
       color: accent.feed,
       value:
         stats.lastFeedingAt === null
@@ -95,11 +94,13 @@ export function getFeedingMetrics(
       label: t("stats.lastFeeding"),
     },
     {
+      icon: "baby-bottle-outline",
       color: accent.feed,
       value: String(stats.milkMl),
       label: t("unit.ml"),
     },
     {
+      icon: "baby-bottle-outline",
       color: accent.feed,
       value: String(stats.feedingCount),
       label: t("kind.feeding"),
@@ -114,21 +115,25 @@ export function getDiaperMetrics(
 ): StatCardContent[] {
   return [
     {
+      icon: "diaper-outline",
       color: accent.diaper,
       value: stats.lastDiaperAt === null ? "—" : formatDateTime(stats.lastDiaperAt),
       label: t("stats.lastDiaper"),
     },
     {
+      icon: "diaper-outline",
       color: accent.diaper,
       value: String(stats.diaperCount),
       label: t("kind.diaper"),
     },
     {
+      icon: "emoticon-poop",
       color: accent.poop,
       value: String(stats.poopCount),
-      label: "💩",
+      label: t("kind.poop"),
     },
     {
+      icon: "emoticon-poop",
       color: accent.poop,
       value: stats.lastPoopAt === null ? "—" : formatDateTime(stats.lastPoopAt),
       label: t("stats.lastPoop"),

@@ -35,13 +35,13 @@ export function GrowthSummary({ measurement, onPress }: GrowthSummaryProps) {
       style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}>
       {measurement ? (
         <View style={styles.values}>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.text}>
+          <ThemedText type="small" themeColor="textMuted" style={styles.text}>
             {weight} {t('unit.kg')}
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.separator}>
+          <ThemedText type="small" themeColor="textMuted" style={styles.separator}>
             ·
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.text}>
+          <ThemedText type="small" themeColor="textMuted" style={styles.text}>
             {height} {t('unit.cm')}
           </ThemedText>
         </View>
@@ -57,7 +57,7 @@ export function GrowthSummary({ measurement, onPress }: GrowthSummaryProps) {
 const styles = StyleSheet.create({
   pressable: {
     alignSelf: 'flex-start',
-    minHeight: 22,
+    minHeight: 24,
     justifyContent: 'center',
     paddingHorizontal: 0,
   },
@@ -67,17 +67,17 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   text: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 19,
     fontVariant: ['tabular-nums'],
   },
   separator: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 19,
   },
   emptyText: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 19,
   },
   pressed: {
     opacity: 0.65,

@@ -1,45 +1,25 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect } from "react";
 import {
   type GestureResponderEvent,
-  Platform,
   Pressable,
   StyleSheet,
+  View,
 } from "react-native";
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useActivityColors } from "@/hooks/use-activity-colors";
+import { useT } from "@/state/app-state";
 
 import {
+  ACTION_RADIUS,
   CARD_HEIGHT,
-  COMPACT_CARD_HEIGHT,
-  DENSE_CARD_HEIGHT,
+  CONTROL_SIZE,
   type GradKey,
   type IconName,
 } from "../constants";
-import {
-  useCompactActivityLayout,
-  useDenseActivityLayout,
-} from "../use-compact-activity-layout";
+import { ActivityIcon } from "./activity-icon";
 import { TimerToggleIcon } from "./timer-toggle-icon";
-
-const withAlpha = (hex: string, alpha: number) => {
-  const value = hex.replace("#", "");
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-  return `rgba(${red},${green},${blue},${alpha})`;
-};
 
 interface ActivityRowProps {
   icon: IconName;
@@ -62,31 +42,10 @@ export function ActivityRow({
   onPress,
   onStop,
 }: ActivityRowProps) {
-  const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
-  const fg = fgColors[gradKey];
-  const accent = accentColors[gradKey];
-  const compact = useCompactActivityLayout();
-  const dense = useDenseActivityLayout();
-  const sheenX = useSharedValue(-140);
-
-  useEffect(() => {
-    cancelAnimation(sheenX);
-    if (isActive) {
-      sheenX.value = -140;
-      sheenX.value = withRepeat(
-        withTiming(900, { duration: 3200, easing: Easing.inOut(Easing.quad) }),
-        -1,
-        false,
-      );
-    } else {
-      sheenX.value = -140;
-    }
-    return () => cancelAnimation(sheenX);
-  }, [isActive, sheenX]);
-
-  const sheenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: sheenX.value }, { skewX: "-16deg" }],
-  }));
+  const t = useT();
+  const { surfaces } = useActivityColors();
+  const surface = surfaces[gradKey];
+  const stopEnabled = !disabled && isActive && !!onStop;
 
   const handleStopPress = (event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -96,71 +55,62 @@ export function ActivityRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityLabel={isActive ? `${label}, ${t("activity.active")}` : label}
+      accessibilityState={{ disabled, selected: isActive }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => pressed && styles.pressed}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          backgroundColor: surface.fill,
+          borderColor: isActive ? surface.activeBorder : surface.border,
+        },
+        isActive && styles.rowActive,
+        (dimmed || disabled) && styles.rowDimmed,
+        pressed && styles.pressed,
+      ]}
     >
-      <LinearGradient
-        colors={gradients[gradKey]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={[
-          styles.row,
-          { borderColor: withAlpha(accent, 0.68) },
-          compact && styles.rowCompact,
-          dense && styles.rowDense,
-          compact && Platform.OS === "android" && styles.rowCompactAndroid,
-          (dimmed || disabled) && styles.rowDimmed,
-        ]}
-      >
-        {isActive && (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.sheen, sheenStyle]}
-          >
-            <LinearGradient
-              colors={[
-                "rgba(255,255,255,0)",
-                "rgba(255,255,255,0.45)",
-                "rgba(255,255,255,0)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
-        )}
-        <MaterialCommunityIcons
-          name={icon}
-          size={dense ? 22 : compact ? 24 : 26}
-          color={accent}
+      {surface.gradient && (
+        <LinearGradient
+          colors={surface.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
         />
+      )}
+      <View style={styles.iconSlot}>
+        <ActivityIcon name={icon} size={26} color={surface.icon} />
+      </View>
+      <View style={styles.labelGroup}>
         <ThemedText
-          style={[
-            styles.label,
-            compact && Platform.OS === "android" && styles.labelCompactAndroid,
-            { color: fg },
-          ]}
+          style={[styles.label, { color: surface.label }]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
         >
           {label}
         </ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: disabled || !isActive || !onStop }}
-          disabled={disabled || !isActive || !onStop}
-          hitSlop={isActive && onStop ? 10 : undefined}
-          onPress={handleStopPress}
-          style={styles.toggleButton}
-        >
-          <TimerToggleIcon
-            active={isActive}
-            accent={accent}
-            darkBackgroundColor={gradKey === "feed" ? fg : undefined}
-          />
-        </Pressable>
-      </LinearGradient>
+        {isActive && (
+          <View style={[styles.badge, { borderColor: surface.activeBorder }]}>
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.badgeText, { color: surface.activeBorder }]}
+            >
+              {t("activity.active")}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !stopEnabled }}
+        disabled={!stopEnabled}
+        hitSlop={stopEnabled ? 6 : undefined}
+        onPress={handleStopPress}
+        style={styles.toggleButton}
+      >
+        <TimerToggleIcon active={isActive} surface={surface} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -169,51 +119,57 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.three,
+    gap: 12,
     minHeight: CARD_HEIGHT,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    borderRadius: 20,
+    paddingVertical: Spacing.two,
+    paddingLeft: Spacing.three,
+    paddingRight: 10,
+    borderRadius: ACTION_RADIUS,
     borderWidth: 1,
     overflow: "hidden",
+  },
+  rowActive: {
+    borderWidth: 1.5,
   },
   rowDimmed: {
     opacity: 0.45,
   },
-  rowCompact: {
-    minHeight: COMPACT_CARD_HEIGHT,
-    paddingVertical: Spacing.two,
+  iconSlot: {
+    width: 28,
+    alignItems: "center",
   },
-  rowDense: {
-    minHeight: DENSE_CARD_HEIGHT,
-    paddingVertical: Spacing.one,
-    borderRadius: 20,
-  },
-  // Android phones are narrower, so the feeding label needs the room to stay whole.
-  rowCompactAndroid: {
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
+  labelGroup: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: Spacing.two,
+    rowGap: Spacing.one,
   },
   label: {
-    flex: 1,
-    fontSize: 14,
+    flexShrink: 1,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "700",
   },
-  labelCompactAndroid: {
-    fontSize: 13,
+  badge: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 1,
+  },
+  badgeText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.75,
   },
   toggleButton: {
-    width: 42,
-    height: 42,
-  },
-  sheen: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 132,
+    width: CONTROL_SIZE,
+    height: CONTROL_SIZE,
   },
 });

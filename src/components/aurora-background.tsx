@@ -131,7 +131,11 @@ function AuroraBlob({ spec, running }: AuroraBlobProps) {
   );
 }
 
-export function AuroraBackground() {
+interface AuroraBackgroundProps {
+  opacity?: number;
+}
+
+export function AuroraBackground({ opacity = 1 }: AuroraBackgroundProps) {
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
 
@@ -145,7 +149,7 @@ export function AuroraBackground() {
   const running = focused && foreground;
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
       {BLOBS.map((spec) => (
         <AuroraBlob key={spec.id} spec={spec} running={running} />
       ))}

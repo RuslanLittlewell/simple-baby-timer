@@ -21,6 +21,7 @@ interface PanelActionsProps {
   feedingActive: boolean;
   nightWakingVisible: boolean;
   settlingActive: boolean;
+  simple: boolean;
   sleepActive: boolean;
   onCaptureRect: (kind: ProKind) => (event: LayoutChangeEvent) => void;
   onEventRowTop: (top: number) => void;
@@ -46,7 +47,9 @@ export function PanelActions(props: PanelActionsProps) {
           label={t("kind.settling")}
           isActive={props.settlingActive}
           onStop={() => void props.onToggleSettling()}
-          onPress={() => props.onOpen("settling")}
+          onPress={() =>
+            props.simple ? void props.onToggleSettling() : props.onOpen("settling")
+          }
         />
       </View>
       <View
@@ -64,7 +67,9 @@ export function PanelActions(props: PanelActionsProps) {
             label={t("kind.sleep")}
             isActive={props.sleepActive}
             onStop={() => void props.onToggleSleep()}
-            onPress={() => props.onOpen("sleep")}
+            onPress={() =>
+              props.simple ? void props.onToggleSleep() : props.onOpen("sleep")
+            }
           />
         </View>
         {props.nightWakingVisible && (
@@ -99,7 +104,9 @@ export function PanelActions(props: PanelActionsProps) {
             label={t("pro.feeding")}
             isActive={props.feedingActive}
             onStop={() => void props.onToggleFeeding()}
-            onPress={() => props.onOpen("feeding")}
+            onPress={() =>
+              props.simple ? void props.onToggleFeeding() : props.onOpen("feeding")
+            }
           />
         </View>
         {EVENTS.slice(0, 2).map((event) => (

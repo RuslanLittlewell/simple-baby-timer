@@ -76,6 +76,7 @@ type Settings = {
   feedingNotificationsEnabled: boolean;
   language: LanguageCode;
   themeMode: ThemeMode;
+  simpleActivityMode: boolean;
 };
 
 type PersistedState = Settings & {
@@ -126,6 +127,7 @@ const DEFAULT_SETTINGS: Settings = {
   feedingNotificationsEnabled: false,
   language: DEFAULT_LANGUAGE,
   themeMode: 'dark',
+  simpleActivityMode: false,
 };
 
 const sanitizeChildren = (value: unknown): Child[] => {
@@ -239,6 +241,7 @@ type AppStore = PersistedState & {
   setActiveProDetails: (details: ProDetails) => void;
   setLanguage: (code: LanguageCode) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  setSimpleActivityMode: (simple: boolean) => void;
   setOnboardingComplete: (complete: boolean) => void;
   addChild: (
     name: string,
@@ -639,6 +642,7 @@ export const useAppStore = create<AppStore>()(
       setPendingPaywall: (pending) => set({ pendingPaywall: pending }),
       setAuthRequired: (required) => set({ authRequired: required }),
       setThemeMode: (mode) => set({ themeMode: mode }),
+      setSimpleActivityMode: (simple) => set({ simpleActivityMode: simple }),
 
       addChild: (name, gradientKey, birthday, heightCm, weightKg) => {
         const trimmed = name.trim();
@@ -1042,6 +1046,7 @@ export const useAppStore = create<AppStore>()(
         feedingNotificationsEnabled,
         language,
         themeMode,
+        simpleActivityMode,
         children,
         activeChildId,
         removedRemoteIds,
@@ -1057,6 +1062,7 @@ export const useAppStore = create<AppStore>()(
         feedingNotificationsEnabled,
         language,
         themeMode,
+        simpleActivityMode,
         children,
         activeChildId,
         removedRemoteIds,
@@ -1096,6 +1102,7 @@ export const useAppStore = create<AppStore>()(
               : current.feedingNotificationsEnabled,
           language: normalizeLanguage(saved.language),
           themeMode: saved.themeMode === 'light' ? 'light' : 'dark',
+          simpleActivityMode: saved.simpleActivityMode === true,
           children,
           removedRemoteIds: Array.isArray(saved.removedRemoteIds)
             ? saved.removedRemoteIds.filter((id): id is string => typeof id === 'string')
