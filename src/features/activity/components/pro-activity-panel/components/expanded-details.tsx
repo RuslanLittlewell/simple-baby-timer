@@ -72,7 +72,7 @@ export function ExpandedDetails(props: ExpandedDetailsProps) {
         {places.map((row, index) => (
           <View key={index} style={styles.options}>
             {row.map((place) => (
-              <Choice key={place.value} tone="sleep" icon={place.icon} label={place.label} selected={props.sleepPlace === place.value} onPress={() => props.onSleepPlaceChange(place.value)} />
+              <Choice key={place.value} tone="sleep" icon={place.icon} label={place.label} selected={props.sleepPlace === place.value} multiline onPress={() => props.onSleepPlaceChange(place.value)} />
             ))}
           </View>
         ))}

@@ -9,9 +9,10 @@ export type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
 
 
-export const CARD_HEIGHT = 82;
-export const COMPACT_CARD_HEIGHT = 68;
-export const DENSE_CARD_HEIGHT = 54;
+export const CARD_HEIGHT = 64;
+export const ACTION_GAP = 6;
+export const CONTROL_SIZE = 44;
+export const ACTION_RADIUS = 22;
 
 export interface ActivityMeta {
   id: ActivityKind;

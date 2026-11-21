@@ -3,71 +3,45 @@ import { StyleSheet } from "react-native";
 import { Spacing } from "@/constants/theme";
 
 export const styles = StyleSheet.create({
-  row: {
+  panel: {
     flexDirection: "row",
     alignSelf: "stretch",
-    gap: Spacing.one,
+    borderRadius: 22,
+    borderWidth: 1,
   },
-  card: {
+  column: {
     flex: 1,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.half,
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-  },
-  interactiveCard: {
-    paddingHorizontal: Spacing.one,
-    paddingVertical: Spacing.two,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  interactiveCardDense: {
-    paddingVertical: Spacing.one,
-  },
-  interactiveContent: {
-    alignSelf: "stretch",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.half,
-    minHeight: 52,
+    paddingTop: Spacing.two,
+    paddingBottom: 6,
     paddingHorizontal: Spacing.one,
   },
-  interactiveContentDense: {
-    minHeight: 42,
-    gap: 0,
+  divider: {
+    width: StyleSheet.hairlineWidth * 2,
+    marginVertical: 12,
   },
-  metricLabel: {
-    fontSize: 10,
-    lineHeight: 13,
+  label: {
+    fontSize: 11,
+    lineHeight: 14,
+    textAlign: "center",
   },
-  badgeSlot: {
+  value: {
     alignSelf: "stretch",
-    height: 16,
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  badgeSlotDense: {
-    height: 12,
-  },
-  swapBadge: {
-    width: 22,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-  },
-  swapIconAlternate: {
-    transform: [{ rotate: "180deg" }],
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
   },
   positionIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.half,
-    height: 4,
+    height: 3,
     marginTop: Spacing.half,
   },
   positionPill: {
@@ -75,9 +49,12 @@ export const styles = StyleSheet.create({
     borderRadius: 2,
   },
   positionPillActive: {
-    width: 14,
+    width: 12,
   },
   positionPillInactive: {
-    width: 6,
+    width: 5,
+  },
+  pressed: {
+    opacity: 0.6,
   },
 });

@@ -2,88 +2,100 @@ import { StyleSheet } from "react-native";
 
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 
+import { ACTION_GAP } from "../constants";
+
+const SCREEN_GUTTER = 20;
+const BLOCK_GAP = 14;
+const AVATAR_SIZE = 52;
+
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
   },
   safeArea: {
     flex: 1,
-    alignSelf: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.four,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-    width: "100%",
   },
-  safeAreaDense: {
-    paddingBottom: BottomTabInset + Spacing.one,
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: MaxContentWidth,
+    gap: BLOCK_GAP,
+    paddingHorizontal: SCREEN_GUTTER,
+    paddingTop: Spacing.two,
+    paddingBottom: BottomTabInset + 20,
   },
   header: {
-    alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingTop: Spacing.four,
-  },
-  headerDense: {
-    paddingTop: Spacing.one,
+    gap: 12,
   },
   profileStack: {
+    flexShrink: 1,
     alignItems: "flex-start",
-    gap: Spacing.half,
+    gap: 6,
   },
-  childChip: {
-    height: 28,
+  profile: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderRadius: 10,
-    overflow: "hidden",
-    shadowColor: "#111827",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    gap: 12,
+    minHeight: 44,
   },
-  childChipDense: {
-    height: 28,
-  },
-  childInfo: {
-    maxWidth: 190,
-    flexDirection: "row",
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     alignItems: "center",
-    gap: Spacing.one,
+    justifyContent: "center",
+  },
+  profileText: {
+    flexShrink: 1,
   },
   childName: {
-    flexShrink: 1,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "700",
   },
   childAge: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  center: {
-    flex: 1,
-    alignSelf: "stretch",
+  menuSlot: {
+    minHeight: AVATAR_SIZE,
     justifyContent: "center",
-    gap: Spacing.five,
   },
-  centerDense: {
-    gap: Spacing.three,
+  sectionHeader: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+    minHeight: 32,
+    marginBottom: -Spacing.one,
+  },
+  sectionTitle: {
+    flexShrink: 1,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: "700",
   },
   activityActionsRegion: {
     position: "relative",
   },
   list: {
-    gap: Spacing.one,
+    gap: ACTION_GAP,
   },
   eventRow: {
     flexDirection: "row",
     alignSelf: "stretch",
-    gap: Spacing.one,
+    gap: ACTION_GAP,
   },
   eventNarrow: {
     flex: 2,

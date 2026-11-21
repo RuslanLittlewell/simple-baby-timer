@@ -3,6 +3,7 @@ import {
   ACTIVITY_FG,
   ACTIVITY_FLOAT_ACCENT,
   ACTIVITY_GRADIENTS,
+  ACTIVITY_SURFACES,
   ACTIVITY_TIMELINE_GRADIENTS,
 } from '@/constants/activities';
 import { useAppStore } from '@/state/app-state';
@@ -15,5 +16,6 @@ export function useActivityColors() {
     fg: ACTIVITY_FG[mode],
     accent: ACTIVITY_ACCENT[mode],
     float: ACTIVITY_FLOAT_ACCENT[mode],
+    surfaces: ACTIVITY_SURFACES[mode],
   };
 }

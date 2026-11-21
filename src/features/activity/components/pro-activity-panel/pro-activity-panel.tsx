@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Keyboard, Platform, View, type LayoutChangeEvent } from "react-native";
+import { Keyboard, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   cancelAnimation,
   interpolate,
@@ -14,7 +14,7 @@ import { Spacing } from "@/constants/theme";
 import { useActivityColors } from "@/hooks/use-activity-colors";
 import { type EventKind, type ProDetails } from "@/lib/activity-store";
 
-import { CARD_HEIGHT } from "../../constants";
+import { ACTION_GAP, ACTION_RADIUS, CARD_HEIGHT, CONTROL_SIZE } from "../../constants";
 import { ExpandedDetails } from "./components/expanded-details";
 import { ExpandedFooter } from "./components/expanded-footer";
 import { ExpandedHeader } from "./components/expanded-header";
@@ -23,8 +23,8 @@ import {
   buildProDetails,
   isNightWakingTime,
   parseVolumeMl,
+  SETTLING_METHODS,
   toggleInSettlingMethods,
-  withAlpha,
   type BottleContent,
   type BreastSide,
   type FeedingMode,
@@ -32,12 +32,22 @@ import {
   type SettlingMethod,
   type SleepPlace,
 } from "./helpers";
-import { styles } from "./styles";
+import { CHOICE_MIN_HEIGHT, CONTENT_INSET, styles } from "./styles";
 
-// The expanded card is laid out for the four rows at their full height. When
-// Android draws shorter rows, the card grows upward over the status card to
-// that height instead of squeezing its content into a scroll.
-const EXPANDED_MIN_HEIGHT = 4 * CARD_HEIGHT + 3 * Spacing.one;
+const BLOCK_HEIGHT = 4 * CARD_HEIGHT + 3 * ACTION_GAP;
+const CARD_BORDER_ALLOWANCE = 4;
+const SETTLING_EXPANDED_HEIGHT =
+  CARD_HEIGHT +
+  ACTION_GAP +
+  SETTLING_METHODS.length * CHOICE_MIN_HEIGHT +
+  (SETTLING_METHODS.length - 1) * ACTION_GAP +
+  ACTION_GAP +
+  CONTROL_SIZE +
+  CONTENT_INSET +
+  CARD_BORDER_ALLOWANCE;
+
+const expandedMinHeight = (kind: ProKind | null) =>
+  kind === "settling" ? Math.max(BLOCK_HEIGHT, SETTLING_EXPANDED_HEIGHT) : BLOCK_HEIGHT;
 
 interface Rect {
   x: number;
@@ -48,6 +58,7 @@ interface Rect {
 
 interface ProActivityPanelProps {
   disabled?: boolean;
+  simple?: boolean;
   feedingActive: boolean;
   settlingActive: boolean;
   sleepActive: boolean;
@@ -75,6 +86,7 @@ interface ProActivityPanelProps {
 
 export function ProActivityPanel({
   disabled = false,
+  simple = false,
   feedingActive,
   settlingActive,
   sleepActive,
@@ -90,8 +102,8 @@ export function ProActivityPanel({
   dismissSignal,
   onExpandedChange,
 }: ProActivityPanelProps) {
-  const { gradients, fg: fgColors, accent: accentColors } = useActivityColors();
-  const cardRadius = 20;
+  const { surfaces } = useActivityColors();
+  const cardRadius = ACTION_RADIUS;
   const [expandedKind, setExpandedKind] = useState<ProKind | null>(null);
   const [nightWakingVisible, setNightWakingVisible] = useState(
     isNightWakingTime,
@@ -118,7 +130,7 @@ export function ProActivityPanel({
   const isSleep = expandedKind === "sleep";
   const isSettling = expandedKind === "settling";
   const expandedGradKey = isSettling ? "settling" : isSleep ? "sleep" : "feed";
-  const fg = fgColors[expandedGradKey];
+  const surface = surfaces[expandedGradKey];
   const timerRunning = isSettling
     ? settlingActive
     : isSleep
@@ -317,10 +329,7 @@ export function ProActivityPanel({
       : measuredRect
     : undefined;
 
-  const expandedHeight =
-    Platform.OS === "android"
-      ? Math.max(panelSize.height, EXPANDED_MIN_HEIGHT)
-      : panelSize.height;
+  const expandedHeight = Math.max(panelSize.height, expandedMinHeight(expandedKind));
   const expandedRise = expandedHeight - panelSize.height;
 
   const overlayStyle = useAnimatedStyle(() => {
@@ -363,6 +372,7 @@ export function ProActivityPanel({
         feedingActive={feedingActive}
         nightWakingVisible={nightWakingVisible}
         settlingActive={settlingActive}
+        simple={simple}
         sleepActive={sleepActive}
         onCaptureRect={captureRect}
         onEventRowTop={setEventRowTop}
@@ -381,19 +391,31 @@ export function ProActivityPanel({
           style={[styles.overlay, overlayStyle]}
           onTouchEnd={(event) => event.stopPropagation()}
         >
-          <LinearGradient
-            colors={gradients[expandedGradKey]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <View
             style={[
               styles.card,
               {
-                borderColor: withAlpha(accentColors[expandedGradKey], 0.68),
-                borderRadius: cardRadius,
+                backgroundColor: surface.fill,
+                borderColor: timerRunning ? surface.activeBorder : surface.border,
+                borderWidth: timerRunning ? 1.5 : 1,
               },
             ]}
           >
-            <ExpandedHeader color={fg} kind={expandedKind} onClose={() => close(false)} />
+            {surface.gradient && (
+              <LinearGradient
+                colors={surface.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+            <ExpandedHeader
+              kind={expandedKind}
+              surface={surface}
+              running={timerRunning}
+              progress={expansion}
+              onClose={() => close(false)}
+            />
 
             <Animated.ScrollView
               style={[styles.details, detailsStyle]}
@@ -404,7 +426,7 @@ export function ProActivityPanel({
             >
               <ExpandedDetails
                 bottleStart={bottleStart}
-                color={fg}
+                color={surface.label}
                 content={content}
                 kind={expandedKind}
                 mode={mode}
@@ -426,7 +448,7 @@ export function ProActivityPanel({
               <ExpandedFooter
                 animatedStyle={detailsStyle}
                 canSave={!formSaveDisabled}
-                color={fg}
+                color={surface.label}
                 disabled={disabled}
                 saving={saving}
                 showBack={isFeeding && mode !== null}
@@ -435,7 +457,7 @@ export function ProActivityPanel({
                 onPrimaryPress={() => void handlePrimaryPress()}
               />
             )}
-          </LinearGradient>
+          </View>
         </Animated.View>
       )}
     </View>
