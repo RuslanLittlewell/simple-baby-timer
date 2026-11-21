@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dozumi",
     "slug": "BabyTimer",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "babytimer",
@@ -56,7 +56,8 @@
         {
           "sounds": [
             "./assets/sounds/reminder_silent.wav"
-          ]
+          ],
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       "expo-apple-authentication",

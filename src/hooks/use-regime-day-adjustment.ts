@@ -44,6 +44,11 @@ async function recalculatePass(): Promise<void> {
 let tail: Promise<void> = Promise.resolve();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+export function recalculateRegimeDayProgress(): Promise<void> {
+  tail = tail.then(recalculatePass).catch(() => {});
+  return tail;
+}
+
 function scheduleRecalculation() {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {

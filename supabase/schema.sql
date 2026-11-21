@@ -126,6 +126,17 @@ create table if not exists public.live_activity_instances (
     references public.live_activity_devices (user_id, installation_id) on delete cascade
 );
 
+create table if not exists public.sync_push_devices (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  installation_id text not null,
+  platform text not null check (platform in ('ios')),
+  device_token text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, installation_id)
+);
+
+create index if not exists sync_push_devices_token on public.sync_push_devices (device_token);
+
 create table if not exists public.invites (
   code text primary key,
   child_id uuid not null references public.children (id) on delete cascade,
@@ -144,6 +155,7 @@ grant select, insert, update, delete on
   public.live_sessions,
   public.live_activity_devices,
   public.live_activity_instances,
+  public.sync_push_devices,
   public.invites
 to authenticated, service_role;
 
@@ -231,6 +243,7 @@ alter table public.child_measurements enable row level security;
 alter table public.live_sessions enable row level security;
 alter table public.live_activity_devices enable row level security;
 alter table public.live_activity_instances enable row level security;
+alter table public.sync_push_devices enable row level security;
 alter table public.invites enable row level security;
 
 drop policy if exists profiles_select_own on public.profiles;
@@ -309,6 +322,11 @@ create policy live_activity_instances_own on public.live_activity_instances
         and d.installation_id = live_activity_instances.installation_id
     )
   );
+
+drop policy if exists sync_push_devices_own on public.sync_push_devices;
+create policy sync_push_devices_own on public.sync_push_devices
+  for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 drop policy if exists invites_select on public.invites;
 create policy invites_select on public.invites

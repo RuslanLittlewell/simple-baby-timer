@@ -93,21 +93,73 @@ async function apnsJwt() {
   return value;
 }
 
-async function sendApns(token: string, payload: unknown) {
+const LIVE_ACTIVITY_DELIVERY = { topic: APNS_TOPIC, pushType: 'liveactivity', priority: '10' };
+const BACKGROUND_DELIVERY = { topic: BUNDLE_ID, pushType: 'background', priority: '5' };
+
+async function sendApns(
+  token: string,
+  payload: unknown,
+  delivery: { topic: string; pushType: string; priority: string } = LIVE_ACTIVITY_DELIVERY,
+) {
   const production = Deno.env.get('APNS_ENVIRONMENT') === 'production';
   const host = production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
   const response = await fetch(`${host}/3/device/${token}`, {
     method: 'POST',
     headers: {
       authorization: `bearer ${await apnsJwt()}`,
-      'apns-topic': APNS_TOPIC,
-      'apns-push-type': 'liveactivity',
-      'apns-priority': '10',
+      'apns-topic': delivery.topic,
+      'apns-push-type': delivery.pushType,
+      'apns-priority': delivery.priority,
       'content-type': 'application/json',
     },
     body: JSON.stringify(payload),
   });
   return { ok: response.ok, status: response.status, body: await response.text() };
+}
+
+type AdminClient = ReturnType<typeof createClient>;
+
+async function wakeMemberApps(
+  admin: AdminClient,
+  childId: string,
+  memberIds: string[],
+  senderInstallationId: string,
+) {
+  if (!memberIds.length) return [];
+  const { data: candidates } = await admin
+    .from('sync_push_devices')
+    .select('user_id, installation_id, device_token')
+    .in('user_id', memberIds)
+    .eq('platform', 'ios')
+    .neq('installation_id', senderInstallationId);
+  const tokens = [...new Set((candidates ?? []).map((row) => row.device_token as string))];
+  if (!tokens.length) return [];
+
+  const { data: registrations } = await admin
+    .from('sync_push_devices')
+    .select('user_id, device_token, updated_at')
+    .in('device_token', tokens)
+    .order('updated_at', { ascending: false });
+  const latestOwner = new Map<string, string>();
+  for (const row of registrations ?? []) {
+    if (!latestOwner.has(row.device_token)) latestOwner.set(row.device_token, row.user_id);
+  }
+
+  const payload = {
+    aps: { 'content-available': 1 },
+    body: { type: 'live-changed', childId },
+  };
+  return Promise.all(
+    tokens
+      .filter((token) => memberIds.includes(latestOwner.get(token) ?? ''))
+      .map(async (token) => {
+        const result = await sendApns(token, payload, BACKGROUND_DELIVERY);
+        if (isPermanentTokenFailure(result.status, result.body)) {
+          await admin.from('sync_push_devices').delete().eq('device_token', token);
+        }
+        return result;
+      }),
+  );
 }
 
 const isPermanentTokenFailure = (status: number, body: string) => {
@@ -171,6 +223,9 @@ Deno.serve(async (request) => {
       .from('child_members').select('child_id').eq('child_id', body.childId).eq('user_id', user.id).maybeSingle();
     if (!membership) return new Response('Forbidden', { status: 403 });
 
+    const { data: members } = await admin.from('child_members').select('user_id').eq('child_id', body.childId);
+    const memberIds = (members ?? []).map((row) => row.user_id as string);
+
     const timestamp = Math.floor(Date.now() / 1000);
     const { data: instances } = await admin
       .from('live_activity_instances')
@@ -201,8 +256,6 @@ Deno.serve(async (request) => {
       if (!body.kind || !Number.isFinite(body.startedAt)) {
         return new Response('Missing activity state', { status: 400 });
       }
-      const { data: members } = await admin.from('child_members').select('user_id').eq('child_id', body.childId);
-      const memberIds = (members ?? []).map((row) => row.user_id);
       if (memberIds.length) {
         const { data: devices } = await admin
           .from('live_activity_devices')
@@ -298,7 +351,9 @@ Deno.serve(async (request) => {
       }
     }
 
-    return Response.json({ ok: true, deliveries: results });
+    const wakeups = await wakeMemberApps(admin, body.childId, memberIds, body.installationId);
+
+    return Response.json({ ok: true, deliveries: results, wakeups });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }

@@ -138,17 +138,22 @@ const stopRecord = (key: string) => {
   delete records[key];
 };
 const startRecord = (desired: DesiredLiveActivity) => {
-  const id = LiveActivity.startActivity(stateFor(desired.kind, desired.startedAt, desired.labels), {
-    timerType: 'digital',
-    backgroundColor: '#000000',
-    titleColor: '#FFFFFF',
-    subtitleColor: '#B0B4BA',
-    progressViewTint: TINTS[desired.kind],
-    progressViewLabelColor: '#FFFFFF',
-    deepLinkUrl: 'babytimer://',
-    padding: { vertical: 14, horizontal: 16 },
-    imageSize: { width: 28, height: 28 },
-  });
+  let id: ReturnType<typeof LiveActivity.startActivity>;
+  try {
+    id = LiveActivity.startActivity(stateFor(desired.kind, desired.startedAt, desired.labels), {
+      timerType: 'digital',
+      backgroundColor: '#000000',
+      titleColor: '#FFFFFF',
+      subtitleColor: '#B0B4BA',
+      progressViewTint: TINTS[desired.kind],
+      progressViewLabelColor: '#FFFFFF',
+      deepLinkUrl: 'babytimer://',
+      padding: { vertical: 14, horizontal: 16 },
+      imageSize: { width: 28, height: 28 },
+    });
+  } catch {
+    return;
+  }
   if (id) records[recordKey(desired.ownerId, desired.slot)] = { ...desired, id };
 };
 

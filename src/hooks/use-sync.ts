@@ -42,6 +42,7 @@ import {
 import { forgetPurchaser, identifyPurchaser } from '@/lib/purchases';
 import { useAppStore, type RemoteLive } from '@/state/app-state';
 import { subscribeToLiveActivityPushTokens } from '@/lib/live-activity-sync';
+import { subscribeToBackgroundPushTokens } from '@/lib/background-push';
 import {
   buildLiveActivityLabels,
   reconcileLiveActivities,
@@ -425,6 +426,15 @@ async function catchUpChild(remoteId: string, localChildId: string) {
   if (changed > 0) useAppStore.getState().bumpDataVersion();
 }
 
+export async function syncAfterRemoteChange(remoteChildId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  if (!(await getUserId())) return false;
+  await refreshLive();
+  const child = useAppStore.getState().children.find((item) => item.remoteId === remoteChildId);
+  if (child) await catchUpChild(remoteChildId, child.id);
+  return true;
+}
+
 
 
 export function useSync() {
@@ -436,6 +446,11 @@ export function useSync() {
     if (!authed) return;
     return subscribeToLiveActivityPushTokens(language);
   }, [authed, language]);
+
+  useEffect(() => {
+    if (!authed) return;
+    return subscribeToBackgroundPushTokens();
+  }, [authed]);
 
   useEffect(() => subscribeToQueueFailures(scheduleSyncRetry), []);
 
